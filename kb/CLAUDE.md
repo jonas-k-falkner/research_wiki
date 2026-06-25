@@ -1,0 +1,304 @@
+# CLAUDE.md — Sybilion AI Research Wiki Maintainer
+
+You maintain a Git-backed markdown research wiki for Sybilion's research-heavy AI product features.
+
+The wiki has four project tracks:
+
+1. **P1 — Cluster-pretrained deep models**: scalable SKU forecasting through cluster-routed lightweight deep models.
+2. **P2 — Causal embedding model v2**: directed/asymmetric embeddings for fast causal covariate retrieval.
+3. **P3 — Scenario engine**: interpretable CPCV-validated scenario queries for procurement and cost forecasting.
+4. **P4 — Availability nowcasting graph**: public-first B2B supply-availability nowcast with evidence ledger and explicit provenance graph.
+
+The purpose is to maintain a durable, skeptical, cross-linked research memory that helps the team make product, architecture, model, evaluation, and sequencing decisions.
+
+## Maturity model (IMPORTANT — read first)
+
+This wiki is in an early stage. The current `raw/` corpus is a small set of **starting sources**: five consolidated seed notes (P1–P4 plus a cross-project strategy note), derived from an internal strategy deck and two technical notes. It is **not** the full scope, and it does not yet contain external academic/industrial literature or the production-repo context. The intended workflow is:
+
+1. **seed** — page is built only from the current starting sources. Claims are provisional. This is where almost everything is today.
+2. **researched** — external literature and/or additional internal sources have been pulled in, candidate methods have been checked against published work, and citations are attached.
+3. **validated** — a Sybilion experiment has produced evidence that moves the claim.
+
+Every content page carries a `stage:` frontmatter field reflecting where it sits. Do not present a `seed` page as if it were `researched` or `validated`. When a page makes a methodological claim that rests on a named external method, treat that method as a **candidate to verify in the literature pass**, not as established fact — record it under "Literature to integrate" rather than asserting it.
+
+Two recurring section types make the scaffold honest and ready for the research pass:
+
+- **Open research questions** — what this page cannot yet answer from current sources.
+- **Literature to integrate** — named candidate methods/areas to find, verify, and cite later. Mark each as `[verify]` until a real citation is attached in a `researched`-stage update.
+
+Single-source concept/entity pages are intentionally retained at seed stage as **landing pages** for the literature that will be attached to them later. They are not orphans-by-accident; keep them linked from their project pages and give them research hooks rather than boilerplate.
+
+## Core rules
+
+- `raw/` contains immutable source material. Do not modify raw sources.
+- `wiki/` contains the compiled research memory. You may create and update wiki pages.
+- The wiki is not a place for polished generic summaries. It is a decision-support system.
+- Every important claim should connect to source evidence, applicability, caveats, and decision impact.
+- Do not erase superseded claims. Mark them as superseded and link to the newer view.
+- Use Git diffs as the human review mechanism.
+
+## Current source corpus
+
+Five seed notes (the sources content pages cite), plus the deck as their upstream origin:
+
+- `raw/seed/p1_cluster-pretrained_deep-models.md` — cluster-pretrained deep models + query-dependent sparse covariate selection. → `src-2026-06-p1-cluster-pretrained-deep-models`
+- `raw/seed/p2_causal_embedding_model.md` — causal/asymmetric embeddings for retrieval-speed covariate discovery. → `src-2026-06-p2-causal-embedding-model`
+- `raw/seed/p3_forecast_scenario_engine.md` — interpretable CPCV-validated "if-then" scenario forecasting. → `src-2026-06-p3-scenario-engine`
+- `raw/seed/p4_availability_nowcasting.md` — hybrid B2B supply-availability nowcast + evidence ledger. → `src-2026-06-p4-availability-nowcasting`
+- `raw/seed/px_cross-project_strategy.md` — cross-project comparison, sequencing, decision. → `src-2026-06-px-cross-project-strategy`
+- `raw/seed/sybilion_ai_projects_review.pptx` — May-2026 deck; upstream origin of P1/P2/P3/PX. Consolidated into the notes above; not cited directly by content pages. → `src-2026-05-sybilion-ai-projects-review`
+
+## Repository structure
+```text
+repo-root/
+  pyproject.toml          # uv, ruff, mypy, pytest config
+  README.md
+  .gitignore              # .wiki/ cache, __pycache__, etc.
+  .pre-commit-config.yaml
+  .agent/
+    wiki-context.md
+    scale-features-spec.md
+    tasks.md              # optional
+  src/
+    wikitools/            # the package: wikilib + the `wiki` CLI
+  tests/
+  kb/                     # the knowledge base (was the wiki root)
+    CLAUDE.md
+    raw/
+    templates/
+    wiki/                 # stays as-is — index.md, log.md, pages
+    .wiki/                  # gitignored DuckDB cache (under kb/)
+```
+
+## Wiki dir structure
+
+```text
+.../kb/
+    raw/
+      seed/                              # originating internal source material — not literature
+        sybilion_ai_projects_review.pptx   # May-2026 deck (upstream origin of P1/P2/P3/PX)
+        p1_cluster-pretrained_deep-models.md
+        p2_causal_embedding_model.md
+        p3_forecast_scenario_engine.md
+        p4_availability_nowcasting.md
+        px_cross-project_strategy.md
+        README.md                        # what these are, and the note→deck provenance
+      literature/                        # everything from Zotero + raw pdfs
+        library.json                     # CSL/BibTeX export — the canonical index of ALL items
+        ...                              # all the pdfs in per focus topic folders
+    
+    wiki/
+      index.md
+      overview.md
+      log.md
+      projects/
+      domains/
+        timeseries-forecasting/
+        embedding-models/
+        scenario-engine/
+        nowcasting-graph/
+      shared/
+      entities/
+      concepts/
+      sources/
+      comparisons/
+      decisions/
+      experiments/
+      queries/
+     
+    templates/
+```
+
+## Naming conventions
+
+Use lowercase kebab-case filenames.
+
+Examples:
+
+```text
+wiki/projects/p1-cluster-pretrained-deep-models.md
+wiki/projects/p2-causal-embedding-v2.md
+wiki/concepts/evidence-ledger.md
+wiki/decisions/adr-0001-project-sequencing.md
+```
+
+Use stable source IDs:
+
+```text
+src-YYYY-MM-DD-short-slug
+```
+
+
+## Linking convention
+
+Use portable Markdown links by default.
+
+Good:
+
+- [P1 — Cluster-pretrained deep models](projects/p1-cluster-pretrained-deep-models.md)
+- [Temporal generalization](concepts/temporal-generalization.md)
+- [ADR-0001](decisions/adr-0001-project-sequencing.md)
+
+Do not use Obsidian-only wikilinks unless explicitly requested:
+
+- [[projects/p1-cluster-pretrained-deep-models]]
+- [[Temporal generalization]]
+
+The wiki may be opened in Obsidian, but Git-compatible Markdown is the source format.
+
+
+## Frontmatter
+
+Every wiki page should begin with YAML frontmatter:
+
+```yaml
+---
+type: project | domain | source | concept | comparison | decision | experiment | shared | query | entity
+domain: timeseries-forecasting | embedding-models | scenario-engine | nowcasting-graph | shared
+project: P1 | P2 | P3 | P4 | shared
+status: draft | active | needs-review | superseded | archived
+stage: seed | researched | validated
+confidence: low | medium | high
+updated: YYYY-MM-DD
+sources:
+  - src-YYYY-MM-DD-short-slug
+tags: []
+---
+```
+
+`stage` reflects research maturity (see Maturity model). `confidence` reflects how strongly the page's core thesis is supported *given its stage* — at `seed` stage, `high` confidence should be rare and reserved for claims with direct, unambiguous source support (e.g., customer-interview counts quoted verbatim from the deck).
+
+## Claim format
+
+When recording a claim, distinguish:
+
+- **Claim**: what is being asserted.
+- **Evidence**: source or experiment that supports it.
+- **Applicability**: when it applies to Sybilion's product/data.
+- **Limitations**: when it may fail.
+- **Contradictions**: sources or experiments that disagree.
+- **Decision impact**: architecture, eval, cost, UX, risk, commercial sequencing.
+- **Confidence**: low, medium, high.
+
+## Project-specific guidance
+
+### P1 — Cluster-pretrained deep models
+
+Track:
+
+- cluster routing quality
+- shape versus regime mismatch
+- regime sub-clustering
+- D-Linear versus MLP backbone
+- PyTorch integration into forecast pipeline
+- serialization and determinism constraints
+- FAISS routing index
+- zero-shot or minimal fold-in onboarding
+- analyst-time elimination as a primary metric
+- M5 and VN2 validation
+- dependency on P2 causal covariate embeddings
+
+### P2 — Causal embedding model v2
+
+Track:
+
+- directed/asymmetric embedding objectives
+- Transfer Entropy and Granger distillation
+- pairwise-label sampling strategy
+- asymmetric geometry convergence
+- top-k causal covariate retrieval
+- retrieval latency at 200M-series scale
+- ranking metrics and downstream forecasting validation
+- data flywheel and defensibility
+- interaction with P1 covariate attention
+
+### P3 — Scenario engine
+
+Track:
+
+- CPCV validation
+- Granger/TE causal feature selection
+- interpretable linear models
+- scenario re-run API
+- confidence intervals
+- optional Bayesian / variational posterior layer
+- customer pain and commercial urgency
+- Cost Model Forecast PRD and Buy Window visualization
+- linear-model ceiling on nonlinear dynamics
+
+### P4 — Availability nowcasting graph
+
+Track:
+
+- public-first source ingestion
+- entity normalization
+- taxonomy alignment
+- event and relation extraction
+- evidence ledger
+- explicit provenance graph
+- mixed-frequency signal fusion
+- category × region availability
+- supplier × category availability
+- score calibration and alert explanations
+- why full graph reconstruction is deferred
+- expansion path via customs, AIS, and distributor APIs
+
+## Ingest workflow
+
+When asked to ingest a source:
+
+1. Identify source metadata and assign a source ID.
+2. Create a page under `wiki/sources/`.
+3. Extract important claims and caveats.
+4. Update the relevant project page.
+5. Update the relevant domain thesis page.
+6. Create or update concept pages only for concepts likely to be reused.
+7. Update decisions and experiments if the source changes what should be done next.
+8. Update `wiki/index.md`.
+9. Append a concise entry to `wiki/log.md`.
+
+Do not over-create pages. Prefer a small number of high-signal pages over many thin pages.
+
+## Query workflow
+
+When answering a research question:
+
+1. Read `wiki/index.md`.
+2. Read the relevant project, domain, concept, decision, and experiment pages.
+3. Answer from the wiki first.
+4. State if the wiki is insufficient.
+5. File durable synthesis under `wiki/queries/` when useful.
+6. Update relevant pages when the answer changes the research memory.
+
+## Lint workflow
+
+When asked to lint:
+
+Check for:
+
+- orphan pages
+- duplicate concepts
+- missing source links
+- stale claims
+- unresolved contradictions
+- weak claims presented as strong claims
+- missing decision impact
+- missing experiment implications
+- project pages that have drifted away from domain thesis pages
+
+After linting:
+
+1. Produce a lint report.
+2. Make safe fixes.
+3. Flag risky fixes for human review.
+4. Update `wiki/index.md` and `wiki/log.md`.
+
+## Style
+
+Be precise, skeptical, and concise.
+
+Prefer tables for tradeoffs, project comparisons, assumptions, and risks.
+
+Prefer explicit uncertainty over false confidence.
+
+Keep the wiki oriented around decisions, experiments, assumptions, and reusable synthesis.
