@@ -66,7 +66,7 @@ dmypy.json
 .pdm-python
 
 # --- Editors / IDEs ---
-.idea/
+#.idea/
 .vscode/
 .spyderproject
 .spyproject
