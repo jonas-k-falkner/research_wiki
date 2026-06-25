@@ -1,0 +1,92 @@
+[project]
+name = "wiki-tools"
+version = "0.1.0"
+description = "Tooling for the research wiki: extraction, hybrid search, lint, index generation."
+requires-python = ">=3.12"
+dependencies = [
+  "duckdb>=1.0",     # FTS (BM25) + vector storage/cosine in one embedded file
+  "pyyaml>=6.0",     # frontmatter parsing (wikilib)
+  "pypdf>=4.0",      # PDF -> text extraction (Feature 1a, core path)
+]
+
+[project.optional-dependencies]
+# Optional extras (G3): pinned to exact versions, must raise a clear error if
+# missing at runtime, must not affect core behavior when absent.
+# Pin exact versions via `uv add --optional <group> <pkg>` (writes uv.lock).
+semantic = ["fastembed>=0.3"]   # local ONNX embeddings; default model in [tool.wikitools]
+api      = ["openai>=1.0"]      # opt-in API embeddings (non-default; weaker reproducibility)
+ocr      = ["docling>=2.0"]     # opt-in extractor for scanned/figure-heavy PDFs
+
+[project.scripts]
+wiki = "wikitools.cli:main"     # single CLI: wiki lint|toc|extract|index|search|check
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wikitools"]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "ruff",
+  "mypy",
+  "types-PyYAML",   # mypy stubs for pyyaml
+  "pre-commit",     # Feature 3 lint hook
+]
+
+# Tooling config — externalized so the package is location-independent and testable.
+# Override per invocation with --kb / WIKI_KB.
+[tool.wikitools]
+kb_root = "kb"
+index_path = "kb/.wiki/corpus.duckdb"
+embed_model = "BAAI/bge-small-en-v1.5"   # local via fastembed
+embed_dim = 384                          # fixes the FLOAT[N] column width
+
+[tool.pytest.ini_options]
+addopts = "-q --disable-warnings --maxfail=1 -m 'not slow and not integration'"
+markers = [
+  "slow: marks tests as slow",
+  "integration: marks tests that run against the real kb/ rather than fixtures",
+]
+norecursedirs = ".git .tox dist build *.egg-info __pycache__ .venv venv kb"
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[tool.ruff]
+line-length = 180
+target-version = "py312"
+src = ["src", "tests"]
+extend-exclude = ["kb"]   # kb/ is content, not code — never lint/format it
+fix = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF", "D"]
+ignore = [
+  "E501",
+  "D104",
+  "D203",
+  "D213",
+  "D401",
+  "RUF022",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D", "S101"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
