@@ -1,0 +1,87 @@
+# ============================================================================
+# Wiki tooling — gitignore
+# RULE: src/ is code, kb/ is COMMITTED CONTENT. Never ignore content under kb/
+# (PDFs, images, markdown, library.json, extracted .txt are all tracked).
+# ============================================================================
+
+# --- Wiki tooling (rebuildable, never committed) ---
+kb/.wiki/                 # DuckDB index + embedding model cache (regenerable)
+.wiki/
+*.duckdb
+*.duckdb.wal
+.fastembed_cache/         # local embedding model download cache
+# Do NOT add *.pdf / *.png / *.txt / *.csv / *.md here — they live under kb/ as sources.
+
+# --- Byte-compiled / optimized ---
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+
+# --- Distribution / packaging ---
+.Python
+build/
+develop-eggs/
+dist/
+.eggs/
+sdist/
+wheels/
+share/python-wheels/
+*.egg-info/
+*.egg
+MANIFEST
+
+# --- Test / coverage ---
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# --- Environments ---
+.env
+.env.*
+.envrc
+.venv
+env/
+venv/
+ENV/
+
+# --- Type checkers / linters ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+
+# --- uv ---
+# uv.lock IS committed (reproducible builds); only ignore transient uv state.
+.pdm-python
+
+# --- Editors / IDEs ---
+.idea/
+.vscode/
+.spyderproject
+.spyproject
+.ropeproject
+
+# --- AI agents / tooling ---
+.junie
+.aiassistant
+.claude/scheduled_tasks.lock
+.cursorignore
+.cursorindexingignore
+.ignore                   # governance: contents excluded from agent actions (G10)
+
+# --- Misc ---
+*.log
+*.zip
+.pypirc
+.ipynb_checkpoints
