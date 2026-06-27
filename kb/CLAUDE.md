@@ -283,6 +283,41 @@ When answering a research question:
 5. File durable synthesis under `wiki/queries/` when useful.
 6. Update relevant pages when the answer changes the research memory.
 
+## Extract workflow
+
+`wiki extract` populates `raw/literature/txt/` with one `.txt` per PDF in `raw/literature/pdf/`. It is idempotent: rerunning skips files whose source hash is unchanged. A sidecar `<stem>.extract.json` records the extractor name, version, and the hash of the source PDF.
+
+**Engines:**
+
+| Engine | Requires | Output | When to use |
+|---|---|---|---|
+| `docling` | `[ocr]` extra | Markdown + `$$…$$` LaTeX fences | **Default** when [ocr] installed; preserves math |
+| `fast` | `pdftotext` (system) | Plain text | Fast; math becomes unreadable glyph sequences |
+| `marker` | `[ocr]` extra | Markdown | Not yet implemented |
+
+**Engine resolution:** When `--engine` is not specified, `wiki extract` uses `docling` if the `[ocr]` extra is installed; otherwise falls back to `fast` with a stderr warning that math will be degraded.
+
+**PDF is the authority for exact math.** The `.txt` file captures math as a LaTeX fence (`$…$` / `$$…$$`) when extracted with docling — treat these as pointers back to the PDF, not authoritative source. For any claim that depends on exact notation, re-read the original PDF.
+
+**Commands:**
+
+```
+wiki extract                             # extract all PDFs (docling if available, else fast)
+wiki extract --engine fast               # force plain-text extraction
+wiki extract --engine docling            # force docling (requires [ocr] extra)
+wiki extract --force                     # re-extract even when hash is unchanged
+wiki extract --citekey smithExact2024    # extract only PDFs for this citekey
+wiki extract --json                      # emit structured JSON output
+```
+
+Reconciliation runs first on every invocation and reports:
+- `pdf-missing-from-library` — a PDF in `raw/literature/pdf/` has no entry in `library.json`
+- `txt-missing` — a PDF has no extracted `.txt` (cleared once you run `wiki extract`)
+
+Reconciliation issues are reported but do not abort extraction. Library-only items (no PDF) are intentionally metadata-only and are not flagged.
+
+After running `wiki extract`, commit the `raw/literature/txt/` files (both `.txt` and `.extract.json` sidecars). They are derived-but-stable, useful in diffs and grep, and both are tracked by git.
+
 ## TOC workflow
 
 `wiki/index.md` and `wiki/domains/*/index.md` contain **generated regions** fenced by:

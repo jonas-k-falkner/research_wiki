@@ -249,7 +249,7 @@ browse. Hybrid search (lexical anchors exact terms; semantic finds paraphrases) 
 wiki pages and extracted PDF text is the single capability that makes the corpus scalable
 (C; S Feature 1).
 
-**Changes (1a — extraction):**
+#### 1a extraction:
 - Implement `extract.py`:
   - `run_reconciliation(kb_root) -> list[ReconciliationIssue]` — before any extraction:
     every `pdf/<citekey>` basename must be in `library.json`; every `library.json` item
@@ -265,7 +265,71 @@ wiki pages and extracted PDF text is the single capability that makes the corpus
     `MissingExtraError` if invoked without that extra installed (G3, G5).
 - Wire `wiki extract [--engine pdftotext|docling|marker] [--force] [--citekey X]`.
 
-**Changes (1b — index + search):**
+#### 1a.2 Math-aware PDF extraction
+
+**Goal:** Extract literature PDFs to text that **preserves math as LaTeX** instead of
+mangling it, by defaulting to a structure-aware engine (Docling → Markdown + `$$…$$`),
+while keeping the dependency-free fast path working and the PDF as the math authority.
+
+**Scope:**
+- src/wikitools/commands/extract.py
+- src/wikitools/wikilib.py            (engine dispatch helpers only)
+- pyproject.toml                      ([ocr] extra; verify, don't loosen)
+- tests/unit/test_extract.py
+- tests/fixtures/                     (one tiny math-bearing PDF or a stubbed engine)
+- kb/CLAUDE.md                        (document `wiki extract` engines)
+
+**Root cause:** `pdftotext`/`pypdf` read glyphs in layout order and drop sub/superscript and
+math-font semantics, so equations become unsearchable, unreadable garbage. Academic PDFs are
+the dominant corpus, so math-aware extraction is the right default for literature, not a rare
+fallback.
+
+**Changes:**
+- `wiki extract [--engine docling|marker|fast] [--kb …]`. Engine resolution for literature:
+  default to **docling** when the `[ocr]` extra is installed; if absent, fall back to **fast**
+  (pypdf/pdftotext) and print a one-line stderr warning that math will be degraded. Core
+  behavior must work with **no** extras installed (G3).
+- `--engine docling|marker` without its extra → fail fast with an actionable install message
+  (G3, G5). `--engine fast` never requires an extra.
+- Read `kb/raw/literature/pdf/<basename>.pdf` (incl. `<citekey>-suppl.pdf`); write
+  `kb/raw/literature/txt/<basename>.txt` (content = Markdown with LaTeX math fences). Resolve
+  by basename = citekey; skip metadata-only items (no PDF) without error.
+- Idempotent by source hash: skip re-extraction when the stored hash matches. Record
+  `engine + engine_version + source_sha256` in sidecar `txt/<basename>.extract.json`.
+- Never silently drop a math region — emit it as a LaTeX fence so the agent can recognize it
+  and re-read the PDF (the authority) when a claim depends on exact notation.
+- Do NOT mutate `kb/raw/**` originals; the `.txt`/sidecar are the only writes (G10).
+
+**Determinism note (do not reject the ML engine over this):** extracted `.txt` is **committed**
+and extraction is **hash-skipped** (run once, never regenerated per machine). Extraction is a
+one-time upstream step whose output is frozen in git and reviewed by diff; the determinism
+constraint (C) binds the search/index/lint layer that *reads* the committed text, not the ML
+extraction that produced it. The sidecar (engine+version+hash) makes the step auditable. No
+determinism test is required on extraction output; determinism tests belong to T00x (search).
+
+**Cross-references:**
+- S Feature 1   (1a — extraction; idempotent-by-hash; sidecar)
+- G3            (optional extras: pinned, error if missing, no effect on core when absent)
+- G5            (fail fast, actionable errors)
+- G2 / G4 / G10
+- C             (determinism reconciliation above; raw/ immutable)
+- kb/CLAUDE.md  (Literature layout conventions)
+
+**DoD:**
+- On a real math-bearing literature PDF, `wiki extract --engine docling` produces output whose
+  equations appear as LaTeX fences (`$…$` / `$$…$$`), not reordered glyphs — assert on a known
+  equation in a fixture.
+- With `[ocr]` absent: `wiki extract` runs the fast path + emits the degradation warning;
+  `--engine docling` errors with an install hint. Core lexical path unaffected (G3).
+- Re-run with unchanged source hash is a no-op; sidecar records engine+version+source hash.
+- `txt/` basenames mirror `pdf/` (incl. `-suppl`); metadata-only items skipped, not errored.
+- `kb/raw/**` byte-unchanged after a run.
+- `kb/CLAUDE.md` documents the engines and the "PDF is authority for exact math" rule.
+- Execution loop green (G2). One commit.
+
+
+
+#### 1b index + search:
 - Implement chunking:
   - Wiki pages: split body by H2/H3 headings into sections; each chunk = `(path, None,
     section_title, text)`. Char-based, deterministic.
@@ -330,7 +394,7 @@ wiki pages and extracted PDF text is the single capability that makes the corpus
 - `kb/CLAUDE.md` updated; Query workflow uses `wiki search`.
 - Execution loop green (G2). Two commits (1a then 1b).
 
-**status:** pending
+**status:** 1a + 1a.2 done, 1b pending
 
 ---
 
