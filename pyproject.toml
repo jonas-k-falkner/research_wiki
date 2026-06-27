@@ -13,7 +13,7 @@ dependencies = [
 # Optional extras (G3): pinned to exact versions, must raise a clear error if
 # missing at runtime, must not affect core behavior when absent.
 # Pin exact versions via `uv add --optional <group> <pkg>` (writes uv.lock).
-semantic = ["fastembed>=0.3"]   # local ONNX embeddings; default model in [tool.wikitools]
+semantic = ["fastembed==0.8.0"]   # local ONNX embeddings; default model in [tool.wikitools]
 api      = ["openai>=1.0"]      # opt-in API embeddings (non-default; weaker reproducibility)
 ocr      = ["docling>=2.0"]     # opt-in extractor for scanned/figure-heavy PDFs
 

@@ -394,7 +394,7 @@ determinism test is required on extraction output; determinism tests belong to T
 - `kb/CLAUDE.md` updated; Query workflow uses `wiki search`.
 - Execution loop green (G2). Two commits (1a then 1b).
 
-**status:** 1a + 1a.2 done, 1b pending
+**status:** done
 
 ---
 
