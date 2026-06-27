@@ -215,7 +215,7 @@ grows. Generated indexes derived from frontmatter are always current and verifia
 - `kb/CLAUDE.md` TOC workflow section present; AUTO fences in `wiki/index.md`.
 - Execution loop green (G2). One commit.
 
-**status:** pending
+**status:** done
 
 ---
 

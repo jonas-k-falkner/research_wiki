@@ -61,6 +61,29 @@ def _cmd_lint(args: argparse.Namespace, kb_root: Path) -> None:
         sys.exit(1)
 
 
+def _cmd_toc_build(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki toc build subcommand."""
+    from wikitools.commands.toc import build_toc
+
+    try:
+        changed = build_toc(kb_root, check=args.check)
+    except ValueError as exc:
+        print(f"wiki toc build: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.check:
+        if changed:
+            print("wiki toc build: index(es) are stale — run `wiki toc build` to update", file=sys.stderr)
+            sys.exit(1)
+        else:
+            print("wiki toc build: up-to-date")
+    else:
+        if changed:
+            print("wiki toc build: indexes updated")
+        else:
+            print("wiki toc build: already up-to-date")
+
+
 def main() -> None:
     """Entry point for the ``wiki`` CLI dispatcher."""
     parser = argparse.ArgumentParser(
@@ -82,7 +105,12 @@ def main() -> None:
     lint_p.add_argument("--fix", action="store_true", help="Apply safe auto-fixes (strip dead links, normalize frontmatter order).")
     lint_p.add_argument("--severity", choices=["error", "warn"], default="warn", help="Minimum severity to report (default: warn).")
 
-    subparsers.add_parser("toc", help="Generate root and per-domain index pages.")
+    toc_p = subparsers.add_parser("toc", help="Generate root and per-domain index pages.")
+    toc_sub = toc_p.add_subparsers(dest="toc_subcommand", metavar="SUBCOMMAND")
+    toc_sub.required = True
+    toc_build_p = toc_sub.add_parser("build", help="Write root and domain index pages.")
+    toc_build_p.add_argument("--check", action="store_true", help="Exit non-zero if indexes are stale; do not write.")
+
     subparsers.add_parser("extract", help="Extract text from literature PDFs.")
     subparsers.add_parser("index", help="Build or update the search index.")
     subparsers.add_parser("search", help="Search the wiki and literature corpus.")
@@ -93,6 +121,9 @@ def main() -> None:
 
     if args.command == "lint":
         _cmd_lint(args, kb_root)
+    elif args.command == "toc":
+        if args.toc_subcommand == "build":
+            _cmd_toc_build(args, kb_root)
     else:
         print(f"wiki {args.command}: not implemented", file=sys.stderr)
         sys.exit(1)
