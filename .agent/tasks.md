@@ -467,3 +467,77 @@ source pages and semantically identical claims in different words (C; S Feature 
 - Execution loop green (G2). One commit.
 
 **status:** pending
+
+---
+
+### Task T006 — Semantic search integration: fastembed pin + integration tests + rebuild UX
+
+**Goal:** Make the semantic search path production-ready: pin `fastembed` to the installed
+exact version, exercise real embeddings end-to-end on the real kb, verify RRF hybrid recall,
+and surface two UX gaps (rebuild time + `update_index` with embeddings).
+
+**Prerequisite:** T004-1b done (`wiki index build` + `wiki search` wired). fastembed 0.8.0
+installed via `uv sync --extra semantic`.
+
+**Root cause (3 distinct gaps found during install+test):**
+1. **G3 pin gap:** `pyproject.toml` has `fastembed>=0.3` (range), not a pinned exact version.
+   `uv.lock` pins in practice, but the declared constraint should match G3.
+2. **Rebuild time:** Embedding 11k chunks takes several minutes. There is no progress
+   reporting, no batch-size knob, and the rebuild cadence is undocumented. Agent needs to know
+   not to rebuild on every query.
+3. **`update_index` semantic gap:** `update_index` reprocesses only changed files, but the
+   embedder path is untested end-to-end (unit tests used `embedder=None`). Need an integration
+   test with real fastembed to catch silent failures (e.g. wrong vector dimensionality stored).
+
+**Scope:**
+- `pyproject.toml`                  — tighten `semantic` extra to `==0.8.0`
+- `src/wikitools/commands/index.py` — add `batch_size` param to `_insert_chunks` + `build_index`;
+                                      emit `logger.info` progress every N batches
+- `tests/unit/test_index.py`        — add test: `build_index` with real embedder mock that returns
+                                      384-dim vectors; verify embedding column is non-NULL
+- `tests/integration/test_semantic.py` — real-kb integration tests (marked `@pytest.mark.integration`):
+  - `test_build_index_with_fastembed` — builds real index, checks `embed_model != "none"`,
+    chunk count > 0, at least one chunk has a non-NULL embedding
+  - `test_search_semantic_recall` — `wiki search "sparse probability mapping" --mode semantic`
+    returns the entmax concept page in top-5 (paraphrase recall, no exact term overlap)
+  - `test_search_hybrid_beats_lexical_on_paraphrase` — a paraphrased query hits the right page
+    in hybrid but not in lexical top-5 (validates RRF semantic contribution)
+  - `test_update_index_with_embedder` — edit one wiki page, run `update_index` with real
+    embedder, confirm only 1 file reprocessed and the updated chunk has a non-NULL embedding
+- `kb/CLAUDE.md`                    — add note to Index workflow: rebuild time (~N min on full
+                                      corpus); run `wiki index build` once per machine after
+                                      `uv sync --extra semantic`; `wiki index update` for
+                                      incremental updates after adding pages
+
+**Changes:**
+- Pin `pyproject.toml` `semantic` extra: `fastembed==0.8.0`.
+- Add `batch_size: int = 256` to `build_index` and `_insert_chunks`; emit a `logger.info`
+  progress line every batch (e.g. `"build_index: embedded batch %d/%d"`) so long runs are
+  visible in verbose mode.
+- Add `tests/integration/` directory with `__init__.py` and `conftest.py` (skip all unless
+  `[semantic]` extra detected; no fixtures — uses real `kb/`).
+- Write the 4 integration tests above. Each must pass without network access after the
+  fastembed model is cached (model cache is populated on first `uv run wiki index build`).
+- Add one new unit test in `test_index.py`: embedder mock that returns 384-dim vectors →
+  confirm the stored embedding is non-NULL and has correct length.
+- Document rebuild cadence in `kb/CLAUDE.md` Index workflow.
+
+**Cross-references:**
+- G3            (fastembed pinning)
+- G4            (integration tests marked; no fixtures = real kb)
+- S Feature 1   (semantic recall validation)
+- C             (determinism; CLAUDE.md updated)
+
+**DoD:**
+- `pyproject.toml` `semantic` extra is `fastembed==0.8.0`; `uv sync` succeeds; `uv.lock` committed.
+- `wiki index build` with `[semantic]` installed: progress lines visible at `--log-level INFO`;
+  `wiki index status` shows `embed_model != "none"`.
+- `test_build_index_with_fastembed` passes with real fastembed.
+- `test_search_semantic_recall` returns the entmax concept page in top-5 for a paraphrase query.
+- `test_update_index_with_embedder` confirms incremental embed on single changed file.
+- All 3 hybrid/semantic integration tests pass on real kb.
+- New unit test for 384-dim mock embedding passes in execution loop (G2).
+- `kb/CLAUDE.md` documents rebuild cadence.
+- Execution loop green (G2). One commit.
+
+**status:** pending
