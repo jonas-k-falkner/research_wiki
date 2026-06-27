@@ -61,6 +61,46 @@ def _cmd_lint(args: argparse.Namespace, kb_root: Path) -> None:
         sys.exit(1)
 
 
+def _cmd_extract(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki extract command."""
+    from wikitools.commands.extract import MissingExtraError, _resolve_engine, run_extract
+
+    _, degraded = _resolve_engine(args.engine)
+    if degraded:
+        print(
+            "wiki extract: [warn] docling not installed; using fast path — math in equations will be degraded. Install the [ocr] extra: uv sync --extra ocr",
+            file=sys.stderr,
+        )
+
+    try:
+        extracted, skipped, issues = run_extract(
+            kb_root,
+            engine=args.engine,
+            force=args.force,
+            citekey=args.citekey or None,
+        )
+    except MissingExtraError as exc:
+        print(f"wiki extract: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"wiki extract: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.json:
+        import json
+
+        payload = {
+            "extracted": extracted,
+            "skipped": skipped,
+            "reconciliation_issues": [{"kind": i.kind, "path": i.path, "message": i.message} for i in issues],
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        for issue in issues:
+            print(f"RECONCILE  [{issue.kind}]  {issue.path}: {issue.message}")
+        print(f"wiki extract: {extracted} extracted, {skipped} skipped")
+
+
 def _cmd_toc_build(args: argparse.Namespace, kb_root: Path) -> None:
     """Run the wiki toc build subcommand."""
     from wikitools.commands.toc import build_toc
@@ -111,7 +151,11 @@ def main() -> None:
     toc_build_p = toc_sub.add_parser("build", help="Write root and domain index pages.")
     toc_build_p.add_argument("--check", action="store_true", help="Exit non-zero if indexes are stale; do not write.")
 
-    subparsers.add_parser("extract", help="Extract text from literature PDFs.")
+    extract_p = subparsers.add_parser("extract", help="Extract text from literature PDFs.")
+    extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default=None, help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
+    extract_p.add_argument("--force", action="store_true", help="Re-extract even when source hash is unchanged.")
+    extract_p.add_argument("--citekey", metavar="KEY", default=None, help="Process only PDFs with this citekey.")
+    extract_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
     subparsers.add_parser("index", help="Build or update the search index.")
     subparsers.add_parser("search", help="Search the wiki and literature corpus.")
     subparsers.add_parser("check", help="Check source idempotency and claim deduplication.")
@@ -121,6 +165,8 @@ def main() -> None:
 
     if args.command == "lint":
         _cmd_lint(args, kb_root)
+    elif args.command == "extract":
+        _cmd_extract(args, kb_root)
     elif args.command == "toc":
         if args.toc_subcommand == "build":
             _cmd_toc_build(args, kb_root)
