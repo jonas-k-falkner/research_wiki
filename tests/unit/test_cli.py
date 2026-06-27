@@ -29,8 +29,8 @@ def test_unknown_subcommand_exits_nonzero(capsys):
     assert exc.value.code != 0
 
 
-def test_known_subcommand_exits_nonzero_not_implemented(capsys):
-    with patch("sys.argv", ["wiki", "lint"]), pytest.raises(SystemExit) as exc:
+def test_unimplemented_subcommand_exits_nonzero(capsys):
+    with patch("sys.argv", ["wiki", "toc"]), pytest.raises(SystemExit) as exc:
         main()
     assert exc.value.code != 0
     err = capsys.readouterr().err

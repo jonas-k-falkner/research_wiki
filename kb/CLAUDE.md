@@ -285,26 +285,40 @@ When answering a research question:
 
 ## Lint workflow
 
-When asked to lint:
+Run automated lint via the `wiki` CLI before committing or when asked to lint:
 
-Check for:
+```
+wiki lint [--json] [--fix] [--severity error|warn]
+```
 
-- orphan pages
-- duplicate concepts
-- missing source links
-- stale claims
-- unresolved contradictions
-- weak claims presented as strong claims
-- missing decision impact
-- missing experiment implications
-- project pages that have drifted away from domain thesis pages
+- Non-zero exit if any **error** is found (blocks commit via pre-commit hook).
+- `--json` emits a stable, machine-readable report.
+- `--fix` applies safe auto-fixes only: strips broken Markdown links and normalises
+  frontmatter key order. Never rewrites prose or claims.
+- `--severity error` suppresses warnings and shows errors only.
 
-After linting:
+**Errors** (block commit):
+- Broken Markdown links (`](target.md)` does not resolve to a file).
+- Frontmatter schema violations: missing required keys, invalid enum values, bad date.
+- Dangling `sources[]` entries with no matching `wiki/sources/<id>.md` page.
+- `[verify]` markers remaining on a `stage: researched` page.
 
-1. Produce a lint report.
-2. Make safe fixes.
-3. Flag risky fixes for human review.
-4. Update `wiki/index.md` and `wiki/log.md`.
+**Warnings** (reported, do not block):
+- Orphan pages (0 inbound links, excluding nav roots).
+- `stage: seed` + `confidence: high` combination.
+- Provenance gaps: claim-bearing pages with no `sources[]`, or source pages with no
+  resolvable raw path or `zotero:` key.
+- Thin or boilerplate page bodies.
+- Citekey integrity: mismatched `zotero:` keys vs `library.json`; PDFs missing `.txt`.
+- Pages unreachable from `index.md` via link traversal.
+- Near-duplicate titles (Jaccard ≥ 0.70).
+
+When asked to lint manually:
+
+1. Run `wiki lint` and review the report.
+2. Run `wiki lint --fix` to apply safe fixes.
+3. Address errors before committing; flag warns for human review.
+4. Update `wiki/index.md` and `wiki/log.md` if the fixes change structure.
 
 ## Style
 

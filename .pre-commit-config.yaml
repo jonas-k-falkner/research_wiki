@@ -5,3 +5,12 @@ repos:
       - id: ruff-format
       - id: ruff
         args: [--fix]
+
+  - repo: local
+    hooks:
+      - id: wiki-lint
+        name: wiki lint
+        language: system
+        entry: uv run wiki lint --severity error
+        pass_filenames: false
+        always_run: true
