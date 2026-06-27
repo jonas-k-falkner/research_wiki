@@ -276,8 +276,8 @@ Do not over-create pages. Prefer a small number of high-signal pages over many t
 
 When answering a research question:
 
-1. Read `wiki/index.md`.
-2. Read the relevant project, domain, concept, decision, and experiment pages.
+1. Run `wiki search "QUERY" --mode hybrid` to locate relevant chunks across wiki pages and literature.
+2. Read the full pages surfaced by the top hits (follow `source_path`).
 3. Answer from the wiki first.
 4. State if the wiki is insufficient.
 5. File durable synthesis under `wiki/queries/` when useful.
@@ -343,6 +343,49 @@ wiki toc build --check     # exit non-zero if stale (CI staleness guard)
 `wiki toc build --check` is the CI guard: run it in CI after any page addition or frontmatter change to verify that committed indexes are current.
 
 After ingesting a new source or adding pages, run `wiki toc build` and commit the updated index files alongside the content changes. Domain set is derived dynamically from `domain:` values in frontmatter — new domains appear in the indexes without any code change.
+
+## Index workflow
+
+`wiki index build` chunks all wiki pages and extracted `.txt` files, builds a BM25 full-text search index (DuckDB FTS), and — when the `[semantic]` extra is installed — computes and stores 384-dim embeddings. The index lives at `kb/.wiki/corpus.duckdb` (gitignored).
+
+**Chunking:**
+- Wiki pages: split on H2/H3 headings. Each section is one chunk.
+- Literature `.txt` files: sliding window (~800 chars, ~100-char overlap). Each window is one chunk.
+
+**Commands:**
+
+```
+wiki index build                   # full rebuild (lexical + semantic if [semantic] installed)
+wiki index build --no-embed        # lexical-only rebuild (skip embeddings)
+wiki index update                  # incremental: reprocess only changed files
+wiki index update --no-embed       # incremental, skip embeddings
+wiki index status                  # report chunk counts, model, last-build timestamp
+```
+
+After adding new pages or re-extracting PDFs, run `wiki index update` (or `build` for a full reset). The `.duckdb` file is not committed — rebuild on each machine.
+
+## Search workflow
+
+`wiki search` queries the corpus index. It supports three modes:
+
+| Mode | Mechanism | When to use |
+|---|---|---|
+| `lexical` | BM25 FTS | Exact terms, citekeys, method names |
+| `semantic` | Cosine similarity (requires `[semantic]`) | Paraphrases, conceptual queries |
+| `hybrid` | RRF fusion of lexical + semantic | **Default** — best general recall |
+
+**Commands:**
+
+```
+wiki search "entmax sparse attention"                    # hybrid, top 10
+wiki search "entmax" --mode lexical                     # BM25 only
+wiki search "covariate selection" --mode semantic       # vector only
+wiki search "CPCV" --scope wiki                         # wiki pages only
+wiki search "granger causality" --scope literature      # literature chunks only
+wiki search "entmax" -k 5 --json                        # machine-readable output
+```
+
+Each hit has: `source_path` (relative to kb_root), `citekey` (null for wiki), `section`, `score`, `snippet`.
 
 ## Lint workflow
 

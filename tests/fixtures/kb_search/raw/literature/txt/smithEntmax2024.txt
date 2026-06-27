@@ -1,0 +1,19 @@
+Sparse Attention via Entmax for Forecasting
+
+Smith, A. (2024)
+
+Abstract
+
+We propose using entmax sparse transformations in temporal attention layers to achieve interpretable covariate selection in time series forecasting models. Unlike softmax, entmax concentrates probability mass on a small number of active covariates, producing sparse attention distributions where irrelevant inputs receive exactly zero weight.
+
+1. Introduction
+
+Forecasting with many covariates requires an attention mechanism that can distinguish relevant from irrelevant features. Classical softmax attention assigns positive weight to every input, making interpretation difficult.
+
+2. Method
+
+We use alpha-entmax with alpha=1.5 as a drop-in replacement for softmax in the attention module. The resulting sparse distributions are differentiable and well-suited to gradient-based optimisation.
+
+3. Experiments
+
+On the M5 benchmark, entmax attention reduces the active covariate set by 60% while maintaining forecast accuracy within 0.5% of the full-softmax baseline.

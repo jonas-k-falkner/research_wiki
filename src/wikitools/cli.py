@@ -124,6 +124,80 @@ def _cmd_toc_build(args: argparse.Namespace, kb_root: Path) -> None:
             print("wiki toc build: already up-to-date")
 
 
+def _cmd_index(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki index subcommand (build / update / status)."""
+    from wikitools.commands.extract import MissingExtraError
+    from wikitools.commands.index import LocalEmbedder, build_index, index_status, update_index
+
+    sub = args.index_subcommand
+
+    if sub == "status":
+        import json
+
+        status = index_status(kb_root)
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+        return
+
+    embedder = None
+    if not getattr(args, "no_embed", False):
+        try:
+            embedder = LocalEmbedder()
+        except MissingExtraError:
+            print(
+                "wiki index: [warn] fastembed not installed; building lexical-only index. Install the [semantic] extra: uv sync --extra semantic",
+                file=sys.stderr,
+            )
+
+    if sub == "build":
+        build_index(kb_root, embedder=embedder)
+        status = index_status(kb_root)
+        print(f"wiki index build: {status['chunk_count']} chunks indexed")
+    elif sub == "update":
+        n = update_index(kb_root, embedder=embedder)
+        print(f"wiki index update: {n} files reprocessed")
+
+
+def _cmd_search(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki search command."""
+    from wikitools.commands.search import search
+
+    try:
+        hits = search(
+            args.query,
+            kb_root,
+            k=args.k,
+            mode=args.mode,
+            scope=args.scope,
+        )
+    except FileNotFoundError as exc:
+        print(f"wiki search: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"wiki search: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.json:
+        import json
+
+        payload = [
+            {
+                "source_path": h.source_path,
+                "citekey": h.citekey,
+                "section": h.section,
+                "score": h.score,
+                "snippet": h.snippet,
+            }
+            for h in hits
+        ]
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        for i, h in enumerate(hits, start=1):
+            citekey_str = f" [{h.citekey}]" if h.citekey else ""
+            print(f"{i}. {h.source_path}{citekey_str} § {h.section}  (score={h.score:.4f})")
+            print(f"   {h.snippet}")
+            print()
+
+
 def main() -> None:
     """Entry point for the ``wiki`` CLI dispatcher."""
     parser = argparse.ArgumentParser(
@@ -156,8 +230,22 @@ def main() -> None:
     extract_p.add_argument("--force", action="store_true", help="Re-extract even when source hash is unchanged.")
     extract_p.add_argument("--citekey", metavar="KEY", default=None, help="Process only PDFs with this citekey.")
     extract_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
-    subparsers.add_parser("index", help="Build or update the search index.")
-    subparsers.add_parser("search", help="Search the wiki and literature corpus.")
+    index_p = subparsers.add_parser("index", help="Build or update the search index.")
+    index_sub = index_p.add_subparsers(dest="index_subcommand", metavar="SUBCOMMAND")
+    index_sub.required = True
+    index_build_p = index_sub.add_parser("build", help="Full corpus rebuild: chunk, embed, and FTS-index.")
+    index_build_p.add_argument("--no-embed", action="store_true", help="Skip embedding (lexical-only index).")
+    index_update_p = index_sub.add_parser("update", help="Incremental update: reprocess only changed files.")
+    index_update_p.add_argument("--no-embed", action="store_true", help="Skip embedding for changed files.")
+    index_sub.add_parser("status", help="Report index counts and metadata.")
+
+    search_p = subparsers.add_parser("search", help="Search the wiki and literature corpus.")
+    search_p.add_argument("query", help="Free-text query string.")
+    search_p.add_argument("--mode", choices=["lexical", "semantic", "hybrid"], default="hybrid", help="Search mode (default: hybrid).")
+    search_p.add_argument("-k", type=int, default=10, help="Number of results (default: 10).")
+    search_p.add_argument("--scope", choices=["wiki", "literature"], default=None, help="Restrict to wiki pages or literature chunks.")
+    search_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
+
     subparsers.add_parser("check", help="Check source idempotency and claim deduplication.")
 
     args = parser.parse_args()
@@ -170,6 +258,10 @@ def main() -> None:
     elif args.command == "toc":
         if args.toc_subcommand == "build":
             _cmd_toc_build(args, kb_root)
+    elif args.command == "index":
+        _cmd_index(args, kb_root)
+    elif args.command == "search":
+        _cmd_search(args, kb_root)
     else:
         print(f"wiki {args.command}: not implemented", file=sys.stderr)
         sys.exit(1)
