@@ -16,7 +16,7 @@ facts.*
 - Cluster-pretrained models give every new series a **pre-fitted inductive bias matching its
   type**, eliminating per-product analyst tuning at scale.
 
-Idea: train a lightweight deep model (MLP / D-Linear + covariate attention) **per cluster of
+Idea: train a lightweight deep model (e.g. MLP / D-Linear + covariate attention) **per cluster of
 similar series**. When a new SKU arrives: embed → route to its cluster model → forecast
 zero-shot or with minimal fold-in.
 
@@ -29,9 +29,9 @@ zero-shot or with minimal fold-in.
    → embedding model (shared SSL encoder)
    → k clusters via FAISS                     (shape clusters)
    → optional sub-clustering by regime         (stationarity / seasonality within a shape cluster)
-   → D-Linear / MLP backbone trained on all series in the cluster
-   → covariate attention over z_cov embeddings (from P2 — no redundant covariate-rep learning)
-   → forecast head
+   → lite backbone (D-Linear / MLP / etc.) trained on all series in the cluster
+   → covariate attention over z_cov embeddings (from P2 — no redundant covariate-rep learning) for selection
+   → forecast head (optionally additionally using existing embeddings or independent re-encoding of cov time series)
 ```
 
 - **Routing**: a new series is embedded and routed (FAISS nearest cluster) to its cluster
@@ -47,7 +47,7 @@ zero-shot or with minimal fold-in.
 ## Covariate Selection Layer (query-dependent, sparse)
 
 This is the design for the covariate-attention layer referenced above: how, for a given target
-query, the model selects and weights a sparse subset of the 50–1000 candidate covariates, and
+query, the model selects and weights a sparse subset of the 50–1000 (potentially highly correlated) candidate covariates, and
 how it reports interpretable importance. The remainder of this section is the original
 covariate-selection design note.
 

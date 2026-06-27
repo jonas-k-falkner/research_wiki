@@ -5,10 +5,11 @@ project: shared
 status: active
 confidence: medium
 stage: seed
-updated: 2026-06-25
+updated: 2026-06-27
 sources:
   - src-2026-06-px-cross-project-strategy
   - src-2026-06-p4-availability-nowcasting
+  - src-2026-06-tsf-literature-review
 tags:
   - comparison
   - portfolio
@@ -36,11 +37,10 @@ Reconstructs the deck's "At a Glance" comparison (Slide 6) as a first-class deci
 
 ## Open research questions
 
-- Are the P1/P2 moat ratings defensible against the current state of pretrained time-series models and causal-discovery tooling? (Verify in the literature pass; foundation models may compress P1's moat.)
+- Are the P1/P2 moat ratings defensible against the current state of pretrained time-series models and causal-discovery tooling? **Partial answer `[verify]`:** a deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) finds no 2024–2026 paper solves P1's exact combination, giving the first external support for "very high" — but it's a sympathetic secondary synthesis, not a systematic survey, and it notes TSFMs are background rather than a compressor of *this* (covariate-selection) moat. Verify against the named primaries.
 - Is P4's "medium–high" moat real, or is the moat actually the evidence-ledger/provenance discipline rather than the nowcast itself?
 
 ## Related pages
 
-- [shared/project-map](../shared/project-map.md)
 - [decisions/adr-0001-project-sequencing](../decisions/adr-0001-project-sequencing.md)
 - [overview](../overview.md)

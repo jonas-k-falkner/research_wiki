@@ -5,9 +5,10 @@ project: P1
 status: active
 confidence: medium
 stage: seed
-updated: 2026-06-25
+updated: 2026-06-27
 sources:
   - src-2026-06-p1-cluster-pretrained-deep-models
+  - src-2026-06-tsf-literature-review
 tags:
   - concept
 ---
@@ -34,6 +35,10 @@ It reframes SKU onboarding from per-series analyst tuning into a routing problem
 - Linear-baseline deep forecasters: D-Linear / "Are Transformers Effective for Time Series Forecasting?" (Zeng et al.) `[verify]`
 - Pretrained / zero-shot time-series foundation models as a comparison class: Chronos, Moirai, TimesFM, Lag-Llama `[verify]`
 - Clustering quality metrics appropriate to time series (not just Euclidean silhouette)
+
+## What the external review says `[verify]`
+
+A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) reports that **cluster-first handling of correlated channels is the best-supported piece of this design** in the 2024–2026 literature: Channel Clustering ("From Similarity to Superiority", NeurIPS 2024) groups similar channels with interpretability gains, and DUET (KDD 2025) extends this to dual clustering with soft assignment and sparsification. It also infers a design principle — **keep the forecasting backbone simple and spend the modeling budget on the covariate selector** (from the "A Closer Look at Transformers for TSF" / linear-baseline line) — and supports **no residual bypass around the selector** (a design inference, not a direct recommendation). All `[verify]` against the named primaries; the synthesis carries no resolvable citations, so this page stays `seed`.
 
 ## Cross-project relevance
 

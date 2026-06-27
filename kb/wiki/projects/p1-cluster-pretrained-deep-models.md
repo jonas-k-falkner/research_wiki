@@ -5,9 +5,10 @@ project: P1
 status: active
 confidence: medium
 stage: seed
-updated: 2026-06-25
+updated: 2026-06-27
 sources:
   - src-2026-06-p1-cluster-pretrained-deep-models
+  - src-2026-06-tsf-literature-review
 tags:
   - forecasting
   - deep-learning
@@ -76,16 +77,20 @@ This makes the explanation layer more robust than raw attention weights, especia
 ## Contradictions & tensions
 
 - **Determinism vs MC-dropout `[cross-layer, unresolved]`.** `p1_cluster-pretrained_deep-models.md` recommends MC-dropout (multiple stochastic passes) for importance stability, but the `forecast_pipeline` library is deterministic-by-default with explicitly seeded randomness. A `ClusterDeepModel` will need a documented stochasticity carve-out for uncertainty/importance estimation. Cannot be fully resolved until the `forecast_pipeline` repo context is ingested — tracked in [shared/research-backlog](../shared/research-backlog.md).
-- **Moat rating is self-assessed.** "Very high" technical moat (deck) is an interested estimate from the proposer; pretrained TS foundation models may compress it. Flagged on [comparisons/portfolio-evaluation](../comparisons/portfolio-evaluation.md) for the literature pass.
+- **Moat rating is self-assessed — now with first external support `[verify]`.** "Very high" technical moat (deck) was an interested proposer estimate. A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) gives the first non-self-assessed support: **no 2024–2026 top-venue paper combines query-dependent sparse selection + hierarchical cluster→feature gating + faithful cluster attribution + diversity regularization + MC-dropout selection stability**, so P1's *combination* is a still-distinct direction, not a crowded niche. Caveat: this is a sympathetic secondary synthesis (written for the P1 design, no resolvable citations), not a systematic survey — medium confidence, `[verify]` against named primaries. Tracked on [comparisons/portfolio-evaluation](../comparisons/portfolio-evaluation.md).
 
 ## Open research questions
 
 - See [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) (global-vs-clustered-vs-local) and [concepts/hierarchical-entmax-covariate-selection](../concepts/hierarchical-entmax-covariate-selection.md) (entmax vs hard gates). Backbone choice (D-Linear vs MLP) is an unresolved deck open question.
 
+## External literature positioning `[verify]`
+
+A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) finds adjacent validators for the parts of P1 — TimeXer (asymmetric target/covariate), Channel Clustering → DUET (cluster-first) — while TS foundation models are background, not blueprints, for sparse covariate selection. It also supports a compact backbone (spend the budget on the selector) and no residual bypass. The named primaries are pending Zotero export into `raw/literature/` and primary-source verification; until then these are `[verify]` and the page stays `seed`.
+
 ## Sources
 
-- [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md) — strategy/sequencing, gate protocol, risks.
-- [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md) — covariate selection mechanism.
+- [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md) — cluster models, gate protocol, covariate-selection mechanism, risks.
+- [sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md) — external TSF literature positioning (secondary synthesis, `[verify]`).
 
 ## Related pages
 

@@ -83,9 +83,14 @@ repo-root/
         p4_availability_nowcasting.md
         px_cross-project_strategy.md
         README.md                        # what these are, and the note→deck provenance
-      literature/                        # everything from Zotero + raw pdfs
-        library.json                     # CSL/BibTeX export — the canonical index of ALL items
-        ...                              # all the pdfs in per focus topic folders
+      literature/                        # Zotero export + PDFs (keyed by citekey)
+        library.json                     # Better CSL JSON export — canonical catalog of ALL items
+        pdf/
+          <citekey>.pdf                  # primary PDF per item
+          <citekey>-suppl.pdf            # optional supplementary material
+        txt/
+          <citekey>.txt                  # extracted text (derived from pdf/, same basename)
+          <citekey>-suppl.txt
     
     wiki/
       index.md
@@ -109,7 +114,15 @@ repo-root/
     templates/
 ```
 
-## Naming conventions
+## Literature layout conventions
+
+`raw/literature/` is keyed by **citekey** (from the Better CSL JSON export), flat by type — not by topic. Topic/project association lives in source-page frontmatter, never in paths.
+
+- `library.json` — Better CSL JSON export; the canonical catalog of **all** items. An item's `id` is its citekey.
+- `pdf/<citekey>.pdf` — the primary PDF for an item. Supplementary material is `pdf/<citekey>-suppl.pdf`.
+- `txt/<citekey>.txt` — extracted text, derived from the matching PDF, sharing the same basename (`<citekey>-suppl.txt` for supplements). Committed (grep/diff-friendly); regenerable by the extractor.
+- **Non-PDF items** (web pages, blog posts) are either captured as an HTML→PDF print under the same `<citekey>.pdf` name, or left **metadata-only** — present in `library.json` with no file. An item without a PDF is normal, not an error.
+- A citekey is unique within the library and is the join key across `library.json`, `pdf/`, `txt/`, and the `zotero:`/source-page reference. Tools resolve a paper by basename, never by parsing attachment paths.
 
 Use lowercase kebab-case filenames.
 

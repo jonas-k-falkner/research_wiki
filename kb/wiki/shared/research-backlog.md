@@ -5,11 +5,12 @@ project: shared
 status: active
 confidence: high
 stage: seed
-updated: 2026-06-25
+updated: 2026-06-27
 sources:
   - src-2026-06-px-cross-project-strategy
   - src-2026-06-p1-cluster-pretrained-deep-models
   - src-2026-06-p4-availability-nowcasting
+  - src-2026-06-tsf-literature-review
 tags:
   - backlog
   - roadmap
@@ -26,14 +27,18 @@ Each links the concept page that will host the citations once verified.
 
 | Topic | Candidate directions to find & verify | Lands on |
 |---|---|---|
-| Global vs clustered vs local forecasting | Montero-Manso & Hyndman; pretrained TS foundation models (Chronos, Moirai, TimesFM, Lag-Llama) | [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) |
-| Sparse covariate selection | α-entmax/sparsemax (Martins, Peters); TFT variable selection (Lim); L0/hard-concrete (Louizos); attention-faithfulness (Jain & Wallace) | [concepts/hierarchical-entmax-covariate-selection](../concepts/hierarchical-entmax-covariate-selection.md) |
-| Causal / asymmetric embeddings | order & hyperbolic embeddings (Nickel & Kiela); Transfer Entropy (Schreiber); Granger; distillation | [concepts/causal-covariate-embeddings](../concepts/causal-covariate-embeddings.md) |
+| Global vs clustered vs local forecasting | Montero-Manso & Hyndman; **Channel Clustering / "From Similarity to Superiority" (NeurIPS 2024)**; **DUET (KDD 2025)**; backbone context: "A Closer Look at Transformers for TSF" (ICML 2025), iTransformer, TimeMixer; TSFM baselines (Chronos, Moirai, TimesFM, Time-MoE, Sundial, Timer) | [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) |
+| Sparse covariate selection | α-entmax/sparsemax (Martins, Peters); TFT variable selection (Lim); L0/hard-concrete (Louizos); attention-faithfulness (Jain & Wallace; Wiegreffe & Pinter). *Note: review finds entmax support in TSF is adjacent, not direct.* | [concepts/hierarchical-entmax-covariate-selection](../concepts/hierarchical-entmax-covariate-selection.md) |
+| Causal / asymmetric embeddings | **TimeXer (NeurIPS 2024, endo/exo split)**; **ChronosX, UniCA, ApolloPFN** (covariate adapters); CATS-ATS; CauAir; order & hyperbolic embeddings (Nickel & Kiela); Transfer Entropy (Schreiber); Granger; distillation | [concepts/causal-covariate-embeddings](../concepts/causal-covariate-embeddings.md) |
 | Validation & calibration | CPCV (López de Prado); conformal/CQR (Romano); Diebold-Mariano | [concepts/cpcv-validation](../concepts/cpcv-validation.md) |
 | Scenario / counterfactual | stress-testing methodology; intervention under correlated inputs; uncertainty communication | [concepts/scenario-re-run-api](../concepts/scenario-re-run-api.md) |
 | Mixed-frequency nowcasting | MIDAS (Ghysels); dynamic factor models (Giannone, Reichlin & Small) | [concepts/mixed-frequency-nowcasting](../concepts/mixed-frequency-nowcasting.md) |
 | Evidence ledger / provenance | bitemporal modelling; truth discovery / source-reliability weighting | [concepts/evidence-ledger](../concepts/evidence-ledger.md) |
 | Supply-chain graphs | KG completion / GNN link prediction; schema-driven disruption extraction | [concepts/explicit-evidence-graph](../concepts/explicit-evidence-graph.md) |
+
+## Completed deep-research steps
+
+- **2026-06-27 — TSF literature review** ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)). A deep-research synthesis of 2024–2026 TSF, read against P1. It **named** the primaries above (TimeXer, Channel Clustering, DUET, ChronosX, UniCA, ApolloPFN, CATS-ATS, CauAir, …) and positioned them, but **carries no resolvable citations** — so it is a `[verify]`-tier map, not verification. **Next:** export the named papers from Zotero into `raw/literature/`, then confirm each claim against the primary before promoting any P1 page `seed → researched`.
 
 ## Planned internal sources to ingest
 

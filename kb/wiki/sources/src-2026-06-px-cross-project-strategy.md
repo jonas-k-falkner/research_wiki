@@ -66,4 +66,3 @@ Start P3 now (fast, low-risk, revenue), run the P1 cluster-quality gate in paral
 - [comparisons/portfolio-evaluation](../comparisons/portfolio-evaluation.md)
 - [decisions/adr-0001-project-sequencing](../decisions/adr-0001-project-sequencing.md)
 - [overview](../overview.md)
-- [shared/project-map](../shared/project-map.md)

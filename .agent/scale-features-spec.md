@@ -24,11 +24,14 @@ A typed Python module providing the primitives every feature reuses:
 - `iter_pages(root) -> Iterator[Page]` — enumerate all `wiki/**/*.md`, parse YAML
   frontmatter + body, expose `path`, `type`, `domain`, `project`, `status`, `stage`,
   `confidence`, `updated`, `sources: list[str]`, `tags`, `title`, `body`.
-- `iter_wikilinks(page) -> Iterator[Link]` — extract `[[target]]` / `[[target#anchor]]`,
-  resolve to a path or `None`.
+- `iter_links(page) -> Iterator[Link]` — extract **portable Markdown links** (`](target.md)`
+  / `](target.md#anchor)`), resolve each to a path or `None`. (The wiki uses Markdown links,
+  not Obsidian wikilinks — see `kb/CLAUDE.md`.)
 - `load_library(raw/literature/library.json) -> dict[citekey, Item]` — parse the
-  Zotero export; expose DOI, title, authors, year, abstract, attachment paths.
-- `literature_dir(citekey) -> Path` and `extracted_text(citekey) -> Path | None`.
+  Better CSL JSON export; expose `id` (citekey), DOI, title, authors, year, abstract.
+- `pdf_path(citekey) -> Path | None` and `txt_path(citekey) -> Path | None` — resolve
+  `raw/literature/pdf/<citekey>.pdf` / `txt/<citekey>.txt` by basename (also `-suppl`
+  variants); return `None` when absent (metadata-only items are normal).
 - `content_hash(path) -> str` — stable SHA-256 of normalized content (for idempotency).
 - `inbound_links(pages) -> dict[path, set[path]]` — the link graph (used by lint, toc,
   retrieval graph-expansion).
@@ -42,12 +45,12 @@ A typed Python module providing the primitives every feature reuses:
 - `pytest` with unit + a small integration test per feature; cover empty/missing/malformed
   inputs and determinism.
 - QA loop before every commit: `uv run ruff format . && uv run ruff check . --fix &&
-  uv run mypy . && uv run pytest`.
+  uv run mypy src && uv run pytest tests/unit` (targets `src/` and `tests/` only — never `kb/`).
 
 ### One CLI, several subcommands
 
-Expose everything through a single entry point `wiki` (e.g. `tools/` package with a
-console script). Subcommands introduced by the features below:
+Expose everything through a single entry point `wiki` (the `src/wikitools/` package, a
+uv console script). Subcommands introduced by the features below:
 `wiki lint`, `wiki toc`, `wiki extract`, `wiki index`, `wiki search`, `wiki check`.
 
 Every subcommand supports `--json` for agent consumption and prints human-readable output
@@ -55,10 +58,10 @@ by default. Exit non-zero only where specified (lint errors, check failures).
 
 ### Where artifacts live
 
-- Code: `tools/` (its own `pyproject.toml`, uv-managed).
-- Rebuildable caches/DBs: `.wiki/` (gitignored) — never committed, always regenerable.
-- Extracted PDF text: committed next to its PDF in `raw/literature/<citekey>/` (it is
-  derived-but-stable source material, useful in diffs and grep).
+- Code: `src/wikitools/` (repo-root `pyproject.toml`, uv-managed).
+- Rebuildable caches/DBs: `kb/.wiki/` (gitignored) — never committed, always regenerable.
+- Extracted PDF text: committed under `raw/literature/txt/<citekey>.txt` (derived-but-stable,
+  useful in diffs and grep; same basename as the PDF, `-suppl` variants included).
 
 ### Build order
 
@@ -86,12 +89,24 @@ that the ~100-source navigation ceiling demands.
 Two parts:
 
 **1a. PDF text extraction (ingest-time, cached, idempotent).**
-For each `raw/literature/<citekey>/<citekey>.pdf`, extract to
-`raw/literature/<citekey>/<citekey>.txt`. Default extractor: `pdftotext` (poppler-utils) —
-fast, deterministic, sufficient for text-based papers. Provide `--engine docling|marker`
+For each PDF in `raw/literature/pdf/` (`<citekey>.pdf` and any `<citekey>-suppl.pdf`),
+extract to `raw/literature/txt/<basename>.txt`. Default extractor: `pdftotext` (poppler-utils)
+— fast, deterministic, sufficient for text-based papers. Provide `--engine docling|marker`
 as an opt-in fallback for scanned/figure-heavy PDFs (heavier deps, off by default). Skip
 re-extraction when a stored source hash matches (idempotent). Record extractor + hash in a
-sidecar `<citekey>.extract.json`.
+sidecar `txt/<basename>.extract.json`.
+
+Layout rules the extractor must respect:
+- Resolve papers by **basename = citekey**, never by parsing attachment paths from `library.json`.
+- Supplements share the citekey with a `-suppl` suffix (`<citekey>-suppl.pdf` → `-suppl.txt`).
+- **Metadata-only items** (in `library.json` with no PDF — e.g. web pages not printed to PDF)
+  are normal: skip them, do not error.
+
+**Reconciliation check (run first, surfaces rename/sync mistakes).** Before extracting, verify:
+every `pdf/` basename maps to a citekey present in `library.json`; every `library.json` item
+either has a `pdf/<citekey>.pdf` or is intentionally metadata-only; every `pdf/` has a current
+`txt/`. Emit a clean error list (`--json`) rather than failing silently — this turns a
+mis-renamed PDF into a reported gap. (Lint also runs this; see Feature 3.)
 
 **1b. Search index + query (hybrid lexical + semantic).**
 Chunk and index: wiki pages by heading section; extracted PDF text by ~800-token windows
@@ -135,7 +150,7 @@ that threshold, brute-force is the correct, deterministic choice.
 
 ```
 wiki extract [--engine pdftotext|docling|marker] [--force] [--citekey X]
-    # populate/refresh raw/literature/<citekey>/<citekey>.txt; idempotent by hash
+    # populate/refresh raw/literature/txt/<basename>.txt; idempotent by hash; runs reconciliation first
 
 wiki index build [--embedder local|openai] [--model NAME]
     # full (re)build of .wiki/corpus.duckdb: chunk, FTS, AND embed every chunk
@@ -158,14 +173,14 @@ wiki search "QUERY" [--scope wiki|lit|all] [--k 10] [--project P1] \
   `ORDER BY ... LIMIT k` — no `vss` extension, no HNSW. Embedding done once at index time,
   cached in the DB; re-embed only changed chunks on `update`.
 - Fusion: reciprocal-rank fusion of the two ranked lists (single documented function,
-  configurable k constant). Optional source-overlap/`[[wikilink]]` graph bonus on top — borrow
+  configurable k constant). Optional source-overlap/Markdown-link graph bonus on top — borrow
   nashsu's source-overlap signal — kept in the same scoring function.
 - Keep the embedder behind a small interface (`embed(texts) -> vectors`) so local/API/model
   swaps don't touch the index code.
 
 ### Outputs & locations
 
-- `raw/literature/<citekey>/<citekey>.txt` + `<citekey>.extract.json` (committed)
+- `raw/literature/txt/<basename>.txt` + `txt/<basename>.extract.json` (committed)
 - `.wiki/corpus.duckdb` (gitignored, rebuildable — holds chunks, FTS, embeddings)
 
 ### Dependencies
@@ -269,7 +284,7 @@ automated lint that scales past eyeballing, runnable in pre-commit and CI.
 
 ### Scope — checks (severity: error blocks commit, warn reports)
 
-- **Broken wikilinks** — every `[[target]]` resolves to a file. *(error)*
+- **Broken links** — every portable Markdown link `](target.md)` resolves to a file. *(error)*
 - **Frontmatter schema** — required keys present (`type, status, stage, confidence, updated,
   sources`); valid enum values; valid YAML; `updated` is a date. *(error)*
 - **Dangling `sources[]`** — every frontmatter source id has a matching `src-*` page. *(error)*
@@ -282,8 +297,10 @@ automated lint that scales past eyeballing, runnable in pre-commit and CI.
   source pages have a resolvable raw path + `zotero` key. *(warn)*
 - **Thin / boilerplate pages** — body below a length threshold or matching known boilerplate
   phrases (catches filler regressions). *(warn)*
-- **Citekey integrity** — `zotero:` keys exist in `library.json`; referenced literature
-  citekeys exist on disk under `raw/literature/`. *(warn)*
+- **Citekey integrity / literature reconciliation** — `zotero:` keys in source pages exist in
+  `library.json`; every `pdf/<citekey>.pdf` basename is a citekey in `library.json`; every
+  PDF has a current `txt/`; `library.json` items are either backed by a PDF or intentionally
+  metadata-only. *(warn)*
 - **Reachability** — every page reachable from `index.md` or a domain index. *(warn)*
 - **Near-duplicate titles/pages** — scale safety net for dedup. *(warn)*
 
@@ -292,7 +309,7 @@ automated lint that scales past eyeballing, runnable in pre-commit and CI.
 ```
 wiki lint [--json] [--fix] [--severity error|warn]
     # human report by default; --json structured; non-zero exit if any error
-    # --fix applies only SAFE auto-fixes (strip dead [[links]], normalize frontmatter
+    # --fix applies only SAFE auto-fixes (strip dead Markdown links, normalize frontmatter
     #   key order) — gated, never edits prose or claims
 ```
 
@@ -310,7 +327,7 @@ wiki lint [--json] [--fix] [--severity error|warn]
 
 - Run on the current repo: reports zero errors (the seed-hardening pass already fixed them)
   and the expected warns; matches the findings documented in `log.md`.
-- Inject a broken `[[link]]` → caught, non-zero exit.
+- Inject a broken Markdown link → caught, non-zero exit.
 - Inject a `seed`+`high` page → warned.
 - `--json` schema is stable and documented.
 - `--fix` strips a dead wikilink and leaves all prose untouched (diff test).

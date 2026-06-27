@@ -5,9 +5,10 @@ project: P1
 status: active
 confidence: medium
 stage: seed
-updated: 2026-06-25
+updated: 2026-06-27
 sources:
   - src-2026-06-p1-cluster-pretrained-deep-models
+  - src-2026-06-tsf-literature-review
 tags:
   - thesis
   - forecasting
@@ -40,7 +41,11 @@ Do shape-based clusters provide sufficiently consistent regimes for a shared mod
 | Hierarchical entmax can stabilize covariate selection | plausible | Influences P1 model architecture |
 | P2 embeddings improve covariate layer | unvalidated | Influences sequencing of full P1 build |
 
+## External literature positioning `[verify]`
+
+A deep-research synthesis of 2024–2026 TSF ([sources/src-2026-06-tsf-literature-review](../../sources/src-2026-06-tsf-literature-review.md)) splits the field into two streams: stronger general backbones (iTransformer, TimeMixer, the TSFM wave — Chronos, Moirai, TimesFM, Time-MoE, Sundial, Timer) and a smaller, more relevant stream on using covariates / clustering channels / adapting pretrained models (TimeXer, Channel Clustering, DUET, ChronosX, UniCA, ApolloPFN). Two takeaways for this domain: **TS foundation models are background, not the center of gravity** — the covariate-adapter papers exist precisely because leading TSFMs ignore exogenous covariates; and **a compact backbone with the right covariate inductive bias may suffice** (no exotic architecture needed). All `[verify]` against named primaries; thesis stays `seed`.
+
 ## Sources & related
 
-- [sources/src-2026-06-p1-cluster-pretrained-deep-models](../../sources/src-2026-06-p1-cluster-pretrained-deep-models.md), [sources/src-2026-06-p1-cluster-pretrained-deep-models](../../sources/src-2026-06-p1-cluster-pretrained-deep-models.md)
+- [sources/src-2026-06-p1-cluster-pretrained-deep-models](../../sources/src-2026-06-p1-cluster-pretrained-deep-models.md), [sources/src-2026-06-tsf-literature-review](../../sources/src-2026-06-tsf-literature-review.md)
 - Project: [projects/p1-cluster-pretrained-deep-models](../../projects/p1-cluster-pretrained-deep-models.md)

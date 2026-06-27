@@ -15,11 +15,15 @@ raw chunks from scratch on every question. Knowledge is *compiled once and kept 
 
 Three layers:
 - `raw/` — **immutable** source material. Never edited by the wiki. Two buckets:
-  `raw/seed/` (originating internal notes/deck) and `raw/literature/<citekey>/` (papers from
-  Zotero, keyed by Better BibTeX citekey, with `library.json` as the canonical item catalog).
+  `raw/seed/` (originating internal notes/deck) and `raw/literature/` (papers from a reference
+  manager). The literature bucket is flat by type, keyed by **citekey**: `library.json` (a
+  Better CSL JSON export) is the canonical catalog of all items; `pdf/<citekey>.pdf` holds the
+  PDFs (supplements as `<citekey>-suppl.pdf`); `txt/<citekey>.txt` holds extracted text. Some
+  items are metadata-only (in `library.json`, no PDF) — that is normal.
 - `wiki/` — LLM-generated markdown pages (projects, concepts, experiments, sources, domains,
-  comparisons, entities, shared). Cross-linked with `[[wikilinks]]`, YAML frontmatter on every
-  page, Obsidian-compatible.
+  comparisons, entities, shared). Cross-linked with **portable Markdown links** (e.g.
+  `[label](projects/p1-cluster-pretrained-deep-models.md)`), not Obsidian wikilinks; YAML
+  frontmatter on every page; still Obsidian-openable.
 - `CLAUDE.md` — the schema: structure rules, page types, claim format, maturity model,
   ingest/query/lint workflows. **Authoritative — read it first.**
 
@@ -81,11 +85,12 @@ git) stays; we add a **retrieval + maintenance layer** over the same files. Four
   randomness. Determinism is a tested property, not an aspiration.
 - **House style:** Python 3.12+, `uv` + `pyproject.toml`, fully typed (`mypy`), `ruff`
   format+check, `pytest`. QA loop before every commit:
-  `uv run ruff format . && uv run ruff check . --fix && uv run mypy . && uv run pytest`.
+  `uv run ruff format . && uv run ruff check . --fix && uv run mypy src && uv run pytest tests/unit`
+  (targets `src/` and `tests/` only — never `kb/`).
 - **One CLI, subcommands** (`wiki lint|toc|extract|index|search|check`), all with `--json` for
   agent use. Shared logic lives in `wikilib` — do not duplicate frontmatter parsing.
-- **Build artifacts placement:** code in `tools/`; rebuildable caches in `.wiki/`
-  (gitignored); extracted PDF text committed beside its PDF in `raw/literature/<citekey>/`.
+- **Build artifacts placement:** code in `src/wikitools/`; rebuildable caches in `kb/.wiki/`
+  (gitignored); extracted PDF text committed under `raw/literature/txt/<citekey>.txt`.
 - **Every feature updates `CLAUDE.md`** to document its tool so the agent discovers and uses
   it by default — and Features 1–2 update the research-pass prompt to call `wiki search` /
   `wiki check` instead of reading the index.

@@ -93,3 +93,26 @@ Finalized the seed KB as a clean starting point for the research pass.
 - All pages remain `stage: seed`; `[verify]` literature unattached; production-repo context
   (`forecast_pipeline`, `embedding_model`) not yet ingested — tracked in
   [shared/research-backlog](shared/research-backlog.md).
+
+## 2026-06-27 (ingest — TSF literature review, deep-research synthesis)
+
+Ingested a deep-research synthesis of 2024–2026 time-series forecasting literature, read against P1.
+
+### Provenance call (important)
+- Classified as a **secondary synthesis, `[verify]`-tier**: it names real primaries (TimeXer, Channel Clustering, DUET, ChronosX, UniCA, ApolloPFN, CATS-ATS, CauAir, …) but **carries no resolvable citations**. Ingest did **not** promote any page `seed → researched`. Pages remain `seed`; all added claims are attributed to the synthesis and marked `[verify]` against the named primaries.
+
+### Added
+- `raw/research/deep-forecaster-tsf-review-2026.md` (new `raw/research/` bucket).
+- Source page `sources/src-2026-06-tsf-literature-review.md` with explicit evidence-tier framing.
+
+### Distilled into
+- `concepts/cluster-pretrained-deep-models` — Channel Clustering → DUET as best-supported lineage; "simple backbone, spend budget on selector"; no residual bypass.
+- `concepts/hierarchical-entmax-covariate-selection` — calibration: entmax support in TSF is **adjacent, not direct** (seed note overstated it); cluster-level attribution is an open opportunity.
+- `concepts/causal-covariate-embeddings` — TimeXer validates asymmetric target/covariate modeling; shared-encoder-for-target-conditioned-routing is unmatched (novelty point).
+- `domains/timeseries-forecasting/thesis` — two-stream framing; TSFMs are background, not center. (Also fixed a duplicated source link.)
+- `projects/p1-cluster-pretrained-deep-models` — external-literature positioning; **moat tension updated with first non-self-assessed support** (no 2024–2026 paper solves P1's exact combination), caveated as sympathetic secondary synthesis. (Also fixed a duplicated source link.)
+- `comparisons/portfolio-evaluation` — partial answer to the P1/P2 moat question.
+- `shared/research-backlog` — P1/P2 literature rows upgraded from vague areas to **named, venue-tagged primaries**; logged as a completed deep-research step.
+
+### Next (tracked in research-backlog)
+- Export the named primaries from Zotero into `raw/literature/`, then verify each claim against the primary source before any `seed → researched` promotion.

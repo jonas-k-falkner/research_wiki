@@ -36,7 +36,6 @@ tags:
 
 ## Shared pages
 
-- [shared/project-map](shared/project-map.md)
 - [shared/evaluation-strategy](shared/evaluation-strategy.md)
 - [shared/risks-and-caveats](shared/risks-and-caveats.md)
 - [shared/open-questions](shared/open-questions.md)
@@ -81,6 +80,10 @@ Seed notes (cited by content pages):
 - [P3 — Scenario engine](sources/src-2026-06-p3-scenario-engine.md)
 - [P4 — Availability nowcasting](sources/src-2026-06-p4-availability-nowcasting.md)
 - [PX — Cross-project strategy](sources/src-2026-06-px-cross-project-strategy.md)
+
+Deep-research synthesis (secondary, `[verify]`):
+
+- [TSF literature review (Jan 2024–mid 2026)](sources/src-2026-06-tsf-literature-review.md)
 
 Upstream origin (consolidated, not cited directly):
 
