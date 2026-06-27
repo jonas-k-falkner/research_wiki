@@ -283,6 +283,32 @@ When answering a research question:
 5. File durable synthesis under `wiki/queries/` when useful.
 6. Update relevant pages when the answer changes the research memory.
 
+## TOC workflow
+
+`wiki/index.md` and `wiki/domains/*/index.md` contain **generated regions** fenced by:
+
+```
+<!-- AUTO:start -->
+...generated content...
+<!-- AUTO:end -->
+```
+
+**Rules:**
+- Human prose lives **outside** the AUTO fences. Edits inside the fences are overwritten on the next `wiki toc build` run.
+- `wiki/index.md` keeps the project-tracks table and any human intro above the AUTO region; the AUTO region contains the domain summary table, shared pages list, and total count.
+- Domain index files (`wiki/domains/<domain>/index.md`) are created on first run if absent. The AUTO region contains the full page catalog table for that domain.
+
+**Commands:**
+
+```
+wiki toc build             # regenerate; idempotent (no-op if up-to-date)
+wiki toc build --check     # exit non-zero if stale (CI staleness guard)
+```
+
+`wiki toc build --check` is the CI guard: run it in CI after any page addition or frontmatter change to verify that committed indexes are current.
+
+After ingesting a new source or adding pages, run `wiki toc build` and commit the updated index files alongside the content changes. Domain set is derived dynamically from `domain:` values in frontmatter — new domains appear in the indexes without any code change.
+
 ## Lint workflow
 
 Run automated lint via the `wiki` CLI before committing or when asked to lint:

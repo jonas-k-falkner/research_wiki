@@ -88,3 +88,27 @@ Deep-research synthesis (secondary, `[verify]`):
 Upstream origin (consolidated, not cited directly):
 
 - [Sybilion AI projects review (deck, May 2026)](sources/src-2026-05-sybilion-ai-projects-review.md)
+
+<!-- AUTO:start -->
+## Domain indexes
+
+| Domain | Pages | Stages |
+|---|---|---|
+| [Embedding models](domains/embedding-models/index.md) | 5 | 5 seed |
+| [Nowcasting graph](domains/nowcasting-graph/index.md) | 8 | 8 seed |
+| [Scenario engine](domains/scenario-engine/index.md) | 6 | 6 seed |
+| [Time-series forecasting](domains/timeseries-forecasting/index.md) | 7 | 7 seed |
+
+## Shared pages
+
+- [Portfolio evaluation matrix](comparisons/portfolio-evaluation.md)
+- [ADR-0001: Project sequencing](decisions/adr-0001-project-sequencing.md)
+- [Source: PX — Cross-project portfolio & strategy](sources/src-2026-06-px-cross-project-strategy.md)
+- [Source: Sybilion AI projects review](sources/src-2026-05-sybilion-ai-projects-review.md)
+- [Evaluation strategy](shared/evaluation-strategy.md)
+- [Open questions](shared/open-questions.md)
+- [Research backlog](shared/research-backlog.md)
+- [Risks and caveats](shared/risks-and-caveats.md)
+
+_34 total pages across 4 domain(s) + shared._
+<!-- AUTO:end -->
