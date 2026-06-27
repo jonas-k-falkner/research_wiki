@@ -1,0 +1,23 @@
+[
+  {
+    "id": "smithExamplePaper2024",
+    "citation-key": "smithExamplePaper2024",
+    "title": "An Example Paper",
+    "author": [{"family": "Smith", "given": "Alice"}],
+    "issued": {"date-parts": [[2024]]}
+  },
+  {
+    "id": "jonesSupplement2023",
+    "citation-key": "jonesSupplement2023",
+    "title": "A Supplementary Paper",
+    "author": [{"family": "Jones", "given": "Bob"}],
+    "issued": {"date-parts": [[2023]]}
+  },
+  {
+    "id": "brownMetadataOnly2022",
+    "citation-key": "brownMetadataOnly2022",
+    "title": "Metadata Only — no PDF",
+    "author": [{"family": "Brown", "given": "Carol"}],
+    "issued": {"date-parts": [[2022]]}
+  }
+]
