@@ -9,9 +9,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Similarity thresholds for claim classification
-_DUPLICATE_THRESHOLD = 0.85
-_SUPPORT_THRESHOLD = 0.50
+# Cosine-similarity thresholds (semantic mode, scores in [0, 1]).
+# These thresholds are ONLY meaningful for cosine similarity scores.
+# BM25 scores are unbounded (typically 3-10); RRF scores are tiny (0.01-0.04).
+# check_claim enforces mode="semantic" by default; do NOT use these thresholds
+# against lexical or hybrid scores.
+_COSINE_DUPLICATE_THRESHOLD = 0.85
+_COSINE_SUPPORT_THRESHOLD = 0.60
 
 
 # ── enums / data types ────────────────────────────────────────────────────────
@@ -203,19 +207,22 @@ def _load_page_citekeys(source_path: str, kb_root: Path) -> set[str]:
     return keys
 
 
-def _classify(score: float, cites_queried: bool) -> ClaimClassification:
-    """Classify a claim hit.
+def _classify_cosine(score: float) -> ClaimClassification:
+    """Classify a claim hit using cosine similarity thresholds.
+
+    Only valid for cosine similarity scores in [0, 1].  Do not apply to BM25 or
+    RRF scores — their ranges are completely different and the thresholds would
+    misfire (BM25 > 1 → everything "duplicate"; RRF < 0.04 → everything "new").
 
     Args:
-        score: Similarity score.
-        cites_queried: Whether the hit page already cites the queried source.
+        score: Cosine similarity in [0, 1].
 
     Returns:
         Classification: duplicate, additional-support, or new.
     """
-    if score >= _DUPLICATE_THRESHOLD:
+    if score >= _COSINE_DUPLICATE_THRESHOLD:
         return ClaimClassification.DUPLICATE
-    if score >= _SUPPORT_THRESHOLD:
+    if score >= _COSINE_SUPPORT_THRESHOLD:
         return ClaimClassification.ADDITIONAL_SUPPORT
     return ClaimClassification.NEW
 
@@ -227,32 +234,56 @@ def check_claim(
     citekey: str | None = None,
     page: str | None = None,
     k: int = 10,
-    mode: str = "hybrid",
+    mode: str = "semantic",
 ) -> list[ClaimHit]:
-    """Search the corpus for existing claims similar to `claim_text`.
+    """Search the corpus for existing wiki claims semantically similar to `claim_text`.
 
-    Uses the T004 search index (lexical FTS primary; cosine secondary when
-    ``[semantic]`` extra is installed).  Classifies each hit as duplicate,
-    additional-support, or new relative to the provided source.
+    **Requires semantic mode.**  Claim deduplication depends on cosine similarity
+    between sentence embeddings — BM25 measures term overlap, not meaning, so two
+    paraphrased claims score near zero in lexical mode even when identical in intent.
+    The classification thresholds (0.85 / 0.60) are calibrated for cosine similarity
+    scores in [0, 1] and are meaningless against BM25 or RRF scores.
+
+    The default mode is ``"semantic"``.  ``"lexical"`` is accepted but unreliable
+    for deduplication — use it only when the ``[semantic]`` extra is unavailable and
+    you need a rough term-overlap check.  ``"hybrid"`` uses RRF scores (~0.01-0.04)
+    which are also outside the calibrated range.
 
     Args:
         claim_text: The candidate claim to check.
         kb_root: Knowledge-base root directory.
-        citekey: Optional citekey of the source being ingested; used to mark hits
-                 that already cite this source.
-        page: Optional relative path to the page being edited; excluded from results
-              so a page does not flag its own content as a duplicate.
-        k: Maximum number of hits to return.
-        mode: Search mode — ``"lexical"``, ``"semantic"``, or ``"hybrid"`` (default).
+        citekey: Optional citekey of the source being ingested; marks hits that
+                 already cite this source.
+        page: Optional relative path of the page being edited; excluded from results
+              to avoid self-match.
+        k: Maximum hits to retrieve from the index before filtering.
+        mode: ``"semantic"`` (default and recommended), ``"lexical"`` (degraded),
+              or ``"hybrid"`` (RRF scores, not calibrated for thresholds).
 
     Returns:
-        List of ``ClaimHit`` objects, sorted by descending score, filtered to
-        non-NEW classifications.  Empty list when no similar claims are found.
+        List of ``ClaimHit`` objects filtered to ``duplicate`` and
+        ``additional-support`` only (``new`` hits are dropped).  Empty list means
+        the claim is novel.
 
     Raises:
         FileNotFoundError: If the search index does not exist.
+        MissingExtraError: If ``mode="semantic"`` but ``fastembed`` is not installed.
     """
+    from wikitools.commands.extract import MissingExtraError
+    from wikitools.commands.index import LocalEmbedder
     from wikitools.commands.search import search
+
+    if mode == "semantic":
+        # Eagerly fail with a clear message before touching the index.
+        try:
+            LocalEmbedder()
+        except MissingExtraError:
+            raise MissingExtraError(
+                "wiki check claim --mode semantic requires the [semantic] extra. Install with: uv sync --extra semantic  Or use --mode lexical for a degraded term-overlap check."
+            ) from None
+
+    if mode not in ("semantic", "lexical", "hybrid"):
+        raise ValueError(f"Unknown mode: {mode!r}")
 
     try:
         hits = search(claim_text, kb_root, k=k, mode=mode, scope="wiki")
@@ -271,7 +302,15 @@ def check_claim(
             page_citekeys = _load_page_citekeys(h.source_path, kb_root)
             cites_queried = citekey in page_citekeys
 
-        classification = _classify(h.score, cites_queried)
+        # Only cosine (semantic) scores are in [0,1] and usable with the thresholds.
+        # For lexical/hybrid, fall back to a simple rank-based heuristic: top-3
+        # are "additional-support" and the rest are "new".
+        if mode == "semantic":
+            classification = _classify_cosine(h.score)
+        else:
+            rank = len(results)
+            classification = ClaimClassification.ADDITIONAL_SUPPORT if rank < 3 else ClaimClassification.NEW
+
         if classification == ClaimClassification.NEW:
             continue
 

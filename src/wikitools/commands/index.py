@@ -361,13 +361,20 @@ def _collect_txt_chunks(kb_root: Path) -> list[Chunk]:
     return chunks
 
 
-def build_index(kb_root: Path, embedder: Embedder | None = None, embed_dim: int = _EMBED_DIM) -> None:
+def build_index(
+    kb_root: Path,
+    embedder: Embedder | None = None,
+    embed_dim: int = _EMBED_DIM,
+    batch_size: int = 256,
+) -> None:
     """Full corpus rebuild: chunk, embed, and FTS-index all wiki pages and txt files.
 
     Args:
         kb_root: Knowledge-base root directory.
         embedder: Embedding provider.  When ``None``, embeddings are stored as ``NULL``.
         embed_dim: Dimensionality of embedding vectors (must match schema).
+        batch_size: Number of chunks per embedding batch.  Larger batches are faster
+            but use more memory.  Progress is logged after each batch.
     """
     con = _open_db(kb_root)
     _ensure_schema(con)
@@ -382,7 +389,7 @@ def build_index(kb_root: Path, embedder: Embedder | None = None, embed_dim: int 
 
     logger.info("build_index: %d wiki chunks, %d txt chunks", len(wiki_chunks), len(txt_chunks))
 
-    _insert_chunks(con, all_chunks, embedder)
+    _insert_chunks(con, all_chunks, embedder, batch_size=batch_size)
     _rebuild_fts(con)
 
     ts = str(int(time.time()))
@@ -395,26 +402,37 @@ def build_index(kb_root: Path, embedder: Embedder | None = None, embed_dim: int 
     logger.info("build_index: done (%d total chunks)", len(all_chunks))
 
 
-def _insert_chunks(con: duckdb_type.DuckDBPyConnection, chunks: list[Chunk], embedder: Embedder | None) -> None:
-    """Insert a batch of chunks, computing embeddings when an embedder is provided.
+def _insert_chunks(
+    con: duckdb_type.DuckDBPyConnection,
+    chunks: list[Chunk],
+    embedder: Embedder | None,
+    batch_size: int = 256,
+) -> None:
+    """Insert chunks, computing embeddings in batches when an embedder is provided.
 
     Args:
         con: Open DuckDB connection.
         chunks: Chunks to insert.
         embedder: Optional embedder; when ``None`` embeddings are stored as ``NULL``.
+        batch_size: Chunks per embedding call.  Progress logged after each batch.
     """
     if not chunks:
         return
 
-    # Get current max id
     row = con.execute("SELECT COALESCE(MAX(id), 0) FROM chunks").fetchone()
     next_id = (row[0] if row else 0) + 1
 
     embeddings: list[list[float] | None]
     if embedder is not None:
         texts = [c.text for c in chunks]
-        vecs = embedder.embed(texts)
-        embeddings = list(vecs)
+        embeddings = []
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        for batch_idx in range(total_batches):
+            start = batch_idx * batch_size
+            end = min(start + batch_size, len(texts))
+            batch_vecs = embedder.embed(texts[start:end])
+            embeddings.extend(batch_vecs)
+            logger.info("build_index: embedded batch %d/%d (%d/%d chunks)", batch_idx + 1, total_batches, end, len(texts))
     else:
         embeddings = [None] * len(chunks)
 

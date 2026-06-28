@@ -225,6 +225,13 @@ def _cmd_check(args: argparse.Namespace, kb_root: Path) -> None:
                 print(f"  current hash:  {status.current_hash}")
 
     elif sub == "claim":
+        from wikitools.commands.extract import MissingExtraError
+
+        if args.mode != "semantic":
+            print(
+                f"wiki check claim: [warn] --mode {args.mode} uses term overlap, not semantic similarity — results may miss paraphrased duplicates. Use --mode semantic for reliable deduplication.",
+                file=sys.stderr,
+            )
         try:
             hits = check_claim(
                 args.text,
@@ -234,6 +241,9 @@ def _cmd_check(args: argparse.Namespace, kb_root: Path) -> None:
                 k=args.k,
                 mode=args.mode,
             )
+        except MissingExtraError as exc:
+            print(f"wiki check claim: {exc}", file=sys.stderr)
+            sys.exit(1)
         except FileNotFoundError as exc:
             print(f"wiki check claim: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -320,7 +330,9 @@ def main() -> None:
     check_claim_p.add_argument("text", help="Candidate claim text to check.")
     check_claim_p.add_argument("--citekey", metavar="KEY", default=None, help="Citekey of the source being ingested (marks whether hits already cite it).")
     check_claim_p.add_argument("--page", metavar="PATH", default=None, help="Relative path of the page being edited (excluded from results).")
-    check_claim_p.add_argument("--mode", choices=["lexical", "semantic", "hybrid"], default="hybrid", help="Search mode (default: hybrid).")
+    check_claim_p.add_argument(
+        "--mode", choices=["lexical", "semantic", "hybrid"], default="semantic", help="Search mode (default: semantic — required for reliable deduplication)."
+    )
     check_claim_p.add_argument("-k", type=int, default=10, help="Maximum results (default: 10).")
     check_claim_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
 

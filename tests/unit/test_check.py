@@ -12,7 +12,7 @@ from wikitools.commands.check import (
     ClaimHit,
     SourceState,
     SourceStatus,
-    _classify,
+    _classify_cosine,
     _find_source_page,
     check_claim,
     check_source,
@@ -31,27 +31,33 @@ def _make_kb(tmp_path: Path) -> Path:
     return kb
 
 
-# ── _classify ─────────────────────────────────────────────────────────────────
+# ── _classify_cosine ──────────────────────────────────────────────────────────
 
 
-def test_classify_high_score_is_duplicate() -> None:
-    assert _classify(0.90, False) == ClaimClassification.DUPLICATE
+def test_classify_cosine_high_score_is_duplicate() -> None:
+    assert _classify_cosine(0.90) == ClaimClassification.DUPLICATE
 
 
-def test_classify_medium_score_is_additional_support() -> None:
-    assert _classify(0.70, False) == ClaimClassification.ADDITIONAL_SUPPORT
+def test_classify_cosine_medium_score_is_additional_support() -> None:
+    assert _classify_cosine(0.70) == ClaimClassification.ADDITIONAL_SUPPORT
 
 
-def test_classify_low_score_is_new() -> None:
-    assert _classify(0.10, False) == ClaimClassification.NEW
+def test_classify_cosine_low_score_is_new() -> None:
+    assert _classify_cosine(0.10) == ClaimClassification.NEW
 
 
-def test_classify_boundary_at_duplicate_threshold() -> None:
-    assert _classify(0.85, False) == ClaimClassification.DUPLICATE
+def test_classify_cosine_boundary_at_duplicate_threshold() -> None:
+    assert _classify_cosine(0.85) == ClaimClassification.DUPLICATE
 
 
-def test_classify_just_below_support_threshold_is_new() -> None:
-    assert _classify(0.49, False) == ClaimClassification.NEW
+def test_classify_cosine_just_below_support_threshold_is_new() -> None:
+    assert _classify_cosine(0.59) == ClaimClassification.NEW
+
+
+def test_classify_cosine_bm25_score_would_be_duplicate() -> None:
+    # Demonstrates why BM25 scores must NOT use this function:
+    # a typical BM25 score of 7.0 far exceeds the 0.85 threshold.
+    assert _classify_cosine(7.0) == ClaimClassification.DUPLICATE  # wrong result for BM25
 
 
 # ── _find_source_page ─────────────────────────────────────────────────────────
@@ -145,8 +151,20 @@ def test_check_source_no_pdf_and_no_txt_returns_new(tmp_path: Path) -> None:
 
 def test_check_claim_raises_without_index(tmp_path: Path) -> None:
     kb = _make_kb(tmp_path)
+    # Use lexical mode so we don't need the embedder in unit tests
     with pytest.raises(FileNotFoundError):
-        check_claim("entmax sparse attention", kb)
+        check_claim("entmax sparse attention", kb, mode="lexical")
+
+
+def test_check_claim_semantic_raises_missing_extra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from wikitools.commands.extract import MissingExtraError
+    from wikitools.commands.index import build_index
+
+    kb = _make_kb(tmp_path)
+    build_index(kb, embedder=None)
+    monkeypatch.setitem(__import__("sys").modules, "fastembed", None)
+    with pytest.raises(MissingExtraError, match="semantic"):
+        check_claim("entmax sparse attention", kb, mode="semantic")
 
 
 def test_check_claim_no_hits_for_novel_text(tmp_path: Path) -> None:

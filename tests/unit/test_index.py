@@ -209,6 +209,23 @@ def test_build_index_with_embedder(tmp_path: Path) -> None:
     assert embedder.embed.called
 
 
+def test_build_index_384dim_mock_stores_non_null_embeddings(tmp_path: Path) -> None:
+    import duckdb
+
+    kb = _make_kb(tmp_path)
+    embedder = MagicMock()
+    embedder.embed.side_effect = lambda texts: [[0.1] * 384 for _ in texts]
+    build_index(kb, embedder=embedder)
+
+    db_file = kb / ".wiki" / "corpus.duckdb"
+    con = duckdb.connect(str(db_file), read_only=True)
+    row = con.execute("SELECT embedding FROM chunks WHERE embedding IS NOT NULL LIMIT 1").fetchone()
+    con.close()
+
+    assert row is not None, "at least one chunk must have a non-NULL embedding"
+    assert len(row[0]) == 384
+
+
 # ── index_status ──────────────────────────────────────────────────────────────
 
 

@@ -394,6 +394,12 @@ wiki index status                  # report chunk counts, model, last-build time
 
 After adding new pages or re-extracting PDFs, run `wiki index update` (or `build` for a full reset). The `.duckdb` file is not committed — rebuild on each machine.
 
+**Rebuild cadence and timing:**
+- First build with embeddings (`wiki index build`) downloads the BAAI/bge-small-en-v1.5 model (~30 s on first run; cached afterwards) and embeds all chunks. On the current corpus (~200 wiki chunks + literature), this takes ~1–3 minutes depending on CPU.
+- Run `wiki index build` once per machine after `uv sync --extra semantic`. Do NOT rebuild on every query — the index is stable until content changes.
+- Use `wiki index update` for incremental updates after adding pages or re-extracting PDFs. It reprocesses only changed files and is fast (<5 s for typical edits).
+- Pass `--log-level INFO` to see per-batch embedding progress: `wiki --log-level INFO index build`.
+
 ## Search workflow
 
 `wiki search` queries the corpus index. It supports three modes:

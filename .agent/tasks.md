@@ -540,4 +540,4 @@ installed via `uv sync --extra semantic`.
 - `kb/CLAUDE.md` documents rebuild cadence.
 - Execution loop green (G2). One commit.
 
-**status:** pending
+**status:** done
