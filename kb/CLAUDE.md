@@ -258,19 +258,49 @@ Track:
 
 ## Ingest workflow
 
+Before ingesting a source, run `wiki check source --citekey <KEY>` to detect duplicates:
+
+- `new` — proceed with ingest.
+- `unchanged` — stop; no changes needed.
+- `changed` — update the existing source page and refresh `source_hash:` in its frontmatter.
+
 When asked to ingest a source:
 
-1. Identify source metadata and assign a source ID.
-2. Create a page under `wiki/sources/`.
-3. Extract important claims and caveats.
-4. Update the relevant project page.
-5. Update the relevant domain thesis page.
-6. Create or update concept pages only for concepts likely to be reused.
-7. Update decisions and experiments if the source changes what should be done next.
-8. Update `wiki/index.md`.
-9. Append a concise entry to `wiki/log.md`.
+1. `wiki check source --citekey <KEY>` — determine new / unchanged / changed.
+2. Identify source metadata and assign a source ID.
+3. Create (or update) a page under `wiki/sources/` with `zotero: <KEY>` and `source_hash: <HASH>` in frontmatter.
+4. Before writing each claim, run `wiki check claim "CLAIM TEXT" --citekey <KEY>` — if any hit is `duplicate`, skip; if `additional-support`, merge with existing; if no hits, write new.
+5. Extract important claims and caveats.
+6. Update the relevant project page.
+7. Update the relevant domain thesis page.
+8. Create or update concept pages only for concepts likely to be reused.
+9. Update decisions and experiments if the source changes what should be done next.
+10. Update `wiki/index.md`.
+11. Append a concise entry to `wiki/log.md`.
 
 Do not over-create pages. Prefer a small number of high-signal pages over many thin pages.
+
+**Source page required frontmatter fields for literature sources:**
+- `zotero: <citekey>` — the Zotero citekey; used by `wiki check source` to find the page.
+- `source_hash: <sha256>` — SHA-256 of the raw file at ingest time; computed by `wiki check source --json`.
+
+## Check workflow
+
+```
+wiki check source --citekey smithExact2024          # new | unchanged | changed
+wiki check source --citekey smithExact2024 --json   # machine-readable
+
+wiki check claim "CLAIM TEXT"                       # hybrid search for similar claims
+wiki check claim "CLAIM TEXT" --citekey KEY         # also marks hits that already cite KEY
+wiki check claim "CLAIM TEXT" --page wiki/path.md   # exclude the page being edited
+wiki check claim "CLAIM TEXT" --mode lexical        # lexical only (no embedder needed)
+wiki check claim "CLAIM TEXT" --json                # machine-readable
+```
+
+Classifications returned by `check claim`:
+- `duplicate` — score ≥ 0.85 — claim is already recorded; do not write a new copy.
+- `additional-support` — score 0.50–0.85 — similar claim from a different source; cite the new source on the existing page rather than creating a new claim.
+- No output / empty list — claim is novel; proceed.
 
 ## Query workflow
 

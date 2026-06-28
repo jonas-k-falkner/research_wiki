@@ -198,6 +198,70 @@ def _cmd_search(args: argparse.Namespace, kb_root: Path) -> None:
             print()
 
 
+def _cmd_check(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki check subcommand (source / claim)."""
+    import json as json_mod
+
+    from wikitools.commands.check import check_claim, check_source
+
+    sub = args.check_subcommand
+
+    if sub == "source":
+        status = check_source(args.citekey, kb_root)
+        if args.json:
+            payload = {
+                "citekey": args.citekey,
+                "state": status.state.value,
+                "page_path": str(status.page_path) if status.page_path else None,
+                "recorded_hash": status.recorded_hash,
+                "current_hash": status.current_hash,
+            }
+            print(json_mod.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            page_str = str(status.page_path) if status.page_path else "—"
+            print(f"wiki check source: {args.citekey} → {status.state.value}  (page: {page_str})")
+            if status.state.value == "changed":
+                print(f"  recorded hash: {status.recorded_hash}")
+                print(f"  current hash:  {status.current_hash}")
+
+    elif sub == "claim":
+        try:
+            hits = check_claim(
+                args.text,
+                kb_root,
+                citekey=args.citekey or None,
+                page=args.page or None,
+                k=args.k,
+                mode=args.mode,
+            )
+        except FileNotFoundError as exc:
+            print(f"wiki check claim: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.json:
+            claim_payload = [
+                {
+                    "source_path": h.source_path,
+                    "section": h.section,
+                    "snippet": h.snippet,
+                    "score": h.score,
+                    "cites_queried_source": h.cites_queried_source,
+                    "classification": h.classification.value,
+                }
+                for h in hits
+            ]
+            print(json_mod.dumps(claim_payload, indent=2, ensure_ascii=False))
+        else:
+            if not hits:
+                print("wiki check claim: no similar claims found — likely new")
+            else:
+                for h in hits:
+                    cites = " [cites-source]" if h.cites_queried_source else ""
+                    print(f"[{h.classification.value}]{cites}  {h.source_path} § {h.section}  (score={h.score:.4f})")
+                    print(f"   {h.snippet}")
+                    print()
+
+
 def main() -> None:
     """Entry point for the ``wiki`` CLI dispatcher."""
     parser = argparse.ArgumentParser(
@@ -246,7 +310,19 @@ def main() -> None:
     search_p.add_argument("--scope", choices=["wiki", "literature"], default=None, help="Restrict to wiki pages or literature chunks.")
     search_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
 
-    subparsers.add_parser("check", help="Check source idempotency and claim deduplication.")
+    check_p = subparsers.add_parser("check", help="Check source idempotency and claim deduplication.")
+    check_sub = check_p.add_subparsers(dest="check_subcommand", metavar="SUBCOMMAND")
+    check_sub.required = True
+    check_source_p = check_sub.add_parser("source", help="Check whether a citekey has already been ingested.")
+    check_source_p.add_argument("--citekey", required=True, metavar="KEY", help="Zotero citekey to check.")
+    check_source_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
+    check_claim_p = check_sub.add_parser("claim", help="Search for existing claims similar to the given text.")
+    check_claim_p.add_argument("text", help="Candidate claim text to check.")
+    check_claim_p.add_argument("--citekey", metavar="KEY", default=None, help="Citekey of the source being ingested (marks whether hits already cite it).")
+    check_claim_p.add_argument("--page", metavar="PATH", default=None, help="Relative path of the page being edited (excluded from results).")
+    check_claim_p.add_argument("--mode", choices=["lexical", "semantic", "hybrid"], default="hybrid", help="Search mode (default: hybrid).")
+    check_claim_p.add_argument("-k", type=int, default=10, help="Maximum results (default: 10).")
+    check_claim_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
 
     args = parser.parse_args()
     kb_root = resolve_kb_root(args.kb)
@@ -262,6 +338,8 @@ def main() -> None:
         _cmd_index(args, kb_root)
     elif args.command == "search":
         _cmd_search(args, kb_root)
+    elif args.command == "check":
+        _cmd_check(args, kb_root)
     else:
         print(f"wiki {args.command}: not implemented", file=sys.stderr)
         sys.exit(1)

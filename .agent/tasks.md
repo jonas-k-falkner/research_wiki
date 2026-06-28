@@ -466,7 +466,7 @@ source pages and semantically identical claims in different words (C; S Feature 
 - `kb/CLAUDE.md` Ingest workflow updated; research-pass prompt updated.
 - Execution loop green (G2). One commit.
 
-**status:** pending
+**status:** done
 
 ---
 
