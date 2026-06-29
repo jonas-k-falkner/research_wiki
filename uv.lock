@@ -3183,6 +3183,7 @@ dependencies = [
     { name = "fastembed" },
     { name = "pypdf" },
     { name = "pyyaml" },
+    { name = "tqdm" },
 ]
 
 [package.optional-dependencies]
@@ -3208,6 +3209,7 @@ requires-dist = [
     { name = "openai", marker = "extra == 'api'", specifier = ">=1.0" },
     { name = "pypdf", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },
+    { name = "tqdm", specifier = ">=4.68.3" },
 ]
 provides-extras = ["api"]
 

@@ -424,15 +424,19 @@ def _insert_chunks(
 
     embeddings: list[list[float] | None]
     if embedder is not None:
+        from tqdm import tqdm
+
         texts = [c.text for c in chunks]
         embeddings = []
         total_batches = (len(texts) + batch_size - 1) // batch_size
-        for batch_idx in range(total_batches):
-            start = batch_idx * batch_size
-            end = min(start + batch_size, len(texts))
-            batch_vecs = embedder.embed(texts[start:end])
-            embeddings.extend(batch_vecs)
-            logger.info("build_index: embedded batch %d/%d (%d/%d chunks)", batch_idx + 1, total_batches, end, len(texts))
+        with tqdm(range(total_batches), unit="batch", desc="embedding", dynamic_ncols=True) as bar:
+            for batch_idx in bar:
+                start = batch_idx * batch_size
+                end = min(start + batch_size, len(texts))
+                batch_vecs = embedder.embed(texts[start:end])
+                embeddings.extend(batch_vecs)
+                bar.set_postfix_str(f"{end}/{len(texts)} chunks")
+                logger.info("build_index: embedded batch %d/%d (%d/%d chunks)", batch_idx + 1, total_batches, end, len(texts))
     else:
         embeddings = [None] * len(chunks)
 

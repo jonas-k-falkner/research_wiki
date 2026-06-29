@@ -280,45 +280,48 @@ def run_extract(
         except ImportError as exc:
             raise MissingExtraError("Engine 'docling' requires the [ocr] extra. Install with: uv sync --extra ocr") from exc
 
-    for pdf_file in sorted(pdf_dir.iterdir()):
-        if pdf_file.suffix != ".pdf":
-            continue
-        stem = pdf_file.stem
-        this_citekey = stem.removesuffix("-suppl")
-        if citekey is not None and this_citekey != citekey:
-            continue
+    pdf_files = [p for p in sorted(pdf_dir.iterdir()) if p.suffix == ".pdf"]
+    if citekey is not None:
+        pdf_files = [p for p in pdf_files if p.stem.removesuffix("-suppl") == citekey]
 
-        txt_file = txt_dir / f"{stem}.txt"
-        sidecar = txt_dir / f"{stem}.extract.json"
-        current_hash = _file_hash(pdf_file)
+    from tqdm import tqdm
 
-        if not force and sidecar.exists() and txt_file.exists():
+    with tqdm(pdf_files, unit="pdf", desc="extracting", dynamic_ncols=True) as bar:
+        for pdf_file in bar:
+            stem = pdf_file.stem
+            bar.set_postfix_str(stem[:40])
+
+            txt_file = txt_dir / f"{stem}.txt"
+            sidecar = txt_dir / f"{stem}.extract.json"
+            current_hash = _file_hash(pdf_file)
+
+            if not force and sidecar.exists() and txt_file.exists():
+                try:
+                    stored = json_mod.loads(sidecar.read_text(encoding="utf-8"))
+                    if stored.get("source_hash") == current_hash:
+                        logger.debug("Skipping %s (hash unchanged)", pdf_file.name)
+                        skipped += 1
+                        continue
+                except (json_mod.JSONDecodeError, KeyError):
+                    pass
+
             try:
-                stored = json_mod.loads(sidecar.read_text(encoding="utf-8"))
-                if stored.get("source_hash") == current_hash:
-                    logger.debug("Skipping %s (hash unchanged)", pdf_file.name)
-                    skipped += 1
-                    continue
-            except (json_mod.JSONDecodeError, KeyError):
-                pass
-
-        try:
-            extract_pdf(pdf_file, txt_file, extractor=actual_engine, _converter=converter)
-            sidecar.write_text(
-                json_mod.dumps(
-                    {
-                        "extractor": actual_engine,
-                        "engine_version": engine_version,
-                        "source_hash": current_hash,
-                    },
-                    indent=2,
-                    ensure_ascii=False,
-                ),
-                encoding="utf-8",
-            )
-            logger.info("Extracted: %s", pdf_file.name)
-            extracted += 1
-        except Exception as exc:
-            logger.warning("Extraction failed for %s: %s", pdf_file.name, exc)
+                extract_pdf(pdf_file, txt_file, extractor=actual_engine, _converter=converter)
+                sidecar.write_text(
+                    json_mod.dumps(
+                        {
+                            "extractor": actual_engine,
+                            "engine_version": engine_version,
+                            "source_hash": current_hash,
+                        },
+                        indent=2,
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                logger.info("Extracted: %s", pdf_file.name)
+                extracted += 1
+            except Exception as exc:
+                logger.warning("Extraction failed for %s: %s", pdf_file.name, exc)
 
     return extracted, skipped, issues
