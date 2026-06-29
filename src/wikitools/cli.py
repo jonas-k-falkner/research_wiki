@@ -78,6 +78,7 @@ def _cmd_extract(args: argparse.Namespace, kb_root: Path) -> None:
             engine=args.engine,
             force=args.force,
             citekey=args.citekey or None,
+            formula_enrichment=not args.no_formula,
         )
     except MissingExtraError as exc:
         print(f"wiki extract: {exc}", file=sys.stderr)
@@ -303,6 +304,7 @@ def main() -> None:
     extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default=None, help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
     extract_p.add_argument("--force", action="store_true", help="Re-extract even when source hash is unchanged.")
     extract_p.add_argument("--citekey", metavar="KEY", default=None, help="Process only PDFs with this citekey.")
+    extract_p.add_argument("--no-formula", action="store_true", default=False, help="Disable formula enrichment (faster, but math renders as garbled glyph text).")
     extract_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
     index_p = subparsers.add_parser("index", help="Build or update the search index.")
     index_sub = index_p.add_subparsers(dest="index_subcommand", metavar="SUBCOMMAND")

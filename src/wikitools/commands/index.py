@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 _CHUNK_WINDOW = 800
 _CHUNK_OVERLAP = 100
-_EMBED_DIM = 384
+_EMBED_DIM = 768
 
 
 # ── data types ────────────────────────────────────────────────────────────────
@@ -162,10 +162,10 @@ class LocalEmbedder(Embedder):
     """Local ONNX embedder via fastembed (``[semantic]`` extra).
 
     Args:
-        model: Model identifier; defaults to ``BAAI/bge-small-en-v1.5``.
+        model: Model identifier; defaults to ``BAAI/bge-base-en-v1.5``.
     """
 
-    def __init__(self, model: str = "BAAI/bge-small-en-v1.5") -> None:
+    def __init__(self, model: str = "BAAI/bge-base-en-v1.5") -> None:
         """Initialise and load the embedding model.
 
         Args:
@@ -189,7 +189,7 @@ class LocalEmbedder(Embedder):
             texts: List of strings to embed.
 
         Returns:
-            List of 384-dimensional float vectors.
+            List of 768-dimensional float vectors.
         """
         return [v.tolist() for v in self._model.embed(texts)]
 
@@ -280,7 +280,7 @@ def _ensure_schema(con: duckdb_type.DuckDBPyConnection) -> None:
             citekey     VARCHAR,
             section     VARCHAR NOT NULL,
             text        VARCHAR NOT NULL,
-            embedding   FLOAT[384]
+            embedding   FLOAT[768]
         )
         """
     )

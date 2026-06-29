@@ -8,6 +8,10 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from docling.document_converter import DocumentConverter
 
 from wikitools.wikilib import load_library
 
@@ -150,7 +154,12 @@ def run_reconciliation(kb_root: Path) -> list[ReconciliationIssue]:
     return sorted(issues)
 
 
-def extract_pdf(pdf_path: Path, txt_path: Path, extractor: str = "fast") -> None:
+def extract_pdf(
+    pdf_path: Path,
+    txt_path: Path,
+    extractor: str = "fast",
+    _converter: DocumentConverter | None = None,
+) -> None:
     """Extract text from a single PDF to a txt file.
 
     Args:
@@ -158,6 +167,8 @@ def extract_pdf(pdf_path: Path, txt_path: Path, extractor: str = "fast") -> None
         txt_path: Destination txt file (parent created if absent).
         extractor: Extraction engine — ``fast`` (pdftotext, default),
             ``docling`` (math-aware Markdown output), or ``marker``.
+        _converter: Pre-initialised ``DocumentConverter`` instance; when provided,
+            avoids reloading model weights on every call.
 
     Raises:
         MissingExtraError: If ``docling`` or ``marker`` are requested but the
@@ -181,7 +192,7 @@ def extract_pdf(pdf_path: Path, txt_path: Path, extractor: str = "fast") -> None
         except ImportError as exc:
             raise MissingExtraError("Engine 'docling' requires the [ocr] extra. Install with: uv sync --extra ocr") from exc
         txt_path.parent.mkdir(parents=True, exist_ok=True)
-        converter = DocumentConverter()
+        converter = _converter if _converter is not None else DocumentConverter()
         result_doc = converter.convert(str(pdf_path))
         txt_path.write_text(result_doc.document.export_to_markdown(), encoding="utf-8")
 
@@ -201,6 +212,7 @@ def run_extract(
     engine: str | None = None,
     force: bool = False,
     citekey: str | None = None,
+    formula_enrichment: bool = True,
 ) -> tuple[int, int, list[ReconciliationIssue]]:
     """Extract text from PDFs in raw/literature/pdf/ with idempotency and reconciliation.
 
@@ -219,6 +231,9 @@ def run_extract(
             to auto-resolve.
         force: If True, re-extract even when the source hash matches.
         citekey: If set, process only PDFs whose citekey equals this value.
+        formula_enrichment: When True and engine is ``docling``, enables the
+            formula VLM (CodeFormulaV2) to emit proper LaTeX fences instead of
+            raw glyph text.  Slower but required for math-bearing papers.
 
     Returns:
         Tuple of (extracted_count, skipped_count, reconciliation_issues).
@@ -246,6 +261,25 @@ def run_extract(
     skipped = 0
     engine_version = _get_engine_version(actual_engine)
 
+    converter: DocumentConverter | None = None
+    if actual_engine == "docling":
+        try:
+            from docling.datamodel.base_models import InputFormat
+            from docling.datamodel.pipeline_options import PdfPipelineOptions
+            from docling.document_converter import DocumentConverter, PdfFormatOption
+
+            pipeline_opts = PdfPipelineOptions(
+                do_formula_enrichment=formula_enrichment,
+                generate_page_images=formula_enrichment,
+            )
+            converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_opts)})
+            if formula_enrichment:
+                logger.info("Docling converter initialised with formula enrichment (CodeFormulaV2)")
+            else:
+                logger.info("Docling converter initialised without formula enrichment")
+        except ImportError as exc:
+            raise MissingExtraError("Engine 'docling' requires the [ocr] extra. Install with: uv sync --extra ocr") from exc
+
     for pdf_file in sorted(pdf_dir.iterdir()):
         if pdf_file.suffix != ".pdf":
             continue
@@ -269,7 +303,7 @@ def run_extract(
                 pass
 
         try:
-            extract_pdf(pdf_file, txt_file, extractor=actual_engine)
+            extract_pdf(pdf_file, txt_file, extractor=actual_engine, _converter=converter)
             sidecar.write_text(
                 json_mod.dumps(
                     {

@@ -202,19 +202,19 @@ def test_build_index_idempotent(tmp_path: Path) -> None:
 
 def test_build_index_with_embedder(tmp_path: Path) -> None:
     kb = _make_kb(tmp_path)
-    # Use a mock embedder that returns 384-dim zeros
+    # Use a mock embedder that returns 768-dim zeros
     embedder = MagicMock()
-    embedder.embed.side_effect = lambda texts: [[0.0] * 384 for _ in texts]
+    embedder.embed.side_effect = lambda texts: [[0.0] * 768 for _ in texts]
     build_index(kb, embedder=embedder)
     assert embedder.embed.called
 
 
-def test_build_index_384dim_mock_stores_non_null_embeddings(tmp_path: Path) -> None:
+def test_build_index_768dim_mock_stores_non_null_embeddings(tmp_path: Path) -> None:
     import duckdb
 
     kb = _make_kb(tmp_path)
     embedder = MagicMock()
-    embedder.embed.side_effect = lambda texts: [[0.1] * 384 for _ in texts]
+    embedder.embed.side_effect = lambda texts: [[0.1] * 768 for _ in texts]
     build_index(kb, embedder=embedder)
 
     db_file = kb / ".wiki" / "corpus.duckdb"
@@ -223,7 +223,7 @@ def test_build_index_384dim_mock_stores_non_null_embeddings(tmp_path: Path) -> N
     con.close()
 
     assert row is not None, "at least one chunk must have a non-NULL embedding"
-    assert len(row[0]) == 384
+    assert len(row[0]) == 768
 
 
 # ── index_status ──────────────────────────────────────────────────────────────

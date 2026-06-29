@@ -3178,7 +3178,9 @@ name = "wiki-tools"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "docling" },
     { name = "duckdb" },
+    { name = "fastembed" },
     { name = "pypdf" },
     { name = "pyyaml" },
 ]
@@ -3186,12 +3188,6 @@ dependencies = [
 [package.optional-dependencies]
 api = [
     { name = "openai" },
-]
-ocr = [
-    { name = "docling" },
-]
-semantic = [
-    { name = "fastembed" },
 ]
 
 [package.dev-dependencies]
@@ -3206,14 +3202,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "docling", marker = "extra == 'ocr'", specifier = ">=2.0" },
+    { name = "docling", specifier = ">=2.0" },
     { name = "duckdb", specifier = ">=1.0" },
-    { name = "fastembed", marker = "extra == 'semantic'", specifier = "==0.8.0" },
+    { name = "fastembed", specifier = "==0.8.0" },
     { name = "openai", marker = "extra == 'api'", specifier = ">=1.0" },
     { name = "pypdf", specifier = ">=4.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
-provides-extras = ["semantic", "api", "ocr"]
+provides-extras = ["api"]
 
 [package.metadata.requires-dev]
 dev = [

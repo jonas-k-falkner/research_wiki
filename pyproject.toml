@@ -7,15 +7,15 @@ dependencies = [
   "duckdb>=1.0",     # FTS (BM25) + vector storage/cosine in one embedded file
   "pyyaml>=6.0",     # frontmatter parsing (wikilib)
   "pypdf>=4.0",      # PDF -> text extraction (Feature 1a, core path)
+  "fastembed==0.8.0",
+  "docling>=2.0"
 ]
 
 [project.optional-dependencies]
 # Optional extras (G3): pinned to exact versions, must raise a clear error if
 # missing at runtime, must not affect core behavior when absent.
 # Pin exact versions via `uv add --optional <group> <pkg>` (writes uv.lock).
-semantic = ["fastembed==0.8.0"]   # local ONNX embeddings; default model in [tool.wikitools]
 api      = ["openai>=1.0"]      # opt-in API embeddings (non-default; weaker reproducibility)
-ocr      = ["docling>=2.0"]     # opt-in extractor for scanned/figure-heavy PDFs
 
 [project.scripts]
 wiki = "wikitools.cli:main"     # single CLI: wiki lint|toc|extract|index|search|check
@@ -42,8 +42,8 @@ dev = [
 [tool.wikitools]
 kb_root = "kb"
 index_path = "kb/.wiki/corpus.duckdb"
-embed_model = "BAAI/bge-small-en-v1.5"   # local via fastembed
-embed_dim = 384                          # fixes the FLOAT[N] column width
+embed_model = "BAAI/bge-base-en-v1.5"    # local via fastembed
+embed_dim = 768                          # fixes the FLOAT[N] column width
 
 [tool.pytest.ini_options]
 addopts = "-q --disable-warnings --maxfail=1 -m 'not slow and not integration'"
