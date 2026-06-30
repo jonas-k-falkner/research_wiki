@@ -5,7 +5,7 @@ project: P2
 status: active
 stage: seed
 confidence: medium
-updated: 2026-06-27
+updated: 2026-06-30
 sources:
   - src-2026-06-p2-causal-embedding-model
   - src-2026-06-p1-cluster-pretrained-deep-models
@@ -15,8 +15,14 @@ sources:
   - src-2026-06-han-unica
   - src-2026-06-potapczinski-apollopfn
   - src-2026-06-lu-cats-ats
+  - src-2026-06-eldele-ts-tcc
+  - src-2026-06-yue-ts2vec
+  - src-2026-06-li-ti-mae
+  - src-2026-06-cheng-timemae
 tags:
 - concept
+- ssl
+- self-supervised
 ---
 
 # Causal covariate embeddings
@@ -35,9 +41,26 @@ Explicit TE/Granger over a ~200M-series universe is intractable (the deck's stat
 - Are distilled TE/Granger soft labels reliable enough to train on, and do they transfer across regimes/horizons?
 - Retrieved covariates are *candidate* causal drivers — what validation (downstream forecast lift, intervention-style tests) is needed before any causal language is used externally?
 
-## Literature to integrate `[verify]`
+## SSL landscape — P2 gap confirmed (I-P2-A ingest, 2026-06-30)
 
-- Asymmetric / order embeddings: order-embeddings (Vendrov et al.), entailment cones, hyperbolic/Poincaré embeddings (Nickel & Kiela) as candidate geometries `[verify]`
+Primary literature pass on 4 HIGH-priority SSL/contrastive TS papers establishes the following:
+
+**All major SSL TS encoders are symmetric.** None of TS-TCC, TS2Vec, Ti-MAE, or TimeMAE implement a directional/asymmetric objective:
+- **TS-TCC** ([src-2026-06-eldele-ts-tcc](../sources/src-2026-06-eldele-ts-tcc.md), IJCAI 2021): temporal contrasting with cross-view prediction + SimCLR contextual loss; symmetric. Linear eval matches supervised on HAR (90.37%) and Epilepsy (97.23%); 10% labeled data matches 100% supervised fine-tuning.
+- **TS2Vec** ([src-2026-06-yue-ts2vec](../sources/src-2026-06-yue-ts2vec.md), AAAI 2022): hierarchical contrastive with contextual consistency positive pairs; symmetric; SOTA on 125 UCR datasets (+2.4%) and −32.6% forecasting MSE vs supervised. Best general-purpose symmetric TS encoder prior to 2023.
+- **Ti-MAE** ([src-2026-06-li-ti-mae](../sources/src-2026-06-li-ti-mae.md), ICLR 2023 workshop): masked autoencoder, 75% masking ratio, symmetric encoder-decoder. Best SSL method for long-term TS forecasting as of 2023; alleviates distribution shift.
+- **TimeMAE** ([src-2026-06-cheng-timemae](../sources/src-2026-06-cheng-timemae.md), TKDE 2023): decoupled masked autoencoder with window slicing + 60% masking; symmetric. Current SOTA for TS classification (91.31% linear eval on HAR vs TS-TCC 77.63%, TS2Vec 78.16%).
+
+**The P2 gap is real:** No existing SSL TS paper implements or evaluates an asymmetric/directed objective where A→B ≠ B→A. This gap validates P2's novelty claim. The closest related work is in asymmetric embedding literature (order embeddings, Poincaré spaces) — not yet validated for TS.
+
+**Design implications:**
+- TS2Vec (dilated CNN + contextual consistency) and TimeMAE (decoupled MAE + window slicing) are the strongest symmetric encoder baselines for P2 ablation.
+- TimeMAE's window slicing and decoupled architecture are the most relevant design patterns to adopt for P2's pretraining stage.
+- P2's directed objective needs to be layered on top of (or replace) the symmetric pretraining objective.
+
+## Literature still to integrate `[verify]`
+
+- Asymmetric / order embeddings: order-embeddings (Vendrov et al.), entailment cones, hyperbolic/Poincaré embeddings (Nickel & Kiela) as candidate asymmetric geometries `[verify]`
 - Transfer Entropy (Schreiber) and Granger causality estimation at scale; conditional/multivariate TE `[verify]`
 - Knowledge distillation from expensive pairwise scores into a learned retrieval space `[verify]`
 - Causal discovery caveats: correlation-vs-causation failure modes in observational time series

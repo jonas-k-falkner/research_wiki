@@ -5,13 +5,17 @@ project: P4
 status: active
 stage: seed
 confidence: medium
-updated: 2026-06-25
+updated: 2026-06-30
 sources:
 - src-2026-06-p4-availability-nowcasting
+- src-2026-06-liu-sc-kg
+- src-2026-06-almahri-agentic-sc
+- src-2026-06-zheng-sc-gcn-fl
 tags:
 - thesis
 - nowcasting
 - graph
+- supply-chain
 ---
 
 # Domain thesis: Nowcasting graph
@@ -32,7 +36,15 @@ The evidence ledger is the source of truth. The graph is a structured view used 
 
 The system should be evaluated against public observable truth: procurement awards, SEC supplier/customer mentions, public company pages, known disruption windows, and lagged official data. It should not be penalized for hidden private-tier relationships that are not publicly observable.
 
+## SC KG literature (I-P4-A, 2026-06-30)
+
+Three primary papers confirm the thesis and provide concrete architecture inputs:
+- **Liu et al. 2023** (ESWC) — RotatE MRR 0.4377 on industrial SC KG confirms link completion alone is insufficient; evidence-first approach is correct. SC KG schema (8 entity types, 11 relation types) as starting template.
+- **AlMahri et al. 2026** — 7-agent SC monitoring pipeline built on pre-existing KG (F1 0.962–0.991). Evidence ledger → graph → agentic monitoring is now validated at production scale. Mandatory mitigations: RAG, deterministic tool calls, human-in-the-loop.
+- **Zheng & Brintrup 2025** — GraphSAGE inductive learning for live SC graphs; FL for multi-org integration. Inductive embedding is a hard requirement for P4.
+
 ## Sources & related
 
 - [sources/src-2026-06-p4-availability-nowcasting.md](../../sources/src-2026-06-p4-availability-nowcasting.md)
+- [sources/src-2026-06-liu-sc-kg.md](../../sources/src-2026-06-liu-sc-kg.md), [sources/src-2026-06-almahri-agentic-sc.md](../../sources/src-2026-06-almahri-agentic-sc.md), [sources/src-2026-06-zheng-sc-gcn-fl.md](../../sources/src-2026-06-zheng-sc-gcn-fl.md)
 - Project: [projects/p4-availability-nowcasting-graph](../../projects/p4-availability-nowcasting-graph.md)

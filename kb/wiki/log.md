@@ -380,3 +380,64 @@ P1's **primary forecast horizon clarified as weekly/monthly long-horizon** (4–
 - `comparisons/tsf-backbone-comparison.md`: benchmark section updated (EPF day-ahead caveat; M4 monthly proxy); preferred backbone section rewritten; decision tree updated
 - `sources/src-2026-06-challu-nhits.md`: Applicability re-revised upward (Priority 2 for weekly/monthly long-horizon)
 - `sources/src-2026-06-olivares-nbeatsx.md`: frequency caveat added; remains Priority 1 with exo
+
+## 2026-06-30 (I-P2-A + I-P4-A — SSL representation learning + supply chain KG ingest)
+
+Completed Tasks I-P2-A and I-P4-A in parallel. All 7 HIGH-priority papers confirmed `state: new` before ingest. All `wiki check claim` calls returned novel.
+
+### Source pages created (7)
+
+| Source slug | Paper | Venue | Priority | Task |
+|---|---|---|---|---|
+| `src-2026-06-eldele-ts-tcc` | Eldele et al., TS-TCC | IJCAI 2021 | HIGH | I-P2-A |
+| `src-2026-06-yue-ts2vec` | Yue et al., TS2Vec | AAAI 2022 | HIGH | I-P2-A |
+| `src-2026-06-li-ti-mae` | Li et al., Ti-MAE | ICLR 2023 ws | HIGH | I-P2-A |
+| `src-2026-06-cheng-timemae` | Cheng et al., TimeMAE | TKDE 2023 | HIGH | I-P2-A |
+| `src-2026-06-liu-sc-kg` | Liu et al., SC KG + RotatE | ESWC 2023 | HIGH | I-P4-A |
+| `src-2026-06-almahri-agentic-sc` | AlMahri et al., 7-agent SC monitoring | arXiv 2026 | HIGH | I-P4-A |
+| `src-2026-06-zheng-sc-gcn-fl` | Zheng & Brintrup, GCN+FL for SC | Cambridge 2025 | HIGH | I-P4-A |
+
+### I-P2-A key findings
+
+**SSL research landscape confirmed:** All four major SSL TS encoders (TS-TCC, TS2Vec, Ti-MAE, TimeMAE) are **symmetric** — none implement a directed/asymmetric objective. P2's asymmetric embedding objective is a confirmed research gap with no published solution.
+
+- **TS-TCC** (IJCAI 2021): temporal contrasting (cross-view future prediction) + contextual contrasting (SimCLR). HAR linear eval: 90.37% (≈ supervised 90.14%). 10% labeled data matches 100% supervised fine-tuning.
+- **TS2Vec** (AAAI 2022): hierarchical contrastive, contextual consistency positive pairs. SOTA on 125 UCR datasets (+2.4%); −32.6% MSE on forecasting. Most universal symmetric encoder.
+- **Ti-MAE** (ICLR 2023 ws): masked autoencoder, 75% masking ratio. Best SSL method for long-term TS forecasting 2023; alleviates distribution shift.
+- **TimeMAE** (TKDE 2023): decoupled MAE + window slicing + 60% masking. Best SSL classification encoder (HAR linear eval 91.31% vs TS-TCC 77.63%). Primary symmetric baseline for P2 ablation.
+
+**Design recommendation**: P2 should use TimeMAE's window-slicing + decoupled encoder design as the pretraining scaffold, then add an asymmetric objective on top.
+
+### I-P4-A key findings
+
+**SC KG + agentic architecture validated against three primaries:**
+
+- **Liu et al. 2023** (ESWC): RotatE achieves MRR **0.4377** on 3-tier Siemens SC KG (65K nodes, 311K edges, 8 entity types, 11 relation types). Confirms MRR ~0.44 from P4 MVP report. MRR <0.5 even on curated data reinforces rejection of aggressive hidden-edge completion in MVP.
+- **AlMahri et al. 2026**: 7-agent (CrewAI + GPT-4o) SC disruption monitoring achieves F1 0.962–0.991 at $0.0836/scenario. Requires **pre-existing SC KG** as prerequisite. Three mandatory hallucination mitigations: RAG, deterministic tool calls (Cypher), human-in-the-loop. Validates P4's evidence-ledger → graph → agentic monitoring pipeline.
+- **Zheng & Brintrup 2025**: GraphSAGE inductive learning supports new entity embedding without retraining (hard requirement for P4's live graph). AdapFLavg (adaptive FL) outperforms local model on sparse relationship types (has cert <5% of edges). FL enables multi-org data sharing without raw data exchange (GDPR relevance).
+
+### Pages updated
+
+**I-P2-A:**
+- `concepts/causal-covariate-embeddings.md`: "Literature to integrate [verify]" replaced with "SSL landscape (P2 gap confirmed)" section; 4 new sources; symmetry gap documented; design implications stated
+- `projects/p2-causal-embedding-v2.md`: "SSL research baseline" table added; 4 new sources
+- `domains/embedding-models/thesis.md`: "SSL landscape (confirmed)" section added; 4 new sources
+
+**I-P4-A:**
+- `concepts/explicit-evidence-graph.md`: promoted `seed → researched`; "Primary literature" section added (3 papers); RotatE MRR confirmed; [verify] markers removed; 3 new sources
+- `concepts/evidence-ledger.md`: promoted `seed → researched`; "Primary literature" section added (AlMahri validation); open questions cleaned; 1 new source
+- `projects/p4-availability-nowcasting-graph.md`: "Literature support" section added; 3 new sources
+- `domains/nowcasting-graph/thesis.md`: "SC KG literature" section added; 3 new sources
+
+### Lint / TOC
+
+- `uv run wiki lint`: 0 errors, 24 warnings (all pre-existing: library.json mismatches, near-duplicate titles, stage/confidence sanity for earlier P3/shared pages)
+- `uv run wiki toc build`: indexes updated
+- `wiki index update`: 18 files reprocessed
+
+### Remaining (MEDIUM/LOW papers not ingested in this pass)
+
+Per ingest-plan.md, MEDIUM/LOW papers for I-P2-A and I-P4-A remain for a follow-up pass:
+- **I-P2-A MEDIUM**: foumaniSeries2vec, choiMultiTask, eldeleSSLContrastive, eldeleLabel, jawedSSL, yangTimeCLR, fraikinTRep, talukderTOTEM
+- **I-P4-A MEDIUM**: chengSHIELD, ramzyMARE, bestaDemystify
+- **Both LOW** priority papers deferred

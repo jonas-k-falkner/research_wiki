@@ -24,12 +24,15 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 |---|---|---|---|
 | [P4 — Availability nowcasting graph](../../projects/p4-availability-nowcasting-graph.md) | project | seed | active |
 | [Domain thesis: Nowcasting graph](thesis.md) | domain | seed | active |
-| [Evidence ledger](../../concepts/evidence-ledger.md) | concept | seed | active |
-| [Explicit evidence graph](../../concepts/explicit-evidence-graph.md) | concept | seed | active |
+| [Evidence ledger](../../concepts/evidence-ledger.md) | concept | researched | active |
+| [Explicit evidence graph](../../concepts/explicit-evidence-graph.md) | concept | researched | active |
 | [Mixed-frequency nowcasting](../../concepts/mixed-frequency-nowcasting.md) | concept | seed | active |
 | [Entity set: P4 public data sources](../../entities/p4-public-data-sources.md) | entity | seed | active |
 | [Experiment: P4 public-first nowcast MVP](../../experiments/exp-p4-public-first-nowcast-mvp.md) | experiment | seed | draft |
+| [An Analytics-Driven Approach to Enhancing Supply Chain Visibility with Graph Neural Networks and Federated Learning](../../sources/src-2026-06-zheng-sc-gcn-fl.md) | source | researched | active |
+| [Automating Supply Chain Disruption Management with Multi-Agent LLMs](../../sources/src-2026-06-almahri-agentic-sc.md) | source | researched | active |
 | [Source: B2B SCM availability nowcasting report](../../sources/src-2026-06-p4-availability-nowcasting.md) | source | seed | active |
+| [Supply Chain Knowledge Graph Completion with Relation Learning](../../sources/src-2026-06-liu-sc-kg.md) | source | researched | active |
 
-_8 page(s): 8 seed._
+_11 page(s): 5 researched, 6 seed._
 <!-- AUTO:end -->

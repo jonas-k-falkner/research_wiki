@@ -3,13 +3,17 @@ type: concept
 domain: nowcasting-graph
 project: P4
 status: active
-stage: seed
-confidence: medium
-updated: 2026-06-25
+stage: researched
+confidence: high
+updated: 2026-06-30
 sources:
 - src-2026-06-p4-availability-nowcasting
+- src-2026-06-almahri-agentic-sc
 tags:
 - concept
+- evidence
+- provenance
+- supply-chain
 ---
 
 # Evidence ledger
@@ -28,11 +32,17 @@ It keeps availability nowcasts auditable and stops the graph from drifting into 
 - How are conflicting claims about the same entity/category reconciled (recency, source reliability, weighting)?
 - How is stale evidence retired without losing the audit trail (validity intervals on edges)?
 
-## Literature to integrate `[verify]`
+## Primary literature (I-P4-A, 2026-06-30)
 
-- Provenance / claim-tracking data models; bitemporal modelling (valid-time vs transaction-time) `[verify]`
-- Truth discovery / source-reliability weighting across conflicting sources `[verify]`
-- Evidence-based monitoring frameworks for supply-chain disruption (the report references semantic disruption frameworks — pull and verify) `[verify]`
+**Agentic SC monitoring confirms architecture** ([src-2026-06-almahri-agentic-sc](../sources/src-2026-06-almahri-agentic-sc.md), AlMahri et al. 2026):
+- The best-performing agentic SC pipeline (F1 0.962–0.991) stores all SC entity knowledge in an evidence-backed Neo4j KG and queries it via Cypher for every factual lookup. This matches the evidence ledger as system-of-record design.
+- Three hallucination mitigations required for production F1 > 0.95: (1) RAG over the evidence ledger, (2) deterministic tool calls for all factual lookups (no LLM hallucination on entity facts), (3) human-in-the-loop escalation for low-confidence alerts.
+- The evidence-first architecture is validated at production scale.
+
+## Open questions (unresolved)
+
+- Provenance / claim-tracking data models; bitemporal modelling (valid-time vs transaction-time)
+- Truth discovery / source-reliability weighting across conflicting sources
 
 ## Cross-project relevance
 

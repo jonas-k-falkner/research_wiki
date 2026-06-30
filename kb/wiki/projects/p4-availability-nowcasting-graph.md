@@ -5,9 +5,12 @@ project: P4
 status: active
 stage: seed
 confidence: medium
-updated: 2026-06-25
+updated: 2026-06-30
 sources:
 - src-2026-06-p4-availability-nowcasting
+- src-2026-06-liu-sc-kg
+- src-2026-06-almahri-agentic-sc
+- src-2026-06-zheng-sc-gcn-fl
 tags:
 - supply-chain
 - nowcasting
@@ -66,9 +69,19 @@ The evidence ledger is the system of record. The graph is a query and propagatio
 | Public text creates false positives | Use evidence types, source reliability, and confidence scoring |
 | Data licenses constrain downstream use | Prefer official/public connectors first and isolate expanded-tier sources |
 
+## Literature support (I-P4-A, 2026-06-30)
+
+Three primary papers now support the P4 architecture:
+- **SC KG construction + RotatE completion** ([src-2026-06-liu-sc-kg](../sources/src-2026-06-liu-sc-kg.md)): MRR 0.4377 on curated 3-tier SC KG confirms the MVP's rejection of aggressive hidden-edge completion. SC KG schema (8 entity types, 11 relation types) is a concrete starting template.
+- **Agentic SC monitoring** ([src-2026-06-almahri-agentic-sc](../sources/src-2026-06-almahri-agentic-sc.md)): F1 0.962–0.991 on 7-agent pipeline built on pre-existing SC KG. Validates evidence ledger → graph → agent pipeline. Three required mitigations: RAG, deterministic tool calls, human-in-the-loop.
+- **GCN + FL for SC link prediction** ([src-2026-06-zheng-sc-gcn-fl](../sources/src-2026-06-zheng-sc-gcn-fl.md)): GraphSAGE inductive learning is required for live SC graph with evolving entity set. FL enables multi-organization data integration without raw data sharing (relevant for GDPR-constrained onboarding).
+
 ## Sources
 
 - [sources/src-2026-06-p4-availability-nowcasting.md](../sources/src-2026-06-p4-availability-nowcasting.md) — full MVP report; rejects full graph reconstruction.
+- [sources/src-2026-06-liu-sc-kg.md](../sources/src-2026-06-liu-sc-kg.md) — SC KG construction and RotatE KG completion (ESWC 2023)
+- [sources/src-2026-06-almahri-agentic-sc.md](../sources/src-2026-06-almahri-agentic-sc.md) — agentic SC disruption monitoring (arXiv 2026)
+- [sources/src-2026-06-zheng-sc-gcn-fl.md](../sources/src-2026-06-zheng-sc-gcn-fl.md) — GCN + federated learning for SC link prediction (Cambridge, 2025)
 
 ## Related pages
 
