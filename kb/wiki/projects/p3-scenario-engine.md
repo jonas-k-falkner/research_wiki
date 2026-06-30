@@ -5,7 +5,7 @@ project: P3
 status: active
 stage: seed
 confidence: high
-updated: 2026-06-25
+updated: 2026-06-30
 sources:
 - src-2026-06-p3-scenario-engine
 tags:
@@ -39,14 +39,18 @@ P3 should start now because it has the shortest time-to-value, the clearest cust
 - CPCV validation.
 - Interpretable linear model per commodity pair.
 - Scenario re-run API.
-- Forecast impact with confidence bounds.
+- Forecast impact with confidence bounds (OLS standard errors; conformal CQR deferred to v2).
 - Explainability layer showing drivers, direction, and magnitude.
 
-## Defer or decide
+## V1 scope decision (2026-06-30)
 
-The Bayesian / variational posterior layer is valuable, but it should be explicitly scoped. The open question is whether to ship it in v1 or defer until deterministic scenario logic is validated.
+**Decided:** P3 v1 ships linear model + CPCV only. Bayesian/variational layer and conformalized quantile regression (CQR) are explicitly deferred to v2.
 
-> **Source-internal contradiction `[unresolved]`.** The deck is inconsistent about this: Slide 5 lists the Bayesian/variational layer under **"What ships"** (i.e. v1), while Slide 8 lists "ship Bayesian in v1 or defer to v2?" as an **open question**. The wiki holds it as *open* and validates deterministic logic first ([experiments/exp-p3-scenario-engine-mvp](../experiments/exp-p3-scenario-engine-mvp.md)); recorded rather than silently resolved.
+V1 delivers: Granger/TE feature selection → CPCV-validated linear model per commodity pair → scenario re-run API → OLS-based confidence intervals. The goal is a trusted, interpretable, shippable product without uncertainty-layer complexity.
+
+V2 adds: Bayesian/variational posterior (calibrated uncertainty), conformalized CQR (distribution-free prediction intervals), and optional nonlinear models if the linear ceiling is hit in production.
+
+> **Source-internal contradiction resolved `[decided 2026-06-30]`.** Deck Slide 5 listed the Bayesian/variational layer under "What ships" (v1); Slide 8 listed it as an open question. Decision: defer to v2. The contradiction is recorded here per wiki policy rather than silently erased.
 
 ## Main risk
 

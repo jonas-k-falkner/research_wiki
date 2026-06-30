@@ -16,6 +16,14 @@ tags:
 
 # Open questions
 
+## Decisions made since last review
+
+| Decision | Date | See |
+|---|---|---|
+| P3 v1 scope: linear model + CPCV only; Bayesian layer and conformal CQR deferred to v2 | 2026-06-30 | [projects/p3-scenario-engine](../projects/p3-scenario-engine.md) |
+| P1 is the highest-priority project and ships Phase 0 independently; P2 is a research-track upgrade (Phase 1) | 2026-06-30 | [projects/p1-cluster-pretrained-deep-models](../projects/p1-cluster-pretrained-deep-models.md) |
+| MC-dropout determinism: seeded MC-dropout is deterministic; no stochasticity carve-out needed | 2026-06-30 | [shared/research-backlog](research-backlog.md) |
+
 ## P1
 
 **Architecture / design:**
@@ -39,12 +47,11 @@ tags:
 - What pairwise-label sampling strategy produces reliable soft labels at tractable scale?
 - Which P1 task should be the first downstream validation target for P2?
 - Which asymmetric geometry: source/target two-head architecture, order embeddings, or hyperbolic?
-- With P1 Phase 0 using v1 symmetric embeddings, is P2 still a timeline priority, or can it run as a lower-urgency research track?
+- Which P1 task should be the first downstream validation target for P2 (Phase 1)?
 
 ## P3
 
-- Does Bayesian uncertainty ship in v1 or v2? (Source-internal deck contradiction — held open; see [projects/p3-scenario-engine](../projects/p3-scenario-engine.md).)
-- What customer-facing confidence format is trusted but not overcomplicated?
+- What customer-facing confidence format is trusted but not overcomplicated? (v1 uses OLS intervals; CQR in v2)
 - Which commodity pair should anchor the first CPCV-validated scenario backtest?
 
 ## P4
@@ -56,5 +63,4 @@ tags:
 
 ## Cross-project
 
-- With P1 now using v1 for Phase 0 covariate selection, what is the correct sequencing between P1 Phase 0 validation and P2 research? Does P1 ship Phase 0 as production first?
 - P4 moat: is the moat the evidence-ledger/provenance discipline, or the nowcast model itself?

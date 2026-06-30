@@ -38,3 +38,15 @@ uv run pytest tests/unit
 ```
 
 Targets `src/` and `tests/` only — never `kb/`.
+
+## Zotero export
+
+For the Zotero export, export Better CSL JSON and export files (set naming convention to the citekey). Run this inside the parent directory that contains the Zotero single-file subdirectories (moves all PDFs from subfolders into the current directory and does not overwrite files with the same name because of -n):
+```bash
+find . -mindepth 2 -type f -iname '*.pdf' -exec mv -n -t . {} +
+```
+Then remove the now-empty directories:
+```bash
+find . -mindepth 1 -type d -empty -delete
+```
+Finally copy/append json to existing library.json and move pdf files into `kb/raw/literature/pdf`.

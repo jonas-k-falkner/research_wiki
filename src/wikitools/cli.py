@@ -301,7 +301,7 @@ def main() -> None:
     toc_build_p.add_argument("--check", action="store_true", help="Exit non-zero if indexes are stale; do not write.")
 
     extract_p = subparsers.add_parser("extract", help="Extract text from literature PDFs.")
-    extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default=None, help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
+    extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default="docling", help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
     extract_p.add_argument("--force", action="store_true", help="Re-extract even when source hash is unchanged.")
     extract_p.add_argument("--citekey", metavar="KEY", default=None, help="Process only PDFs with this citekey.")
     extract_p.add_argument("--no-formula", action="store_true", default=False, help="Disable formula enrichment (faster, but math renders as garbled glyph text).")
