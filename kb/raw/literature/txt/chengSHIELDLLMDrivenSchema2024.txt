@@ -1,0 +1,1009 @@
+## SHIELD: LLM-Driven Schema Induction for Predictive Analytics in EV Battery Supply Chain Disruptions
+
+Zhi-Qi Cheng 1 Yifei Dong 2 Aike Shi 3 Wei Liu 4 Yuzhi Hu 5 Jason O'Connor 1 Alexander G. Hauptmann 1 Kate S. Whitefoot 1
+
+1 Carnegie Mellon University 2 Columbia University 3 Georgia Institute of Technology 4 University of Michigan, Ann Arbor 5 Boston University
+
+Project Page:
+
+https://f1y1113.github.io/MFI/
+
+## Abstract
+
+The electric vehicle (EV) battery supply chain's vulnerability to disruptions necessitates advanced predictive analytics. We present SHIELD (Schema-based Hierarchical Induction for EV supply chain Disruption), a system integrating Large Language Models (LLMs) with domain expertise for EV battery supply chain risk assessment. SHIELD combines: (1) LLM-driven schema learning to construct a comprehensive knowledge library, (2) a disruption analysis system utilizing fine-tuned language models for event extraction, multidimensional similarity matching for schema matching, and Graph Convolutional Networks (GCNs) with logical constraints for prediction, and (3) an interactive interface for visualizing results and incorporating expert feedback to enhance decision-making. Evaluated on 12,070 paragraphs from 365 sources (20222023), SHIELD outperforms baseline GCNs and LLM+prompt methods (e.g. GPT-4o) in disruption prediction. These results demonstrate SHIELD's effectiveness in combining LLM capabilities with domain expertise for enhanced supply chain risk assessment.
+
+## 1 Introduction
+
+The expected widespread adoption of electric vehicles (EVs) is threatened by risks associated with the geographic and economic concentration of critical battery minerals, such as lithium, cobalt, and nickel. To enhance the resilience of the EV battery supply chain, manufacturers must anticipate disruptions caused by natural disasters and geopolitical tensions. Proactive strategies and supply diversification are essential to mitigate these risks 1 .
+
+Completed by Y. Dong and Y. Hu during remote visits, and A. Shi and W. Liu during CMU internships. Z. Cheng, Y. Dong, A. Shi, W. Liu, and Y. Hu contributed equally. J. O'Connor, A. Hauptmann, and K. Whitefoot provided guidance. See Appx. L for details. Correspondence: zhiqic,alex@cs.cmu.edu, kwhitefoot@andrew.cmu.edu.
+
+Figure 1: SHIELD's process for EV battery supply chain disruption prediction. The framework integrates LLM-driven schema learning with expert curation, enabling robust event extraction and prediction from diverse news sources. This approach uniquely combines LLMcapabilities with domain expertise, enhancing both predictive accuracy and interpretability for proactive supply chain risk management.
+
+<!-- image -->
+
+Traditional supply chain risk management approaches, which rely on rule-based reasoning and agent-based simulations (Gallab et al., 2019; Pino et al., 2010; Giannakis and Louis, 2011, 2016; Blos et al., 2015), often fall short in predictive accuracy and adaptability to dynamic market conditions. While machine learning (ML) and deep learning (DL) techniques have enhanced predictive performance (Hegde and Rokseth, 2020; Ruz et al., 2020; Aljohani, 2023; Silva et al., 2017; Garvey et al., 2015; Carbonneau et al., 2008), they frequently sacrifice interpretability, limiting their practical application. Recent studies employing large language models (LLMs) in supply chain management (Ray, 2023; Wang et al., 2022a; Du et al., 2022; Shi et al., 2024; Dror et al., 2022; Li et al., 2023) have focused on improving predictions but struggle to fully grasp complex domain-specific supply chain knowledge. This limitation often leads to hallucinations and inaccuracies which, coupled with limited interpretability, hinder the generation of actionable insights crucial for effective risk management.
+
+Figure 2: Overview of the supply chain schema construction process, illustrating the collection of diverse sources, schema extraction using large language models, and the integration into a unified schema library.
+
+<!-- image -->
+
+To address these challenges, we introduce SHIELD (Schema-based Hierarchical Induction for EV supply chain Disruption), a two-stage framework that integrates LLMs and domain expertise for predictive analytics in EV battery supply chains (Fig. 1):
+
+1. Schema Learning (Sec. 3): We leverage LLMs (GPT-4o, Llama3-3b, Llama3-70b) to construct a comprehensive schema library-a structured representation of supply chain components and their relationships-from diverse sources. An interactive system integrates expert knowledge, distilling supply chain expertise from specialized documents. This approach ensures analyses align with domain knowledge, capturing EV battery supply chain complexities for accurate, interpretable predictions that adapt to industry dynamics through continuous refinement.
+2. Disruption Analysis (Sec. 4): Building on our schema learning, we develop a comprehensive disruption prediction system. This system integrates fine-tuned RoBERTa (Liu et al., 2019) for event detection, multi-dimensional similarity for matching, and Graph Convolutional Networks (GCNs) with logical constraints for impact analysis. The resulting endto-end system enables precise event extraction and reliable predictions in complex supply chains, mitigating LLM hallucination risks while maintaining efficiency. This approach offers a scalable solution for real-time supply chain risk assessment and mitigation.
+
+Evaluated on 12,070 paragraphs from 365 sources (2022-2023) (Sec. 5), SHIELD outperforms baseline GCNs and LLM+prompt methods (e.g., GPT4o) in disruption prediction. By integrating LLM capabilities with domain expertise, this framework enhances supply chain risk assessment. Key contri- butions include: (1) an LLM-expert integration methodology for accurate, interpretable predictions; (2) a schema learning and news evaluation dataset spanning the EV battery lifecycle; (3) an interactive schema curation system; and (4) advanced analytical techniques for supply chain analysis. SHIELD offers a promising approach in supply chain risk management, addressing evolving challenges across the EV industry and beyond.
+
+## 2 Related Work
+
+Supply Chain Risk Management . AI has been increasingly applied to predict and manage supply chain risks (Ganesh and Kalpana, 2022). Agentbased approaches (Pino et al., 2010; Giannakis and Louis, 2011, 2016; Blos et al., 2015) facilitate inter-agent communication for forecasting but often suffer from limited predictive power and parameter constraints. Rule-based methods (Gallab et al., 2019; Behret et al., 2012; Paul, 2015; Paul et al., 2017; Awasthi et al., 2018; Camarillo et al., 2018) offer decision frameworks with minimal quantitative insights. Machine Learning (ML) and Deep Learning (DL) techniques have improved forecasting and disruption prediction (Silva et al., 2017; Hegde and Rokseth, 2020; Garvey et al., 2015; Ruz et al., 2020; Aljohani, 2023; Carbonneau et al., 2008), yet many focus on predictive performance at the expense of interpretability (Hendriksen, 2023; Makridis et al., 2023). Recent work has explored large language models (LLMs) in supply chain management (Ray, 2023), but interpretability remains a challenge. Our approach integrates LLMs to enhance both predictive accuracy and interpretability by extracting hierarchical knowledgegraph structures to forecast disruptions.
+
+Schema Induction &amp; Learning . Building on early schema induction work (Anderson et al., 1979;
+
+Evans, 1967), LLMs (Brown et al., 2020; Rae et al., 2021) have shown strong schema-learning abilities with minimal supervision. Recent strategies, such as contextual explanations (Wei et al., 2021; Lampinen et al., 2022), rationale-augmented models (Wang et al., 2022b), and incremental prompting (Li et al., 2023), have further refined schema induction. Transformer-based methods (Li et al., 2020, 2021) excel at schema representation through graph structures, with human feedback playing a vital role in improving model accuracy (Mondal et al., 2023; Yang et al., 2024; Zhang et al., 2023). Our method leverages these advancements, combining human feedback with LLM-driven schema induction to improve accuracy and relevance in disruption prediction.
+
+Event Extraction &amp; Analysis . Event extraction has evolved from handcrafted features (Ahn, 2006) to neural models like recurrent (Nguyen et al., 2016; Sha et al., 2018), convolutional (Chen et al., 2015), graph (Zhang and Ji, 2021), and transformerbased networks (Liu et al., 2020). Advances in argument extraction (Wang et al., 2019), zero-shot learning (Huang et al., 2018), and weak supervision (Chen et al., 2015) have boosted performance. Our approach enhances event extraction by using fine-tuned RoBERTa models and graph convolutional networks (GCNs) to capture complex event relationships and cascading effects, offering deeper insights into supply chain disruptions compared to traditional methods.
+
+## 3 Schema Learning for Supply Chain Disruptions
+
+Schema Learning Dataset . Our dataset comprises 239 diverse sources: 200 academic papers, 22 industry reports, and 17 Wikipedia entries (Fig. 5 and Fig. 6). This collection provides an up-to-date view of the EV battery supply chain, covering advanced battery technologies (e.g. LFP, NiMH), production processes, and six key raw materials. We categorized events into 8 categories, three with longterm impacts, subdivided into 18 subcategories. Our analysis includes five-year price trends for all materials, correlated with 39 significant supply chain events. Industry expert feedback refined our categorization into 11 main categories with 27 subcategories, each illustrated with 1-2 realworld events (Tab. 6). The academic dataset was distilled from 239 sources to 125 highly relevant entries. This dataset of over 1,000 events spans the EV battery lifecycle, enabling our methods to acquire expert knowledge for accurate, real-world predictions. More details are in Appx. B.1.
+
+Schema Generation &amp; Merging . Building upon our collected dataset, our Schema Learning System facilitates the extraction, visualization, and management of schemas from the 125 diverse textual sources (Fig. 2). The process begins with data cleaning using regular expressions and a locally deployed Llama3-8b model. Subsequently, we employ GPT-4o, Llama3-3b, and Llama3-70b with specific prompts to extract hierarchical structures ( H ) capturing main events ( E ) and sub-events ( E sub ). More details are in Appx. C.
+
+The extracted structures are then converted into individual schemas ( S i ) and visualized as graphs, demonstrating the hierarchical nature of the schemas and the relationships between main events and sub-events. These schemas are then integrated into a single library ( Sfi nal ), aggregating contexts ( Cfi nal = ⋃ n i =1 C i ), merging events ( Efi nal = ⋃ n i =1 E i ), and updating event IDs for relations ( Rfi nal = ⋃ n i =1 R i ). The detailed schema generation and merging algorithm is provided in Appx. D.
+
+To ensure efficient retrieval and updates, a dedicated Database &amp; Storage module manages schema storage, while the Schema Management System incorporates a Schema Viewer, Editor, collaboration tools, and AI-driven suggestions are built to manage and annotate schemas (Appx. E). This humanin-the-loop curated framework streamlines schema extraction and management, enabling interactive knowledge extraction from structured documents, leveraging supply chain experts' insights.
+
+## 4 Dynamic Analysis of Supply Chain Disruptions
+
+Supply Chain News Dataset . We developed an EV Supply Chain News Dataset (January 2022 - December 2023) to evaluate our system's real-world performance (Appx. B.2). The dataset comprises 247 articles from major news outlets and 118 enterprise reports from EV battery-related companies (Fig. 7 and Fig. 8). After preprocessing-including text extraction, language standardization, and noise reduction-we obtained Meta data with 3,022 paragraphs. We then fused international news with contemporaneous corporate stories in the meta data, creating 354 diverse documents comprising 12,070 paragraphs. The final dataset contains approxi- mately 660K words (Table 9), providing a robust foundation for evaluating supply chain disruption detection and analysis. Comprehensive replication details, including the full dataset and preprocessing pipeline, are provided to ensure reproducibility.
+
+Figure 3: Overview of the supply chain disruption prediction pipeline, illustrating the integration of GCN-based predictions, constrained prediction refinement, and argument coreference resolution.
+
+<!-- image -->
+
+Event Extraction . Our pipeline extracts multifaceted events from textual data, focusing on their impact on the EV battery supply chain. We begin with custom-trained SpaCy models 2 for tokenization, sentence segmentation, named entity recognition, and dependency parsing (Appx. F).
+
+Building on this, we deploy a fine-tuned RoBERTa model for cross-sentence event detection:
+
+$$E v e n t D e t e c t _ { \text {multi-sentence} } ( T ) \to E _ { C } \quad ( 1 ) \quad _ { \text {are in } } ^ { \text {two-tons} } \intertext { E v e n t D e t e c t _ { \text {multi-sentence} } ( T ) \to E _ { C } }$$
+
+where T represents the input text and E C the detected events. These events are then enriched with contextual information using BERT:
+
+$$B E R T _ { c o n t e x t } ( E _ { C } ) \rightarrow C _ { E } \quad ( 2 ) \quad _ { t i e s } ^ { a p p }$$
+
+generating contextual embeddings C E . To enhance analytical coherence, we implement coreference resolution and event linking:
+
+$$C o r e f L i n k ( E _ { C } ) \rightarrow E _ { L }$$
+
+This critical step, yielding linked events E L , maintains contextual continuity across documents. Subsequently, Conditional Random Fields (CRFs) extract event parameters P C :
+
+$$C R F ( E _ { L } ) \rightarrow P _ { C } \intertext { C R F ( E _ { L } ) \rightarrow P _ { C } } \ h e ^ { ( 4 ) } \intertext { h e ^ { ( 4 ) } } \ h e ^ { ( 2 ) }$$
+
+Leveraging Graph Convolutional Networks (GCNs), we model complex event relationships and score each event's impact as:
+
+2 https://spacy.io/models
+
+$$\begin{array} { c c } \text {option} & \text {ImpactScore(e_{i}) = Centrality(e_{i})+Magnitude(e_{i})} \\ \text {citation} & \\ \end{array} \begin{array} { c } ( 5 ) \end{array}$$
+
+This scoring mechanism balances two crucial factors. Centrality ( e i ) represents the event's importance within the network, reflecting its centrality or influence in the supply chain context. Meanwhile, Magnitude ( e i ) quantifies the event's impact intensity, indicating its severity or significance.
+
+Finally, we apply logical constraints and argument coreference to ensure robustness:
+
+$$\begin{array} { c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c c$$
+
+Event Matching &amp; Instantiation . We link extracted events with schema library to detect supply chain disruption patterns using a multi-dimensional approach of semantic and structural similarities. We align each extracted event E ext ∈ E ext (extracted events) with each schema event E schema ∈ E schema (schema events) using a composite similarity:
+
+$$\begin{array} { c c } \text {Sim} ( E _ { e x t } , E _ { s h e m a } ) = \alpha \cdot \text { SemSim} ( E _ { e x t } , E _ { s h e m a } ) \\ + \beta \cdot \text { StrSim} ( E _ { e x t } , E _ { s h e m a } ) \end{array}$$
+
+$$( 7 )$$
+
+where SemSim captures contextual meaning using BERT embeddings, and StrSim assesses structural similarity. Specifically, semantic similarity measures contextual alignment using cosine similarity between BERT embeddings:
+
+$$\text {ks} \quad \text {SemSim} ( E _ { e x t } , E _ { s h e m a } ) = \frac { v _ { e x t } \cdot v _ { s h e m a } } { \| v _ { e x t } \| \| v _ { s h e m a } \| } \quad ( 8 ) \\ \text {ips} \quad \text {who are } v _ { e x t } \text { and } v _ { s h e m a } \text { are } \text {REPT} \text { embedding of}$$
+
+where v ext and v schema are BERT embeddings of extracted and schema events. Similarly, structural similarity evaluates parameter overlap using Jaccard similarity:
+
+$$\text {StrSim} ( E _ { \text {ext} } , E _ { \text {schema} } ) = \frac { | P _ { \text {ext} } \cap P _ { \text {schema} } | } { | P _ { \text {ext} } \cup P _ { \text {schema} } | } \quad ( 9 ) \quad \text {argu} \\$$
+
+where P ext and P schema are the parameter sets for the extracted and schema events.
+
+Following the calculation of semantic and structural similarities, we refine matching using heuristic rules from annotated datasets. Successful matches lead to event instantiation, enriching the event representation with schema attributes:
+
+Instantiate ( E matched , S schema ) → E inst (10) where E matched represents the matched event, S schema yields the schema library, and E inst refers to the instantiated event with enriched attributes.
+
+To ensure logical adherence to schema constraints, we perform consistency checks. These checks validate the instantiated events against the schema library, ensuring they conform to predefined logical and structural constraints:
+
+$$C o n s i s t e n c y C h e c k ( E _ { i n s t } , S _ { s h e m a } ) \quad ( 1 1 ) \quad _ { a p p } ^ { 2 1 }$$
+
+This step is crucial for maintaining the integrity of the schema and the reliability of the predictions.
+
+Finally, we incorporate a continuous improvement process through manual review and feedback. Feedback from domain experts is used to update and refine the models, ensuring they adapt to new patterns and maintain high performance. The complete process is summarized in Algorithm 3. More implementation details are in Appx. G.
+
+| Algorithm 1 Supply Chain Disruption Prediction   | Algorithm 1 Supply Chain Disruption Prediction                                         | Algorithm 1 Supply Chain Disruption Prediction                                         |
+|--------------------------------------------------|----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| 1:                                               | Input: Historical supply chain events E , adjacency matrix A , initial predictions ˆ y | Input: Historical supply chain events E , adjacency matrix A , initial predictions ˆ y |
+| 2:                                               | Output: Refined predictions ˆ y ′                                                      | Output: Refined predictions ˆ y ′                                                      |
+| 3:                                               | GCN-based Prediction ▷ Initial prediction using GCN                                    | GCN-based Prediction ▷ Initial prediction using GCN                                    |
+| 4:                                               | for l = 1 to L do                                                                      | for l = 1 to L do                                                                      |
+| 5:                                               | H ( l +1) = σ ( AH ( l ) W ( l ) )                                                     | ▷ Refer to Eq. 12                                                                      |
+| 6:                                               | end for                                                                                | end for                                                                                |
+| 7:                                               | ˆ y ← H ( L )                                                                          | ˆ y ← H ( L )                                                                          |
+| 8:                                               | Constrained Prediction ▷ Apply logical constraints                                     | Constrained Prediction ▷ Apply logical constraints                                     |
+| 9:                                               | for each prediction ˆ y i do                                                           | for each prediction ˆ y i do                                                           |
+| 10:                                              | ˆ y ′ i ← Constrain (ˆ y i )                                                           | ˆ y ′ i ← Constrain (ˆ y i )                                                           |
+| 11:                                              | such that C (ˆ y ′ i ) = true                                                          | ▷ Refer to Eq. 14                                                                      |
+| 12:                                              | end for                                                                                | end for                                                                                |
+| 13:                                              | Coreference Resolution                                                                 | ▷ Link related events                                                                  |
+| 14:                                              | for each pair of events ( E i ,E j ) do                                                | for each pair of events ( E i ,E j ) do                                                |
+| 15:                                              | R ij ← Coref ( E i ,E j )                                                              | ▷ Refer to Eq. 15                                                                      |
+| 16:                                              | if R ij is coreferential then                                                          | if R ij is coreferential then                                                          |
+| 17:                                              | Link E i and E j                                                                       | Link E i and E j                                                                       |
+| 18:                                              | end if                                                                                 | end if                                                                                 |
+| 19:                                              | end for                                                                                | end for                                                                                |
+| 20:                                              | Return: Refined predictions ˆ y                                                        | Return: Refined predictions ˆ y                                                        |
+
+Disruption Prediction . Building on the extracted and matched events, we employ Graph Convolutional Networks (GCNs), logical constraints, and argument coreference resolution to predict supply chain disruptions. Note that the events are represented as nodes and interactions as edges using GCNs with the propagation rule:
+
+$$H ^ { ( l + 1 ) } = \sigma ( A H ^ { ( l ) } W ^ { ( l ) } )$$
+
+where H ( l ) is the hidden state at layer l , A is the adjacency matrix, W ( l ) is the weight matrix, and σ is a non-linear activation function. We optimize using mean squared error loss with L2 regularization:
+
+$$\mathcal { L } = \frac { 1 } { N } \sum _ { i = 1 } ^ { N } \left ( y _ { i } - \hat { y } _ { i } \right ) ^ { 2 } + \lambda \| W \| ^ { 2 } \quad ( 1 3 )$$
+
+where y i and ˆ y i are actual and predicted disruption scores, and λ is a regularization parameter. This approach balances prediction accuracy and model complexity, preventing overfitting.
+
+To ensure consistency with domain knowledge, we apply logical constraints, refining initial predictions ( ˆ y ) to produce final predictions ( ˆ y ′ ) that adhere to known rules:
+
+$$\hat { y } ^ { \prime } & = \arg \min _ { \hat { y } ^ { \prime } \in \mathcal { Y } } \text {Constraint} ( \hat { y } ) \\ & \text {subject to} \quad \mathcal { C } ( \hat { y } ^ { \prime } ) = \text {true}$$
+
+where C represents constraint sets. For example, a constraint might ensure that a major supplier's disruption increases risk for dependent manufacturers.
+
+To further enhance the model's contextual understanding, we incorporate argument coreference:
+
+$$R _ { i j } & = \arg , \max ; \text {Coref} ( E _ { i } , E _ { j } ) \\ & \quad E _ { i } , E _ { j } \in \mathcal { E } \\ & \quad \text {subject to} \quad \text {Coref} ( E _ { i } , E _ { j } ) = \text {true}$$
+
+where ( E i , E j ) denotes each event pair and R ij represents their relation. This AllenNLP-based model links entities across event mentions, recognizing when different descriptions refer to the same incident, thereby improving prediction accuracy and context comprehension. Algorithm 1 outlines our approach, combining GCN-based predictions, logical constraints, and argument coreference resolution. Detailed examples and implementation guidelines are provided in Appx. H.
+
+Table 1: Performance comparison of different LLMs on schema learning in stage 1.
+
+|           | ChatGPT4o          | ChatGPT4o          | Llama3-3b          | Llama3-3b          | Llama3-70b         | Llama3-70b         |
+|-----------|--------------------|--------------------|--------------------|--------------------|--------------------|--------------------|
+|           | Individual Schemas | Integrated Library | Individual Schemas | Integrated Library | Individual Schemas | Integrated Library |
+| Precision | 0.637              | 0.184              | 0.198              | 0.018              | 0.353              | 0.019              |
+| Recall    | 0.695              | 0.336              | 0.047              | 0.014              | 0.133              | 0.022              |
+| F-score   | 0.652              | 0.238              | 0.068              | 0.016              | 0.175              | 0.020              |
+
+Table 2: Subjective evaluation by domain experts.
+
+| Model      |   Consistency |   Accuracy |   Completeness |
+|------------|---------------|------------|----------------|
+| GPT-4o     |           4.5 |        4.3 |            4.6 |
+| Llama3-3b  |           1.8 |        1.5 |            1.9 |
+| Llama3-70b |           3.0 |        2.7 |            3.1 |
+
+## 5 Experiments
+
+Our evaluation comprises two parts: (1) Schema Learning Assessment and (2) Supply Chain Disruption Prediction . We assess learned schemas against expert knowledge and evaluate our schema induction process's effectiveness in predicting supply chain events. Detailed experimental setup and evaluation metrics are in Appx. I.
+
+## 5.1 Schema Learning Performance
+
+We evaluate GPT-4o, Llama3-3b, and Llama3-70b for schema learning, comparing individual schema extraction and integrated library generation. Tables 1 and 2 present quantitative metrics and subjective evaluations by domain experts. GPT-4o outperforms Llama models, achieving F-scores of 0.652 and 0.238 for individual schemas and integrated library generation, respectively. All models perform better in individual schema extraction than integrated library generation, indicating challenges in schema integration. Subjective assessments align with quantitative metrics, with GPT4o scoring highest across all criteria (consistency: 4.5, accuracy: 4.3, completeness: 4.6). Individual schemas show strong consistency and completeness but slightly lower accuracy, suggesting a tradeoff between comprehensive coverage and precise detail representation.
+
+## 5.2 Disruption Detection Performance
+
+Event Extraction &amp; Matching . Table 3 presents quarterly results for 2022 and 2023 on event extraction and matching using a supply chain news dataset. Our system maintains consistent performance across quarters, with F-scores ranging from 0.671 to 0.700. This stability suggests robust generalization across different time periods and varying event types. The slight improvement in 2023 (av- erage F-score 0.687 vs 0.683 in 2022) indicates potential refinement in our model's ability to adapt to evolving supply chain dynamics.
+
+Disruption Detection . Our advanced GCNs model, augmented with logical constraints and coreference resolution, was rigorously evaluated against ablation versions and LLM+prompt methods. Tables 4 and 5 present the comparative performance metrics. The full system achieved the highest Fscore (0.732), significantly outperforming both ablation versions (GCNs+Logical Constraints: 0.707, GCNs only: 0.685) and LLM+prompt methods (GPT-4o: 0.624). However, the incremental improvement from the GCNs-only model to our full system (0.685 to 0.732) suggests that while the additional components significantly enhance performance, there remains substantial potential for further optimization in the future.
+
+## 5.3 Qualitative Analysis &amp; User Interface
+
+Our qualitative analysis of SHIELD's disruption predictions, focusing on real-world case studies (detailed in Appx. J), complements the quantitative findings and further illuminates the system's practical utility. A particularly salient example emerged in SHIELD's accurate prediction of a semiconductor shortage resulting from geopolitical tensions, made three weeks prior to widespread reporting. This early insight enabled proactive adjustments to procurement strategies, thereby demonstrating the system's considerable potential in mitigating complex supply chain risks. We have developed an interactive user interface (Fig. 4) for online disruption analysis. This interface allows users to upload news report texts (Fig. 4a), evaluate prediction scores, and edit visualization results for the final disruption analysis (Fig. 4b). More details can be found in Appx. K.
+
+## 5.4 Disruption Prediction Case Studies
+
+Our system effectively forecasted key supply chain disruptions, providing insights that enabled stakeholders to take proactive actions. For example, following the passage of the Inflation Reduction Act
+
+<!-- image -->
+
+- (a) User interface for inputting news reports.
+- (b) Visualization and editing of final prediction results.
+
+<!-- image -->
+
+Figure 4: User interface for online disruption analysis in stage 2, showing the process from news report input to the visualization and editing of prediction results. More examples are in Appx. K.
+
+Table 3: Event extraction and matching in supply chain news dataset.
+
+| Year      | 2022         | 2022         | 2022         | 2022         | 2023         | 2023         | 2023         | 2023         |
+|-----------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|
+| Quarter   | Q1 (Jan-Mar) | Q2 (Apr-Jun) | Q3 (Jul-Sep) | Q4 (Oct-Dec) | Q1 (Jan-Mar) | Q2 (Apr-Jun) | Q3 (Jul-Sep) | Q4 (Oct-Dec) |
+| Precision | 0.714        | 0.692        | 0.705        | 0.689        | 0.712        | 0.698        | 0.703        | 0.690        |
+| Recall    | 0.675        | 0.662        | 0.678        | 0.655        | 0.688        | 0.670        | 0.681        | 0.657        |
+| F-score   | 0.694        | 0.677        | 0.691        | 0.671        | 0.700        | 0.684        | 0.692        | 0.673        |
+
+Table 4: Performance comparison of different models on disruption prediction.
+
+| Model                                                 |   Precision |   Recall |   F-score |
+|-------------------------------------------------------|-------------|----------|-----------|
+| Our System (GCNs only)                                |       0.701 |    0.670 |     0.685 |
+| Our System (GCNs + Logical Constraints)               |       0.724 |    0.691 |     0.707 |
+| Our System (GCNs + Logical Constraints + Coreference) |       0.754 |    0.712 |     0.732 |
+
+Table 5: Performance comparison of direct human interaction with LLMs on disruption prediction.
+
+| Model      |   Precision |   Recall |   F-score |
+|------------|-------------|----------|-----------|
+| GPT-4o     |       0.641 |    0.608 |     0.624 |
+| Llama3-3b  |       0.522 |    0.489 |     0.505 |
+| Llama3-70b |       0.557 |    0.523 |     0.540 |
+| Our Method |       0.754 |    0.712 |     0.732 |
+
+(2022), which incentivized domestic EV battery production, our system predicted potential material shortages. By analyzing shifts in global material flows and the effects of policy changes on supplydemand dynamics, it enabled early interventions to minimize risks. Similarly, during geopolitical tensions between Australia and China in 2023, our system identified vulnerabilities in the lithium supply chain by monitoring export data and geopolitical developments, helping stakeholders adapt their sourcing strategies in time. In another instance, the system anticipated cobalt supply issues resulting from labor strikes and regulatory changes in the Democratic Republic of Congo (2023), allowing companies to diversify sources and increase inventory buffers. These cases, detailed further in Appendix J, illustrate how data-driven predictions enhance supply chain resilience and support timely decision-making in a volatile global market.
+
+## 6 Conclusion
+
+We present SHIELD, a two-stage framework that integrates Large Language Models (LLMs) with domain expertise, yielding promising results in EV battery supply chain analytics and risk assessment. While demonstrating particular strength in early disruption detection and event prediction for critical battery materials, significant challenges remain in schema integration, real-time adaptability, and error reduction. Future research will systematically address these limitations, enhance the system's robustness, and explore broader applications across diverse industries and supply chain ecosystems.
+
+## Acknowledgments
+
+This research was supported by the Carnegie Mellon Manufacturing Futures Institute and the Manufacturing PA Innovation Program. The authors also thank the School of Computer Science (SCS) at Carnegie Mellon University, particularly the High Performance Computing (HPC), for providing essential computational resources. The views expressed are those of the authors and do not necessarily reflect those of the funding agencies.
+
+## References
+
+David Ahn. 2006. The stages of event extraction. In Proceedings of the Workshop on Annotating and Reasoning about Time and Events , pages 1-8.
+
+Abeer Aljohani. 2023. Predictive analytics and machine learning for real-time supply chain risk mitigation and agility. Sustainability , 15(20):15088.
+
+John R Anderson, Paul J Kline, and Charles M Beasley Jr. 1979. A general learning theory and its application to schema abstraction1. In Psychology of learning and motivation , volume 13, pages 277-318. Elsevier.
+
+Anjali Awasthi, Kannan Govindan, and Stefan Gold. 2018. Multi-tier sustainable global supplier selection using a fuzzy ahp-vikor based approach. International Journal of Production Economics , 195:106-117.
+
+Hülya Behret, Ba¸ sar Öztay¸ si, and Cengiz Kahraman. 2012. A fuzzy inference system for supply chain risk management. In Practical Applications of Intelligent Systems: Proceedings of the Sixth International Conference on Intelligent Systems and Knowledge Engineering, Shanghai, China, Dec 2011 (ISKE2011) , pages 429-438. Springer.
+
+Maurício F Blos, Robson M Da Silva, and Paulo E Miyagi. 2015. Application of an agent-based supply chain to mitigate supply chain disruptions. IFACPapersOnLine , 48(3):640-645.
+
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. 2020. Language models are few-shot learners. Advances in neural information processing systems , 33:1877-1901.
+
+Shu Cai and Kevin Knight. 2013. Smatch: an evaluation metric for semantic feature structures. In Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers) , pages 748-752.
+
+Alvaro Camarillo, José Ríos, and Klaus-Dieter Althoff. 2018. Knowledge-based multi-agent system for manufacturing problem solving process in production plants. Journal of manufacturing systems , 47:115-127.
+
+Real Carbonneau, Kevin Laframboise, and Rustam Vahidov. 2008. Application of machine learning techniques for supply chain demand forecasting. European journal of operational research , 184(3):1140-1154.
+
+Angel X Chang and Christopher D Manning. 2012. Sutime: A library for recognizing and normalizing time expressions. In Lrec , volume 12, pages 3735-3740.
+
+Yubo Chen, Liheng Xu, Kang Liu, Daojian Zeng, and Jun Zhao. 2015. Event extraction via dynamic multipooling convolutional neural networks. In Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (Volume 1: Long Papers) , pages 167-176.
+
+Rotem Dror, Haoyu Wang, and Dan Roth. 2022. Zeroshot on-the-fly event schema induction. arXiv preprint arXiv:2210.06254 .
+
+Xinya Du, Zixuan Zhang, Sha Li, Pengfei Yu, Hongwei Wang, Tuan Lai, Xudong Lin, Ziqi Wang, Iris Liu, Ben Zhou, et al. 2022. Resin-11: Schema-guided event prediction for 11 newsworthy scenarios. In Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies: System Demonstrations , pages 54-63.
+
+Selby H Evans. 1967. A brief statement of schema theory. Psychonomic Science , 8(2):87-88.
+
+Maryam Gallab, Hafida Bouloiz, Youssef Lamrani Alaoui, and Mohamed Tkiouat. 2019. Risk assessment of maintenance activities using fuzzy logic. Procedia computer science , 148:226-235.
+
+A Deiva Ganesh and P Kalpana. 2022. Future of artificial intelligence and its influence on supply chain risk management-a systematic review. Computers &amp; Industrial Engineering , 169:108206.
+
+Myles D Garvey, Steven Carnovale, and Sengun Yeniyurt. 2015. An analytical framework for supply network risk propagation: A bayesian network approach. European Journal of Operational Research , 243(2):618627.
+
+Mihalis Giannakis and Michalis Louis. 2011. A multiagent based framework for supply chain risk management. Journal of Purchasing and Supply Management , 17(1):23-31.
+
+Mihalis Giannakis and Michalis Louis. 2016. A multiagent based system with big data processing for enhanced supply chain agility. Journal of Enterprise Information Management , 29(5):706-727.
+
+Jeevith Hegde and Børge Rokseth. 2020. Applications of machine learning methods for engineering risk assessment-a review. Safety science , 122:104492.
+
+Christian Hendriksen. 2023. Artificial intelligence for supply chain management: Disruptive innovation or innovative disruption? Journal of Supply Chain Management , 59(3):65-76.
+
+Lifu Huang, Heng Ji, Kyunghyun Cho, Ido Dagan, Sebastian Riedel, and Clare R Voss. 2018. Zero-shot transfer learning for event extraction. In 56th Annual Meeting of the Association for Computational Linguistics, ACL 2018 , pages 2160-2170. Association for Computational Linguistics (ACL).
+
+Andrew K Lampinen, Ishita Dasgupta, Stephanie CY Chan, Kory Matthewson, Michael Henry Tessler, Antonia Creswell, James L McClelland, Jane X Wang, and Felix Hill. 2022. Can language models learn from explanations in context? arXiv preprint arXiv:2204.02329 .
+
+Manling Li, Sha Li, Zhenhailong Wang, Lifu Huang, Kyunghyun Cho, Heng Ji, Jiawei Han, and Clare Voss. 2021. The future is not one-dimensional: Complex event schema induction by graph modeling for event prediction. arXiv preprint arXiv:2104.06344 .
+
+Manling Li, Qi Zeng, Ying Lin, Kyunghyun Cho, Heng Ji, Jonathan May, Nathanael Chambers, and Clare Voss. 2020. Connecting the dots: Event graph schema induction with path language modeling. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP) , pages 684-695.
+
+Sha Li, Ruining Zhao, Manling Li, Heng Ji, Chris Callison-Burch, and Jiawei Han. 2023. Opendomain hierarchical event schema induction by incremental prompting and verification. arXiv preprint arXiv:2307.01972 .
+
+Jian Liu, Yubo Chen, Kang Liu, Wei Bi, and Xiaojiang Liu. 2020. Event extraction as machine reading comprehension. In Proceedings of the 2020 conference on empirical methods in natural language processing (EMNLP) , pages 1641-1651.
+
+Yinhan Liu, Myle Ott, Naman Goyal, Jingfei Du, Mandar Joshi, Danqi Chen, Omer Levy, Mike Lewis, Luke Zettlemoyer, and Veselin Stoyanov. 2019. Roberta: A robustly optimized bert pretraining approach. arXiv preprint arXiv:1907.11692 .
+
+Georgios Makridis, Philip Mavrepis, and Dimosthenis Kyriazis. 2023. A deep learning approach using natural language processing and time-series forecasting towards enhanced food safety. Machine Learning , 112(4):12871313.
+
+Ishani Mondal, Michelle Yuan, Aparna Garimella, Francis Ferraro, Andrew Blair-Stanek, Benjamin Van Durme, Jordan Boyd-Graber, et al. 2023. Interactiveie: Towards assessing the strength of human-ai collaboration in improving the performance of information extraction. arXiv preprint arXiv:2305.14659 .
+
+Thien Huu Nguyen, Kyunghyun Cho, and Ralph Grishman. 2016. Joint event extraction via recurrent neural networks. In Proceedings of the 2016 conference of the North American chapter of the association for computational linguistics: human language technologies , pages 300-309.
+
+Sanjoy Kumar Paul. 2015. Supplier selection for managing supply risks in supply chain: a fuzzy approach. The International Journal of Advanced Manufacturing Technology , 79:657-664.
+
+Sanjoy Kumar Paul, Ruhul Sarker, and Daryl Essam. 2017. A quantitative model for disruption mitigation in a supply chain. European Journal of Operational Research , 257(3):881-895.
+
+Raúl Pino, Isabel Fernández, David de la Fuente, José Parreño, and Paolo Priore. 2010. Supply chain modelling using a multi-agent system. Journal of Advances in Management Research , 7(2):149-162.
+
+Sameer Pradhan, Alessandro Moschitti, Nianwen Xue, Hwee Tou Ng, Anders Björkelund, Olga Uryupina, Yuchen Zhang, and Zhi Zhong. 2013. Towards robust linguistic analysis using ontonotes. In Proceedings of the Seventeenth Conference on Computational Natural Language Learning , pages 143-152.
+
+Jack W Rae, Sebastian Borgeaud, Trevor Cai, Katie Millican, Jordan Hoffmann, Francis Song, John Aslanides, Sarah Henderson, Roman Ring, Susannah Young, et al. 2021. Scaling language models: Methods, analysis &amp; insights from training gopher. arXiv preprint arXiv:2112.11446 .
+
+Partha Pratim Ray. 2023. Leveraging deep learning and language models in revolutionizing water resource management, research, and policy making: A case for chatgpt. ACS ES&amp;T Water , 3(8):1984-1986.
+
+Gonzalo A Ruz, Pablo A Henríquez, and Aldo Mascareño. 2020. Sentiment analysis of twitter data during critical events through bayesian networks classifiers. Future Generation Computer Systems , 106:92-104.
+
+Alexander Schrijver. 1998. Theory of linear and integer programming . John Wiley &amp; Sons.
+
+Lei Sha, Feng Qian, Baobao Chang, and Zhifang Sui. 2018. Jointly extracting event triggers and arguments by dependency-bridge rnn and tensor-based argument interaction. In Proceedings of the AAAI conference on artificial intelligence , volume 32.
+
+Xiaoming Shi, Siqiao Xue, Kangrui Wang, Fan Zhou, James Zhang, Jun Zhou, Chenhao Tan, and Hongyuan Mei. 2024. Language models can improve event prediction by few-shot abductive reasoning. Advances in Neural Information Processing Systems , 36.
+
+Nathalie Silva, Luís Miguel DF Ferreira, Cristóvão Silva, Vanessa Magalhães, and Pedro Neto. 2017. Improving supply chain visibility with artificial neural networks. Procedia Manufacturing , 11:2083-2090.
+
+Jannik Strötgen and Michael Gertz. 2013. Multilingual and cross-domain temporal tagging. Language Resources and Evaluation , 47:269-298.
+
+Naushad UzZaman, Hector Llorens, James Allen, Leon Derczynski, Marc Verhagen, and James Pustejovsky. 2012. Tempeval-3: Evaluating events, time expressions, and temporal relations. arXiv preprint arXiv:1206.5333 .
+
+Hongwei Wang, Zixuan Zhang, Sha Li, Jiawei Han, Yizhou Sun, Hanghang Tong, Joseph P Olive, and Heng Ji. 2022a. Schema-guided event graph completion. arXiv preprint arXiv:2206.02921 .
+
+Sijia Wang, Mo Yu, Shiyu Chang, Lichao Sun, and Lifu Huang. 2021. Query and extract: Refining event extraction as type-oriented binary decoding. arXiv preprint arXiv:2110.07476 .
+
+Xiaozhi Wang, Ziqi Wang, Xu Han, Zhiyuan Liu, Juanzi Li, Peng Li, Maosong Sun, Jie Zhou, and Xiang Ren. 2019. Hmeae: Hierarchical modular event argument extraction. In Proceedings of the 2019 Conference on empirical methods in natural language processing and the 9th international joint conference on natural language processing (EMNLP-IJCNLP) , pages 5777-5783.
+
+Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, and Denny Zhou. 2022b. Rationaleaugmented ensembles in language models. arXiv preprint arXiv:2207.00747 .
+
+Jason Wei, Maarten Bosma, Vincent Y Zhao, Kelvin Guu, Adams Wei Yu, Brian Lester, Nan Du, Andrew M Dai, and Quoc V Le. 2021. Finetuned language models are zero-shot learners. arXiv preprint arXiv:2109.01652 .
+
+Diyi Yang, Sherry Tongshuang Wu, and Marti A Hearst. 2024. Human-ai interaction in the age of llms. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 5: Tutorial Abstracts) , pages 34-38.
+
+Tianyi Zhang, Isaac Tham, Zhaoyi Hou, Jiaxuan Ren, Liyang Zhou, Hainiu Xu, Li Zhang, Lara J Martin, Rotem Dror, Sha Li, et al. 2023. Human-in-the-loop schema induction. arXiv preprint arXiv:2302.13048 .
+
+Zixuan Zhang and Heng Ji. 2021. Abstract meaning representation guided graph encoding and decoding for joint information extraction. In Proc. The 2021 Conference of the North American Chapter of the Association for Computational Linguistics-Human Language Technologies (NAACL-HLT2021) .
+
+## A Extended Related Work
+
+Supply Chain Risk Management . AI techniques have been increasingly applied to predict and mitigate supply chain risks (Ganesh and Kalpana, 2022). While agent-based approaches (Pino et al., 2010; Giannakis and Louis, 2011, 2016; Blos et al., 2015) enable inter-agent communication for forecasting, they often lack robust predictive capabilities and have limited parameter sets. Rule-based reasoning methods (Gallab et al., 2019; Behret et al., 2012; Paul, 2015; Paul et al., 2017; Awasthi et al., 2018; Camarillo et al., 2018) offer decisionmaking frameworks but provide minimal quantitative insights. To address these limitations, Machine Learning (DL) and Deep Learning (DL) techniques have been employed (Silva et al., 2017; Hegde and Rokseth, 2020; Garvey et al., 2015; Ruz et al., 2020; Aljohani, 2023; Carbonneau et al., 2008), enhancing demand forecasting and disruption prediction (Hendriksen, 2023; Makridis et al., 2023). Recent studies have begun exploring the potential of large language models (LLMs) in supply chain management (Ray, 2023). However, most current works prioritize predictive performance over interpretability, hindering practitioners' ability to make informed decisions. Our approach addresses this gap by integrating LLMs for schema induction, extracting hierarchical knowledge-graph structures from academic resources to predict supply chain disruptions, thereby enhancing both predictive performance and interpretability.
+
+Schema Induction &amp; Learning . Building on foundational works (Anderson et al., 1979; Evans, 1967), recent advancements in language modeling have revolutionized schema induction. Largescale language models (LLMs) (Brown et al., 2020; Rae et al., 2021) have demonstrated remarkable capabilities in learning and generating schemas with minimal supervision. Researchers have explored various strategies to enhance these models, including contextual explanations (Wei et al., 2021; Lampinen et al., 2022), rationale-augmented ensembles (Wang et al., 2022b), and incremental prompting (Li et al., 2023). Transformer-based approaches (Li et al., 2020, 2021) have proven particularly effective in managing schema generation for complex scenarios, representing schemas as graphs. Integrating human feedback (Mondal et al., 2023; Yang et al., 2024; Zhang et al., 2023) has been crucial in refining schema induction processes, addressing the limitations of automated methods. Our approach leverages these advancements by employing an LLM-driven framework that integrates human feedback and expert knowledge into a humanin-loop system, thereby enhancing the practical accuracy and relevance of induced schemas.
+
+Event Extraction &amp; Analysis . Event extraction has evolved from manually crafted features (Ahn, 2006) to neural models, including recurrent networks (Nguyen et al., 2016; Sha et al., 2018), convolutional networks (Chen et al., 2015), graph networks (Zhang and Ji, 2021), and transformers (Liu et al., 2020). Recent research has focused on event argument extraction (Wang et al., 2019) and explored zero-shot learning (Huang et al., 2018) and weak supervision (Chen et al., 2015) to enhance performance. Our approach incorporates various event extraction techniques, utilizing fine-tuned RoBERTa models and graph convolutional networks (GCNs) to capture and analyze complex event relationships and their cascading impacts. This approach enables a deeper understanding of supply chain disruptions, distinguishing our system from traditional extraction techniques.
+
+## B Dataset
+
+## B.1 Schema Learning Dataset
+
+Our research began by examining the current state of EV batteries, focusing on the predominant types in use, such as lithium iron phosphate and nickel lithium batteries. We analyzed the battery production process and identified key raw materials, including lithium, cobalt, nickel, and graphite. Subsequently, we investigated the primary sources and production volumes of these materials. Through an extensive review of literature and statistical data, we categorized significant supply chain events into eight groups, three of which have long-term impacts. Each category was further divided into subcategories, and real-world events were identified to illustrate their impact on raw material supplies.
+
+We also analyzed price trends for key raw materials over the past five years, using data from the London Metal Exchange (LME) 3 , to assess how news events influenced these prices. This research produced an initial scenario document listing the primary raw materials for EV batteries, their price trends, and an analysis of events causing supply chain issues and price fluctuations. Each category included at least one real-world example to demonstrate its impact.
+
+3 https://www.lme.com/en/
+
+The initial document was then submitted for review by a supply chain expert. Based on the expert's feedback, we refined the events affecting the EV battery supply chain into 11 main categories, three with long-term impacts, and subdivided them into 27 subcategories. Each subcategory was illustrated with 1-2 real-world events, and raw materials were further subdivided, such as different grades of nickel and types of lithium. Categories with minimal impact were removed, resulting in a comprehensive and refined scenario document.
+
+Based on the scenario document, we identified the raw materials and events related to the EV battery supply chain and began collecting an academic document dataset. Our data sources included Wikipedia entries, supply chain-related papers, and industrial reports. After obtaining the raw data, we manually removed redundant information and noise, retaining only the paragraphs most relevant to the EV battery supply chain. Through meticulous organization, we compiled an academic document dataset consisting of 125 entries, distilled from 239 diverse sources: 200 academic papers, 22 industry reports, and 17 Wikipedia entries. This curated dataset provides a focused knowledge base essential for analyzing and understanding the complexities of the EV battery supply chain.
+
+The resulting dataset encompasses a wealth of knowledge related to the EV battery supply chain, covering aspects such as raw material procurement, manufacturing processes, supply chain logistics, and market dynamics. Table 6 presents the event categories and example events. Events marked with * indicate potential long-term impacts, highlighting the various types of disruptions and their implications for the supply chain. Fig. 5 and 6 illustrate the sources of the academic papers, Wikipedia entries, and industry reports used in compiling the dataset, demonstrating the breadth and diversity of our data sources. By synthesizing this information, we aim to provide a robust foundation for understanding the complexities and challenges associated with the EV battery supply chain.
+
+## B.2 Supply Chain News Dataset
+
+To comprehensively test our system, we constructed an EV Supply Chain News Dataset covering the period from January 2022 to December
+
+2023. We initially developed a Python crawler using the requests and BeautifulSoup packages to scrape news titles and summaries from multiple websites, such as Google News 4 and Infoplease 5 . This resulted in a collection of 643 records. To filter out news unrelated to the supply chain, we designed a prompt leveraging GPT-4o's language capabilities. Using the summaries from the list, GPT-4o helped categorize events into various types, such as natural disasters, wars, trade policy, and political issues, tagging the relevant countries and regions.
+
+Subsequently, we employed large language models (LLMs) to evaluate the relevance of each news event to the EV battery supply chain based on the following criteria, each worth 25 points:
+
+1. Whether natural disasters or humanitarian crises occurred in raw material production areas, such as China, Australia, Indonesia, Congo, Chile, Canada, or in EV production countries, such as China, Japan, South Korea, and the United States.
+2. Whether the event could affect trade relations in the aforementioned countries, including trade issues, sanctions, or wars.
+3. Whether the event could potentially disrupt international shipping routes due to conflicts or natural disasters near these routes.
+4. Whether the event is directly related to international trade.
+
+Events scoring below 25 points were initially eliminated, followed by a manual review of the remaining events, resulting in a refined list of 247 supply chain-related news events. The text data was sourced from reputable media outlets, including Reuters 6 , BBC 7 , and CNN 8 . Additionally, to gather contemporaneous supply chain status information, we scraped company news and analysis reports from EV battery-related companies like Ford, Volkswagen, and CATL, as well as supply chain-related websites, totaling 118 reports. The raw data, including titles, publication dates, and content, was organized chronologically.
+
+The raw data contained invalid information and advertisements, which were cleaned using regular expressions to remove most invalid information. We deployed Llama3-8b to filter out embedded advertisements, ensuring the dataset's purity and accuracy. After cleaning, irrelevant content was reduced by 15%, and all data was systematically stored in a database, resulting in a refined meta dataset of 365 news documents. The metadata contains approximately 152,000 words and 3,000 paragraphs. To validate our system's ability to detect connections between events, we randomly merged international news with contemporaneous corporate stories from the same quarter, creating 354 fused documents for a more diverse and challenging dataset. The final fusion dataset contains approximately 660,000 words and 12,000 paragraphs.
+
+4 https://news.google.com/
+
+5 https://www.infoplease.com/
+
+6 https://www.reuters.com/
+
+7 https://www.bbc.com/
+
+8 https://edition.cnn.com/
+
+Table 6: Event Categories and Example Events. Events marked with * indicate potential long-term impacts.
+
+| Event Category                   | Subcategory                                                                                          | Example                                                                                                                                                                           |
+|----------------------------------|------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Acquisition and Investment ∗     | Investment from U.S. or Ally Investment from Other Country                                           | U.S. invests in EV battery industry in Canada China invests in cobalt mines in DRC                                                                                                |
+| Changes in Supply and Demand     | Demand Change Supply Change                                                                          | Demand for ore from the Philippines increases Tight supplies of nickel ore in Indonesia                                                                                           |
+| Enterprise Issue                 | Production Halt or Reduction Enterprise Crisis Production Plan Adjustment                            | Katanga halts cobalt mining Katanga faces an equity crisis Kellyton Graphite increases production by 15%                                                                          |
+| Economic Environment             | Macroeconomy Competition and Market Structure                                                        | The U.S. and EU face continued inflation Competition from China's low-priced EVs                                                                                                  |
+| EV Battery Technology Progress ∗ | Product Upgrading Production Technology Progress                                                     | CATL releases Kirin battery Development of graphene batteries                                                                                                                     |
+| Humanitarian and Ethical Crisis  | Forced Labor Use of Child Labor Human Rights Issue                                                   | Forced labor in production Child labor in cobalt mining in DRC Large numbers of refugees enter Europe                                                                             |
+| Natural Disaster                 | Production Affected by Disaster Transportation Affected by Disaster                                  | Australia floods affect lithium mining Tsunami destroys ports, disrupts shipping                                                                                                  |
+| Political Issue ∗                | Regional Tension Changes in International Relations Industry Nationalization Government Intervention | Tensions between North and South Korea China's relations with the West deteriorate Nationalization of the lithium industry in Chile Europe promotes EVs for environmental reasons |
+| Sign a Supply Agreement          | Sign a Supply Agreement                                                                              | PE signs EV battery supply agreement with Tesla                                                                                                                                   |
+| Trade Policy                     | Export Controls Tax and Duties Trade Barriers                                                        | China restricts graphite exports China's tax rebates to EV companies US tariffs on Chinese EV batteries                                                                           |
+| War and Conflict                 | Internal Disorder or Rebellion War Between Nations Geopolitical Crisis                               | Civil unrest in Yemen Russo-Ukrainian War Houthi rebels attack merchant ship                                                                                                      |
+
+Upon completing dataset collection, we conducted preliminary statistics and analysis on the news dataset. Table 8 shows the number of event types included in each quarter in the news dataset, providing a comprehensive overview of the various events tracked over time. Table 9 details the number of words and paragraphs in the dataset, highlighting the extensive scope of the collected data. Fig. 7 presents the categories and examples of news articles in the dataset, while Fig. 8 shows the distribution of sources in the news dataset, emphasizing the dataset's diversity and comprehensiveness. The dataset covers global events that could impact the supply chain, such as natural disasters, trade issues, wars, enterprise issues, etc.
+
+## C Hierarchical Structure Extraction
+
+We utilize large language models (LLMs) to extract hierarchical structures ( H ) that capture main events ( E ) and sub-events ( E sub ) based on our prompt, as illustrated in Fig. 9.
+
+In a hierarchical structure ( H ):
+
+- An event ( E ) refers to anything that happens related to the EV battery supply chain. There can be multiple events ⟨ E 1 , E 2 , . . . , E n ⟩ in one hierarchical structure H .
+- An event\_id is a unique identifier code assigned for each specific event.
+
+<!-- image -->
+
+Figure 5: Sources of academic papers.
+
+Figure 6: Sources of Wikipedia entries and industry reports.
+
+<!-- image -->
+
+Table 7: The number of event types included in each quarter in the news dataset.
+
+| Event Type                      |   2022Q1 |   2022Q2 |   2022Q3 |   2022Q4 |   2023Q1 |   2023Q2 |   2023Q3 |   2023Q4 |
+|---------------------------------|----------|----------|----------|----------|----------|----------|----------|----------|
+| Acquisition and Investment      |        0 |        5 |        4 |        0 |        2 |        2 |        2 |        1 |
+| Changes in Supply and Demand    |        6 |        5 |        4 |        3 |        3 |        1 |        2 |        3 |
+| Enterprise Issue                |        3 |        1 |        1 |        3 |        0 |        1 |        0 |        0 |
+| Economic Environment            |        3 |        3 |        5 |        6 |        4 |        2 |        6 |        1 |
+| Humanitarian and Ethical Crisis |        1 |        5 |        3 |        1 |        2 |        0 |        2 |        3 |
+| Natural Disaster                |        6 |        8 |        6 |        5 |        6 |        6 |        6 |        6 |
+| Political Issue                 |        3 |       14 |       18 |       16 |       14 |       10 |       15 |       10 |
+| EV Battery Technology Progress  |        1 |        1 |        1 |        2 |        4 |        3 |        2 |        0 |
+| Sign a Supply Agreement         |        0 |        3 |        1 |        1 |        2 |        2 |        1 |        4 |
+| Trade Policy                    |        2 |        6 |        5 |        2 |        5 |        1 |        2 |        9 |
+| War and Conflict                |        3 |        6 |       12 |       10 |        5 |        7 |        7 |        7 |
+
+Table 8: The number of times each country is mentioned in the news dataset in each quarter.
+
+| Country   |   2022Q1 |   2022Q2 |   2022Q3 |   2022Q4 |   2023Q1 |   2023Q2 |   2023Q3 |   2023Q4 |
+|-----------|----------|----------|----------|----------|----------|----------|----------|----------|
+| USA       |        6 |        9 |       18 |       15 |       17 |       12 |        9 |       10 |
+| China     |        1 |       10 |       12 |        6 |       12 |        4 |        4 |        9 |
+| EU        |        3 |       11 |        6 |        4 |        8 |        4 |        8 |        2 |
+| Japan     |        0 |        1 |        0 |        1 |        1 |        2 |        2 |        1 |
+| Russia    |        4 |       10 |        4 |       14 |        6 |        6 |        4 |        3 |
+| Other     |       20 |       42 |       38 |       33 |       31 |       23 |       35 |       40 |
+
+Table 9: Statistics of the number of words and paragraphs in the dataset.
+
+|             |   Total Paragraphs |   Total Words |
+|-------------|--------------------|---------------|
+| Meta Data   |              3,022 |       152,489 |
+| Fusion Data |             12,070 |       660,054 |
+
+- A description provides a detailed 2-3 sentence textual explanation of the event.
+- Participants include all sub-events ( E sub ) related to the main event, and a subsubevent ( E subsub ) can be used if an event is part of a sub-event within the hierarchy.
+
+The suffix P0.5 indicates the importance of a subevent to its parent event. The Gate specifies the relationship between the main event and its subevents:
+
+- Use 'and' if no sub-events can be missing.
+- Use 'or' if some sub-events can be missing.
+- Use 'xor' if sub-events cannot exist simultaneously.
+
+Relations describe the connections between events. For example, if ev1.2 is caused by (happens after) ev1.1 , it is expressed as 'ev1.1&gt;ev1.2'.
+
+Our prompt includes demonstration and chain of thought (CoT) techniques:
+
+- We manually annotated the hierarchical structure for one text in the schema learning dataset to use as an example in the prompt.
+- Weprovided a step-by-step CoT, showing how E and E sub in H were extracted from specific sentences in the schema learning dataset.
+
+<!-- image -->
+
+Figure 7: Categories and examples of news articles in the dataset.
+
+Figure 8: Distribution of sources in the news dataset.
+
+<!-- image -->
+
+```
+According to the provided paragraphs: ### {}_Paragraphs_provided ### extract a detailed hierarchical structure related to the EV battery supply chain. The hierarchical structure should include the following levels: - **Event**: Anything that happens related to the EV battery supply chain. - **Event ID**: A unique identifier for each event. - **Description**: A detailed 2-3 sentence explanation of the event. - **Participants**: All sub-events related to this event and their importance, the importance needs to be set as 0 ~ 1, the higher the more important. - **Gate**: The relationship between an event and its sub-events: - Use **'and'** if no sub-events can be missing. - Use **'or'** if some sub-events can be missing. - Use **'xor'** if sub-events cannot exist simultaneously. - **Relations**: The event-event relations (e.g., ev1.1>ev1.2, which means ev1.2 happens after ev1.1) . - If any level is empty, set its value to 'xxxx'. Strictly use the exact following format for each event: ''' Event N event: [Event Name] event_id: evN description: [Detailed Description] participants: [Subevent 1] evN.1_P[Importance], [Subevent 2] evN.2_P[Importance], ... Gate: [Gate] Relations: [Event Relations] Subevent N.1 subevent: [Subevent Name] event_id: evN.1 description: [Detailed Description] participants: [Subsubevent 1] evN.1.1_P[Importance], ... Gate: [Gate] Relations: [Event Relations] Subsubevent N.1.1 subsubevent: [Subsubevent Name] event_id: evN.1.1 description: [Detailed Description] participants: [Subsubsubevent 1] evN.1.1.1_P[Importance], ... Gate: [Gate] Relations: [Event Relations] '''
+```
+
+Figure 9: Example of hierarchical structure extraction. (Part 1)
+
+The prompt given to the LLMs is detailed and specific, ensuring that the models understand the exact format and type of information we are extracting. By integrating demonstration and CoT techniques, our prompt provides clear guidance to the LLMs, improving the accuracy and relevance of the extracted structures. Below is an example of the prompt used in Fig. 9.
+
+To validate our approach, we tested the prompt with various texts from the schema learning dataset. The hierarchical structures extracted were compared with manually annotated structures to ensure accuracy and consistency. This process ensured that the LLMs reliably produced high-quality hierarchical structures that aligned with expert knowledge in the EV battery supply chain domain.
+
+## D Schema Generation &amp; Merging
+
+With human-in-the-loop schema induction, our schema learning dataset generated 125 individual schemas ⟨ S 1 , S 2 , . . . , S 125 ⟩ . To create a single comprehensive schema, it is essential to merge all individual schemas into a final schema ( Sfi nal). The process of merging schema format files involves systematically integrating multiple schemas into a cohesive schema. The key components include context , id , events , and relations . These components determine the information in each event and its correlation with other events, hence the merging process must address all of them.
+
+```
+Use the provided example for guidance: ### Example: **Input Paragraph**: ''' Three main methods are used in lithium-ion recycling: pyrometallurgical, hydrometallurgical, bioleaching, and direct recycling. The battery is melted in a hot furnace to recover some of the cathode metal in pyrometallurgy. Pyrometallurgy employs extreme heat to transform metal oxides into cobalt, copper, iron, and nickel alloys. Although it has a straightforward process and a reasonably mature technology, the main drawbacks are its high cost and high environmental pollution. Hydrometallurgy is a metal recovery method involving aqueous solutions to perform leaching processes to precipitate a particular metal. In hydrometallurgy, specialized solution reagents are primarily used to leach the targeted metals out from the cathode substance. Although it is a highly effective and power-efficient method, its drawbacks include a lengthy production time and a complicated process. Combinations of both pyrometallurgy and hydrometallurgy are also used due to their advantages in sorting starting materials for cells. The bioleaching technique uses bacteria to retrieve precious metals, but it is challenging because the bacteria need a substantial amount of time to grow and are easily susceptible to contamination. ''' **Extracted Hierarchical Structure**: ''' Event 1 event: lithium-ion recycling event_id: ev1 description: Methods for recycling lithium-ion batteries including pyrometallurgical, hydrometallurgical, bioleaching, and direct recycling. participants: pyrometallurgical ev1.1_P1, hydrometallurgical ev1.2_P1, bioleaching ev1.3_P1 Gate: or Relations: ev1.1>ev1.3, ev1.2>ev1.3 Subevent 1.1 subevent: pyrometallurgical event_id: ev1.1 description: Employs extreme heat to transform metal oxides into cobalt, copper, iron, and nickel alloys. participants: metal oxides ev1.1.1_P1, cobalt ev1.1.2_P0.5, copper ev1.1.3_P0.5, iron ev1.1.4_P0.5, nickel alloys ev1.1.5_P0.5 Gate: and Relations: ev1.1.1>ev1.1.2, ev1.1.1>ev1.1.3, ev1.1.1>ev1.1.4, ev1.1.1>ev1.1.5 Subevent 1.2 subevent: hydrometallurgy event_id: ev1.2 description: Uses aqueous solutions to leach targeted metals out from the cathode substance. participants: xxxx Gate: xxxx Relations: xxxx Subevent 1.3 subevent: bioleaching event_id: ev1.3 description: Uses bacteria to retrieve precious metals. participants: xxxx Gate: xxxx Relations: xxxx ''' Think about this extracted structure step by step: Starting with the first sentence in the paragraph 'Three main methods are used in lithium-ion recycling: pyrometallurgical, hydrometallurgical, bioleaching, and direct recycling.' From this sentence, we learn that 'pyrometallurgical', 'hydrometallurgical', 'bioleaching, and direct recycling' are three methods of 'lithium-ion recycling', so select 'lithium-ion recycling' as the event, and the three methods as subevents and participants of 'lithium-ion recycling'.
+```
+
+Figure 9: Example of hierarchical structure extraction. (Part 2)
+
+## Algorithm 2 Schemas Merging Pseudocode
+
+```
+1: Input: List of schemas 2: Output: Merged schema 3: 1. Merge contexts from all schemas: 4: for all schema in schemas do 5: for all context in schema["@context"] do 6: if context not in merged_contexts then 7: Add context to merged_contexts 8: end if 9: end for 10: end for 11: 2. Merge events from all schemas by event name: 12: for all schema in schemas do 13: for all event in schema["events"] do 14: event_name = event["name"] 15: if event_name not in merged_events then 16: merged_events[event_name] = event 17: else 18: merged_events[event_name] = merge_event_details(merged_events[event_name], event) 19: end if 20: end for 21: end for 22: 3. Merge relations / update event IDs by event names: 23: for all schema in schemas do 24: for all relation in schema["relations"] do 25: subject_name = GET event name by event ID relation["relationSubject"] 26: object_name = GET event name by event ID relation["relationObject"] 27: if subject_name in name_to_id and object_name in name_to_id then 28: relation["relationSubject"] = name_to_id[subject_name] 29: relation["relationObject"] = name_to_id[object_name] 30: if relation not in merged_relations then 31: Add relation to merged_relations 32: end if 33: end if 34: end for 35: end for 36: 4. Final Schema:
+```
+
+- 37: The final merged schema includes all merged contexts , events , and relations , and is saved for evaluation.
+
+To begin the merging process, we first aggregate the context data from all schemas. Each context is added to a merged\_contexts\_list , ensuring that duplicate contexts are avoided. This step is crucial to maintain a unified context for the merged schema. Next, we proceed to merge events from all schemas. Using the event name as the identifier, we check if the event already exists in the merged\_events\_list . If the event exists, its details are merged with the existing event; otherwise, the event is added directly to the list. This ensures that all events are comprehensively integrated without duplication.
+
+Following the merging of events, we then merge relations and update event IDs. This involves retrieving the event names from the event IDs for re- lationSubject and relationObject and updating the relations accordingly. It is important to ensure that both subject\_name and object\_name are present in the name\_to\_id dictionary, which stores event names and their related event IDs. The updated relation is added to the merged\_relations list if it is not already present, ensuring all connections are accurately maintained.
+
+Finally, the comprehensive merged schema ( Sfi nal ) is created by including all merged contexts , events , and relations . The detailed pseudocode for merging schemas is shown in Algorithm 2. This algorithm ensures that all relevant information is retained and accurately integrated, resulting in a comprehensive schema that encapsulates the full breadth of the data from the schema learning dataset. The final schema ( Sfi nal ) enables accurate and efficient knowledge extraction and organization, enhancing the utility of the dataset for downstream tasks such as event prediction and analysis.
+
+## E Schema Management System
+
+The schema management interface (Fig. 10) facilitates the visualization, editing, and management of schemas. It includes the following modules:
+
+## E.1 Schema Viewer
+
+The schema viewer is crucial for visualizing schemas, providing an intuitive representation of events. It organizes events into a left-to-right tree structure, highlighting parent-child relationships. Within this structure, before-after relationships among child nodes are indicated through arrows and vertical ordering. Users can expand event nodes to reveal details such as descriptions, importance levels, and participant roles.
+
+Key features of the schema viewer include:
+
+- Interactive Exploration: Users can click on nodes to expand or collapse details about events and sub-events.
+- Contextual Information: Hovering over a node displays additional context and metadata associated with the event.
+- Dynamic Layout: The tree structure dynamically adjusts to accommodate the addition or removal of nodes, maintaining a clear and organized visual representation.
+- Collapsible Subtrees: Users can collapse and expand subtrees to manage large schemas.
+- Search Functionality: A search bar allows users to quickly locate specific events or entities within the schema.
+- Real-Time Data Binding: The viewer updates in real-time as changes are made, ensuring the displayed schema is always current.
+- Highlighting and Filtering: Users can highlight specific paths or filter events based on criteria such as importance or type.
+
+Figure 10: User interface for our schema management system.
+
+<!-- image -->
+
+## E.2 Schema Editor
+
+The schema editor allows users to interactively modify schemas. Users can add, edit, and delete events, sub-events, and relationships within the schema. Key functionalities include:
+
+- Drag-and-Drop Interface: Users can drag and drop nodes to reassign parent-child relationships or reorder events.
+- Form-Based Editing: Clicking on a node opens a form where users can edit event details, such as descriptions, importance levels, and participant roles.
+- Validation Checks: The editor performs realtime validation to ensure that all changes adhere to the schema format and constraints.
+- Undo/Redo Features: Users can easily undo or redo changes to maintain the integrity of
+
+the schema editing process.
+
+- Schema Versioning: The editor maintains different versions of schemas, allowing users to track changes over time and revert to previous versions if necessary.
+- Bulk Operations: Users can perform bulk operations such as adding multiple events or updating several nodes at once.
+- Conflict Resolution: The editor provides tools to resolve conflicts when multiple users make changes simultaneously.
+
+## E.3 Frontend Architecture
+
+The frontend of system is implemented as a singlepage web application using React and TypeScript. This setup connects to an API server that provides application logic and access to a centralized schema database. The use of a browser-based application offers several advantages, including no need for user installations, centralized data management, and extensive functionality through JavaScript libraries. Key components include:
+
+- React 9 : A JavaScript library for building user interfaces, providing the foundation for the application's dynamic and responsive design.
+
+9 https://react.dev/
+
+- TypeScript 10 : A statically typed superset of JavaScript, enhancing code reliability and maintainability.
+- GoJS 11 : A JavaScript library for creating interactive diagrams, enabling robust schema visualization.
+- API Integration: The frontend communicates with the backend through API calls, fetching and submitting schema data.
+- Responsive Design: The application is optimized for various screen sizes and devices, ensuring usability across different platforms.
+- State Management: The application uses state management libraries such as Redux to manage and synchronize the state of the schema data across different components.
+- Performance Optimization: Techniques such as code splitting and lazy loading are employed to ensure fast load times and smooth interactions.
+
+The client-side application requests Schema Definition Files (SDF) from the API server and displays them to users. Edits to the SDF are maintained locally until the user saves the changes, synchronizing the server-side copy with the client's modifications. A simple locking mechanism is employed to prevent simultaneous edits by multiple users on the same schema, ensuring data integrity.
+
+## E.4 Backend Architecture
+
+The backend of the interface is developed in Python, leveraging the Falcon web server framework, served by Gunicorn and nginx, and supported by a SQLite database. The backend is designed to be lightweight, minimalist, and easy to comprehend. Most functionalities are concentrated in the frontend to maintain responsiveness and interactivity, allowing the backend to focus primarily on data management. Python's versatility and popularity make it a suitable choice for the dynamic requirements of the system. Static typing in Python is enforced using Mypy 12 to facilitate development and reduce trivial bugs. Key components include:
+
+- Falcon 13 : A minimalist web framework for building high-performance APIs, facilitating efficient communication between the frontend and backend.
+
+10 https://www.typescriptlang.org/
+
+11 https://gojs.net/latest/index.html
+
+12 https://mypy-lang.org/
+
+13 https://falcon.readthedocs.io/
+
+- Gunicorn 14 : A Python WSGI HTTP server for running web applications, ensuring robust and scalable performance.
+- nginx 15 : A high-performance web server and reverse proxy, providing load balancing and enhancing security.
+- SQLite 16 : Alightweight, disk-based database, chosen for its simplicity and reliability.
+- RESTful API 17 : The backend exposes a RESTful API for the frontend to interact with schema data, supporting CRUD operations.
+- Security Features: Implementations such as HTTPS, authentication, and authorization to ensure data privacy and integrity.
+- Scalability: The architecture is designed to scale horizontally, with load balancers and database replication as needed.
+
+## E.5 AI-Driven Suggestions
+
+The interface incorporates AI-driven suggestions to assist users in schema creation and modification. Large Language Models (LLMs) analyze existing schemas and user inputs to provide recommendations for schema elements, relationships, and structures. These suggestions are presented in real-time, enhancing user productivity and ensuring the creation of accurate and comprehensive schemas.
+
+Key features of AI-driven suggestions include:
+
+- Contextual Recommendations: The system provides context-aware suggestions based on the current schema and user actions.
+- Smart Auto-Completion: As users type or modify schema elements, the interface offers auto-completion options to expedite the editing process.
+- Error Detection: The AI models detect potential errors or inconsistencies in the schema and suggest corrections.
+- Learning from User Feedback: The AI models improve over time by learning from user feedback and interactions, refining their suggestions and increasing accuracy.
+- Interactive Tutorials: The interface includes tutorials and guidance to help users understand and leverage AI-driven suggestions effectively.
+
+14 https://gunicorn.org/
+
+15 https://nginx.org/en/
+
+16 https://www.sqlite.org/
+
+17 https://restfulapi.net/
+
+## F Details of Event Extraction
+
+## F.1 Event Span Identification
+
+Event span identification involves locating and marking the spans of events within input text. We use two models for this task:
+
+Base Model: This model is a fine-tuned version of the RoBERTa-large language model (Liu et al., 2019), trained on an internally annotated dataset. The task is formulated as sequence tagging, where the model identifies the start and end positions of event spans. For instance, in the context of supply chain disruptions, the model identifies spans corresponding to events like factory shutdowns, transport delays, or material shortages. This aligns with the cross-sentence event detection described in the main text:
+
+$$E v e n t D e t e c t _ { \text {multi-sentence} } ( T ) \rightarrow E _ { C } \quad ( 1 6 )$$
+
+where T represents the input text and E C the detected events. The model uses contextual information from neighboring sentences to accurately detect event boundaries, ensuring that even complex events spanning multiple sentences are correctly identified.
+
+Guided Model: Inspired by Wang et al. (2021), this model uses a query-based approach to focus on schema-related events. The process involves two stages as follows:
+
+1. Discriminator Stage: Queries representing event types are paired with sentences to predict if the query corresponds to an event type mentioned in the sentence. For example, queries include "factory shutdown due to labor strike" or "delay in shipping materials." This stage helps in filtering sentences that are likely to contain relevant events.
+2. Span Extraction Stage: Sentences identified in the discriminator stage are further processed to extract event spans using sequence tagging. This ensures that the extracted spans are relevant to the supply chain context. By using sequence tagging, the model accurately marks the start and end points of events within the identified sentences.
+
+This approach supports the cross-sentence event detection described in the main text, enriching event spans with relevant context and ensuring high precision in event identification.
+
+## F.2 Event Argument Extraction
+
+Event argument extraction involves identifying the roles and participants associated with events. This task is framed as extractive question answering, where the model extracts argument spans from the text based on role-specific questions. We fine-tune RoBERTa-large (Liu et al., 2019) on our internally annotated dataset with a sequence tagging loss function. For supply chain disruptions, arguments might include the specific factories, transportation modes, or materials directly affected by the event.
+
+The extraction process is as follows:
+
+1. Role-Specific Questions: The model is trained to answer questions like "Which factory was shut down?" or "What material was delayed?" This method ensures that the arguments are specific and relevant.
+2. Contextual Embeddings: This step is enriched by contextual embeddings generated by BERT:
+
+$$B E R T _ { c o n t e x t } ( E _ { C } ) \rightarrow C _ { E } \quad ( 1 7 )$$
+
+generating contextual embeddings C E . These embeddings provide rich semantic information, enabling the model to better understand the context and improve the accuracy and relevance of the extracted arguments.
+
+## F.3 Time Expression Linking &amp; Normalization
+
+Time expression linking connects time expressions to their corresponding events. Similar to argument extraction, this task uses extractive question answering to find start and end times for events. We fine-tune RoBERTa-base using the TempEval3 dataset (UzZaman et al., 2012).
+
+The process includes:
+
+1. Extraction: The model identifies time expressions within the text and links them to the corresponding events, ensuring that the timeline of events is accurately captured.
+2. Normalization: Identified time expressions are then normalized into standard formats using SUTime (Chang and Manning, 2012) and HeidelTime (Strötgen and Gertz, 2013). For example, expressions like "next Monday" are converted into specific dates.
+
+For supply chain disruptions, this ensures that timelines for events like "shipment delayed from March 15 to March 20" are accurately captured. This integrates into the event parameter extraction process, ensuring coherence and consistency.
+
+## F.4 Event Temporal Ordering
+
+Event temporal ordering determines the chronological sequence of events. We frame this task as extractive question answering to address label imbalance issues, fine-tuning RoBERTa-large (Liu et al., 2019) with a sequence tagging loss.
+
+Steps include:
+
+1. Pairwise Temporal Relations: The model identifies pairwise temporal relations between events, such as "Event A happened before Event B."
+2. Consistency Checking: Pairwise temporal relations are processed using Integer Linear Programming (ILP) (Schrijver, 1998) to ensure consistency and resolve any conflicts. This method helps in constructing a coherent timeline of events.
+
+This is crucial for understanding the sequence of disruptions in supply chains, such as how a factory shutdown leads to delayed shipments. This aligns with the logical constraints and argument coreference to maintain event relationships modeled by GCNs:
+
+$$\log \text {Coref} ( P _ { C } ) \rightarrow P _ { F } \quad ( 1 8 )$$
+
+## F.5 Coreference Resolution
+
+We perform both within-document and crossdocument coreference resolution using models finetuned on datasets like OntoNotes 5.0 (Pradhan et al., 2013).
+
+The resolution process involves:
+
+1. Entity Clustering: Entity and event coreference clusters are identified and linked to ensure consistency across documents. This helps in tracking the same entities and events mentioned in different parts of the text.
+2. Cross-Document Linking: Linking entities and events across multiple documents ensures that all references to a specific factory, supplier, or shipment are recognized as the same entity.
+
+This is critical for tracking entities like factories, suppliers, and shipments across multiple reports of supply chain disruptions. This supports the coreference resolution and event linking described in the main text:
+
+$$C o r e f L i n k ( E _ { C } ) \rightarrow E _ { L }$$
+
+yielding linked events E L .
+
+## F.6 Graph Convolutional Networks (GCNs) for Event Relationship Modeling
+
+We leverage Graph Convolutional Networks (GCNs) to model complex event relationships and assess each event's impact. This involves constructing a graph where events are nodes and their interactions are edges.
+
+Steps include:
+
+1. Node Importance Calculation: Each node's importance is calculated using centrality measures, such as degree centrality, betweenness centrality, and eigenvector centrality. These measures help in understanding the influence of each event within the network.
+2. Edge Impact Calculation: Edges represent the magnitude of impact, quantified by measures such as event severity and frequency of occurrence.
+
+The impact score is then calculated as:
+
+$$I m a p c t S o r e ( e _ { i } ) = C e n t r a l i t y ( e _ { i } ) + & M a n g n i t u d e ( e _ { i } ) \\ ( 1 8 )$$
+
+where Centrality ( e i ) reflects the event's importance within the network, and Magnitude ( e i ) quantifies the event's impact intensity.
+
+## F.7 Logical Constraints and Argument Coreference
+
+To ensure the robustness of our event extraction pipeline, we apply logical constraints and argument coreference resolution.
+
+This involves multiple steps to refine the extracted event parameters and ensure logical consistency:
+
+## Logical Constraints Application:
+
+1. Defining Logical Rules: We define a set of logical rules to maintain consistency within the extracted events. These rules include:
+- Temporal constraints : An event must occur before another if there is a chronological dependency.
+- Causal relationships : If Event A causes Event B, then Event A must be identified as a precursor to Event B.
+2. Implementation: The defined logical rules are implemented using a logic-based reasoning system that checks for any violations and rectifies them. For instance, if an event is detected as occurring before its cause, the system flags this inconsistency and corrects the sequence.
+
+## Argument Coreference Resolution:
+
+1. Coreference Detection: We identify coreferences within and across documents. This involves detecting instances where different expressions refer to the same entity or event.
+- Within-Document Coreference: Ensures that all mentions of an entity within a single document are linked.
+- Cross-Document Coreference: Links mentions of the same entity or event across multiple documents to ensure global consistency.
+
+## 2. Refinement Process:
+
+- Cluster Formation: Entities and events identified as coreferent are grouped into clusters.
+- Coreference Chains: We create chains of coreferent mentions, which are used to refine event parameters and ensure that all related mentions are consistently linked.
+- Manual Verification: After automatic coreference resolution, manual verification is performed by domain experts to ensure accuracy and address any ambiguities.
+
+## Combining Logical Constraints &amp; Coreference:
+
+1. Integration: The logical constraints and coreference resolution processes are integrated to produce a coherent and logically consistent set of event parameters:
+
+$$L o g i c O r e f ( P _ { C } ) \to P _ { F } \quad ( 2 1 )$$
+
+2. Validation: The final set of event parameters P F undergoes a validation process to ensure
+
+that all logical rules and coreference chains are satisfied. This step is crucial for maintaining the integrity of the event extraction pipeline.
+
+3. Feedback Loop: Acontinuous feedback loop is established where the output is reviewed and refined based on new data and expert feedback. This iterative process helps in improving the model's performance over time.
+
+By applying these detailed logical constraints and advanced coreference resolution techniques, we ensure that the event extraction pipeline produces high-quality, reliable, and contextually accurate event data, which is essential for robust supply chain disruption analysis.
+
+## G Details of Event Matching &amp; Instantiation
+
+Event matching and instantiation involve aligning a schema from the schema library with events extracted by the schema extraction component, specifically for predicting supply chain disruptions. This process begins by instantiating one of the E schema from the integrated library or selecting the extracted event E ext that best matches the schema event E schema. Subsequently, the task entails matching events in the E schema with their corresponding events in E ext extracted from the news dataset. Events in both E ext and E schema are organized in a highly structured manner, with parent events divided into child events. Events also contain temporal information, indicating that some events must precede others. Logical relationships are also defined: AND-gates connect all necessary child events for a parent event, OR-gates connect one or more needed child events, and XOR-gates indicate that only one child event can be present.
+
+For example, a document about a raw material shortage in the EV battery supply chain might align with a "Supply Chain Disruption" schema in the schema library. Following the instantiation, a "notify suppliers" event in the schema might match with a graph G event describing a notification sent to cobalt suppliers. The "suppliers" participant of the schema event might match with the "cobalt suppliers" participant of the extracted event.
+
+## G.1 Matching Process &amp; Techniques
+
+Our approach to event matching and instantiation involves several key steps and techniques to en- sure accurate alignment between schema events and extracted events. This is particularly critical in the context of predicting supply chain disruptions, where precise event matching can provide actionable insights.
+
+## G.1.1 Similarity Calculation
+
+To determine the similarity between schema events and extracted events, we calculate a similarity score based on semantic and structural similarities. Semantic similarity (SemSim) is computed using sentence transformers to encode the semantic content of events. Structural similarity (StrSim) takes into account the hierarchical and temporal relationships between events.
+
+Semantic Similarity: We use a sentence transformer model to encode events into semantic vectors. The cosine similarity between these vectors provides a measure of how semantically similar two events are:
+
+$$\text {SemSim} ( E _ { e x t } , E _ { s h e m a } ) = \frac { v _ { e x t } \cdot v _ { s h e m a } } { \| v _ { e x t } \| \| v _ { s h e m a } \| } \ \ ( 2 2 ) \quad \begin{matrix} \text {These} \\ \log i \end{matrix}$$
+
+where v ext and v schema are BERT embeddings of extracted and schema events.
+
+Structural Similarity: We consider the context of events within their respective hierarchies. For example, an event's predecessors and successors, its parent event, and its child events all contribute to its structural context. Events with similar structures in both schema and extracted graphs are more likely to match:
+
+$$\text {StrSim} ( E _ { \text {ext} } , E _ { \text {schema} } ) = \frac { | P _ { \text {ext} } \cap P _ { \text {schema} } | } { | P _ { \text {ext} } \cup P _ { \text {schema} } | } \quad ( 2 3 ) \\ .$$
+
+where P ext and P schema are the parameter sets for the extracted and schema events.
+
+## G.1.2 Event Matching
+
+Once the similarity scores are calculated, we match each extracted event E ext with the schema event E schema that has the highest similarity score. This involves instantiating the schema event with information from the extracted event, ensuring that all relevant details and relationships are preserved.
+
+Example: Consider a schema event "notify suppliers" in the context of a raw material shortage. An extracted event describing an email notification to cobalt suppliers would match this schema event if the similarity score is high. The instantiation process involves mapping the "suppliers" participant in the schema to the "cobalt suppliers" entity in the extracted event:
+
+$$\text {Instantiate} ( E _ { \text {matched} } , S _ { \text {schema} } ) \to E _ { \text {inst} } \quad ( 2 4 )$$
+
+where E inst is the instantiated event enriched with attributes from the schema.
+
+## G.1.3 Consistency Checks
+
+After matching events, we perform consistency checks to ensure that the instantiated schema adheres to logical and temporal constraints. This includes verifying that:
+
+- All necessary child events are present (ANDgates).
+- At least one required child event is present (OR-gates).
+- Only one of the mutually exclusive child events is present (XOR-gates).
+
+These checks ensure that the instantiated schema is logically coherent and temporally consistent:
+
+$$C o n s i s t e n c y C h e c k ( E _ { i n s t } , S _ { s h e m a } ) \quad ( 2 5 )$$
+
+## G.2 Continuous Improvement
+
+To enhance the accuracy and robustness of our matching and instantiation process, we incorporate continuous improvement through manual review and feedback from domain experts. This involves:
+
+- Validating the instantiated events with domain experts to ensure they accurately reflect realworld scenarios.
+- Refining our models based on feedback, adjusting similarity metrics, and improving our semantic and structural encoding techniques.
+- Iteratively updating our schema library and extraction models to incorporate new insights and improve performance.
+
+By leveraging domain expertise and feedback, we continually refine our event matching and instantiation process, ensuring it remains effective and relevant for predicting and analyzing supply chain disruptions.
+
+## H Details of Disruption Prediction
+
+Given an instantiated event graph G inst = ( N,E ) , where N represents event nodes (e.g., specific supply chain activities) and E denotes event-event
+
+## Algorithm 3 Event Matching and Instantiation
+
+- 1: Input: Extracted events E ext , schema library events E schema 2: Output: Instantiated events E inst 3: Calculate Similarity ▷ Compute similarities 4: for each E ext in E ext do 5: for each E schema in E schema do 6: Sim ( E ext , E schema ) ← α · SemSim ( E ext , E schema )+ β · StrSim ( E ext , E schema ) 7: end for 8: end for 9: Match Events ▷ Match extracted events to schema events 10: for each E ext in E ext do 11: E matched ← arg max E schema Sim ( E ext , E schema ) 12: E inst ← Instantiate ( E matched , S schema ) 13: Perform ConsistencyCheck( E inst , S schema) 14: end for 15: Continuous Improvement ▷ Manual review and feedback 16: for each E inst do 17: UpdatedModels ← ValidateRefine ( E inst ) 18: end for 19: Return: Instantiated events E inst
+
+temporal links (e.g., dependencies or sequences of activities), the goal is to classify whether unmatched schema events (nodes) could potentially occur within this graph.
+
+Formally, let I be the set of matched schema events within the graph. The task involves classifying each node in the remaining schema event nodes, represented by N \ I , as a missing event (positive or negative) given the instantiated graph.
+
+To address the limitations of existing methods, we developed a novel approach that leverages the structural information within the schema graph and incorporates logic gates and hierarchies. Our approach consists of three stages: (1) schema-guided prediction, (2) constrained prediction, and (3) argument coreference.
+
+## H.1 Schema-Guided Prediction
+
+In this stage, we utilize a trained graph neural network specifically designed for schema graphs to score and select unmatched events in the instantiated graph. Key steps include:
+
+- Graph Neural Network: A GCN is trained on schema graphs to learn representations of nodes and edges. The propagation rule is given by:
+
+$$H ^ { ( l + 1 ) } = \sigma ( A H ^ { ( l ) } W ^ { ( l ) } ) \quad ( 2 6 )$$
+
+where H ( l ) is the hidden state at layer l , A is the adjacency matrix, W ( l ) is the weight matrix, and σ is a non-linear activation function.
+
+- Node Scoring: Using the learned representations, the GCN scores and selects unmatched events in the instantiated graph.
+- Prediction Output: The first-stage prediction output consists of the most likely missing events.
+
+## H.2 Constrained Prediction
+
+This stage applies logical constraints and hierarchical relations to refine the initial predictions from the schema-guided prediction stage. Key steps include:
+
+- Logical Constraints: We refine initial predictions ( ˆ y ) to produce final predictions ( ˆ y ′ ) that adhere to known rules:
+
+$$\hat { y } ^ { \prime } = \arg \min _ { \hat { y } ^ { \prime } \in \mathcal { Y } } \text {Constraint} ( \hat { y } ) \\ \text {subject to} \quad \mathcal { C } ( \hat { y } ^ { \prime } ) = \text {true}$$
+
+where C represents constraint sets. For example, a constraint might ensure that a major supplier's disruption increases risk for dependent manufacturers.
+
+## · Hierarchical Relationships:
+
+- Child-to-Parent Propagation: If a child event node is predicted or matched, its parent node is also predicted.
+- AND-Siblings Propagation: If a predicted node has AND-sibling nodes, all its siblings are also predicted.
+- Iterative Refinement: The constrained prediction approach is applied iteratively until no further nodes can be predicted.
+
+## H.3 Argument Coreference
+
+In this phase, we utilize coreference entity links and instantiated entities to generate predictions for the arguments associated with the predicted events. Key steps include:
+
+- Coreference Links: Coreference entity links specified in the schema are used to ensure consistency among entity mentions:
+
+$$R _ { i j } = \arg , \max _ { E _ { i } , E _ { j } \in \mathcal { E } } \text {Core} ( E _ { i } , E _ { j } ) \\ \text {subject to} \quad \text {Core} ( E _ { i } , E _ { j } ) = \text {true}$$
+
+where ( E i , E j ) denotes each event pair and R ij represents their relation.
+
+- Instantiated Entities: Instantiated entities from the previous stages are leveraged to generate arguments for predicted events.
+- Final Output: This stage produces the final prediction output, including both events and their arguments.
+
+## I Experiment Details
+
+## I.1 Experiment Setup
+
+In Experiment 5.1, we evaluate the efficacy of three distinct Large Language Models (LLMs) in extracting hierarchical structures from our schema learning dataset. Leveraging domain expert knowledge, we annotate individual schemas for each article in our academic corpus using our proprietary system viewer and editor. We then employ the methodology outlined in Appx. D to synthesize these schemas into an integrated library. This combination of individual schemas and the integrated library serves as the ground truth for our hierarchical information extraction phase. Our schema learning performance evaluation consists of two key components. First, we compare the hierarchical information extracted by the three LLMs against our established ground truth. Second, we assess the consistency, accuracy, and completeness of the hierarchical structures derived from the textual content of each article in the schema learning dataset, with domain experts actively participating in this evaluation process.
+
+In Experiment 5.2, we apply a similar annotation methodology to our news dataset as used for the schema learning dataset. However, annotating the news dataset presents unique challenges, as news reports typically do not explicitly elucidate the connections between events. Instead, they often employ speculative language to describe event interrelations. To ensure annotation accuracy, we heavily rely on domain knowledge derived from scenario documents throughout the annotation process. Subsequently, we utilize the ground truth extracted from these reports to evaluate our system's performance in predicting news report outcomes.
+
+## I.2 Evaluation Metrics
+
+Subjective Schema Learning . For subjective schema evaluation, we ensure that the event schemas generated from each paper and news report are consistent, accurate, and complete. The schema derived from academic papers demon- strates a logical hierarchical structure, while the schema produced from news reports presents a well-defined temporal sequence. Experts manually review the schemas to verify these attributes, providing qualitative feedback on the logical coherence and comprehensiveness of the extracted structures. Each schema is rated on a scale from 1 to 5, where 1 indicates poor quality and 5 indicates excellent quality.
+
+Objective Disruption Detection . We compare the instantiated schemas learned by our system with manually annotated ground truth to assess the degree of overlap. This comparison uses an evaluation metric similar to Smatch (Cai and Knight, 2013), which involves breaking down both our schema and the ground truth into quadruples of the form relation(event1, event2, importance) . For instance, the event of Raw Material Mining includes the subevent of Lithium Mining with an associated importance value, represented by the quadruple subevent(raw material mining, lithium mining, importance) . Other relations include participants, gates, sequential events, etc.
+
+To evaluate the results, we 1) map the events in the learned schema S l to those in the ground-truth schema S gt , 2) establish a one-to-one mapping of quadruples between the learned schema S l and the ground-truth schema S gt , 3) calculate Precision, Recall, and F-score as follows:
+
+$$\text {Precision} = \frac { \text {number of matched quadruples in $S_{l}$} } { \text {total quadruples in $S_{l}$} }$$
+
+$$\text {con} - \text {Recall} = \frac { \text {number of matched quadruples in } S _ { l } } { \text {total quadruples in } S _ { g t } } \\ \text {re-}$$
+
+$$F \text {-score} = 2 \cdot \frac { \text {Precision} \cdot \text {Recall} } { \text {Precision} + \text {Recall} } \quad ( 3 1 )$$
+
+## J Disruption Prediction Case Studies
+
+## J.1 Case 1: Impact of the Inflation Reduction Act in August 2022
+
+In August 2022, the United States passed the Inflation Reduction Act, which included significant incentives for domestic EV battery production. This led to a rapid increase in investments but also highlighted potential material shortages, causing disruptions in the EV battery supply chain.
+
+System Prediction: Our system predicted the possibility of short-term material shortages by analyzing the market response data to the Inflation Reduction Act, monitoring global distribution reports of EV battery materials, and assessing the impact of increased domestic production incentives on the supply and demand balance.
+
+Outcome: The system identified the risks posed by the sudden increase in demand for battery materials, providing early warnings to stakeholders. This allowed them to take proactive measures such as securing long-term supply contracts and exploring alternative materials to mitigate potential shortages.
+
+## J.2 Case 2: Lithium Supply Chain Disruption in Early 2023
+
+In early 2023, significant disruptions in the lithium supply chain were caused by escalating geopolitical tensions between Australia and China. As Australia is one of the world's largest suppliers of lithium, political factors heavily influenced its export policies, severely impacting the global supply chain for EV batteries, which rely heavily on lithium.
+
+System Prediction: Our system accurately predicted the potential supply disruption by analyzing various news reports on geopolitical developments and export data. The system monitored news related to geopolitical tensions between Australia and China, analyzed export data indicating changes in Australia's lithium export policies, and integrated insights from scenario documents highlighting the dependence of the EV battery supply chain on Australian lithium exports.
+
+Outcome: The system flagged the risk of Australia's export restrictions to China, providing early warnings of potential disruptions in the EV battery supply chain. This allowed stakeholders to proactively seek alternative sources and mitigate the impact on production.
+
+## J.3 Case 3: Nickel and Cobalt Supply Issues in March 2023
+
+In March 2023, a major disruption in the global supply chain occurred due to large-scale worker strikes and regulatory changes in the Democratic Republic of Congo (DRC), a primary supplier of cobalt. Cobalt is crucial for EV batteries, and the disruption had a significant negative impact on the global supply chain.
+
+System Prediction: Our system successfully forecasted the potential supply chain interruptions by analyzing news reports on strike activities and updates on government regulations in the DRC. It also assessed historical data on cobalt supply and demand to identify vulnerabilities and integrated expert feedback on the impact of labor strikes and regulatory changes on cobalt production.
+
+Outcome: The system provided early warnings about the potential disruptions, enabling companies to adjust their supply chain strategies. This included diversifying sources of cobalt and increasing inventories to buffer against supply shortages.
+
+## K SHIELD's User Interface
+
+The SHIELD user interface is designed to be intuitive and user-friendly, facilitating the efficient upload and analysis of news reports.
+
+News Report Upload . On the right side of the interface, users can upload their collected news report texts. It includes a text box for input and a submission button to upload the report (see Fig. 11a). Key features include:
+
+- Upload Box: Allows users to paste or type their news report texts.
+- Submit Button: Initiates the analysis process once the report is uploaded.
+- Uploaded Reports List: Displays previously uploaded news reports, enabling users to review and compare past submissions easily.
+
+Disruption Analysis Results . After submitting a news report, users can view the real-time results of the disruption analysis on the left side of the interface (see Fig. 11b). The comprehensive overview of the analysis include:
+
+- Generated Schema: Displays the hierarchical of events identified in the news report.
+- Events List: Lists all detected events and their details, allowing to see which events were identified and how they are connected.
+- Evaluation Score: Shows the real-time evaluation score, assessed against the schema library for accuracy and completeness.
+- Schema Editing: Allows to edit the generated schema. Users can make changes to the structure, relationships, and details of events.
+- Regenerate Evaluation: Users can choose to regenerate the evaluation score based on the edited schema, ensuring that the modifications are reflected in the updated score.
+
+## L Author Contributions
+
+## Schema Learning Dataset:
+
+- Yuzhi Hu: Created the scenario document.
+- Yifei Dong: Collected paper lists and Wikidata lists.
+- Aike Shi: Collected Wikipedia lists and weekly report lists.
+- Yifei Dong, Wei Liu, and Aike Shi: Extracted paragraphs from collected articles.
+
+## Supply Chain News Dataset:
+
+- Yuzhi Hu: Conducted data crawling and classification.
+- Yuzhi Hu, Yifei Dong, Wei Liu, and Aike Shi: Labeled ground truth for the news dataset.
+
+## Schema Learning:
+
+- Yifei Dong and Aike Shi: Designed and modified prompts for generating structured information, designed the format for structured information, wrote scripts for converting structured information to SDF, and for generating structured information using Llama3.
+- Yifei Dong, Aike Shi, Wei Liu, and Yuzhi Hu: Generated structured information using GPT-4o with zero-shot learning.
+
+## Human Curation:
+
+- Yifei Dong, Wei Liu, Aike Shi, and Yuzhi Hu: Curated LLM-generated SDFs.
+- Yifei Dong and Aike Shi: Wrote scripts for schema merging.
+
+## System Construction:
+
+- Zhi-Qi Cheng: Provided guidance for system implementation, designed the system prototype, and performed system implementation.
+- Yifei Dong and Aike Shi: Performed system debugging and testing.
+
+## Evaluation:
+
+- Wei Liu and Yifei Dong: Designed evaluation metrics.
+- Aike Shi and Yifei Dong: Wrote evaluation scripts.
+
+## Frontend Interface:
+
+- Aike Shi and Yifei Dong: Provided the design.
+- Wei Liu: Optimized the design.
+- Aike Shi: Implemented the interface.
+
+## Paper:
+
+- Yifei Dong: Contributed to schema learning parts.
+- Yuzhi Hu: Contributed to the news dataset and schema dataset parts and created and optimized Figs. 5, 6, 7, and 8.
+- Wei Liu, Yifei Dong, and Aike Shi: Contributed to Figs. 1, 2, 3, 4, 9, 10, and 11.
+- -Yifei Dong and Wei Liu designed all figures.
+- -Wei Liu created and optimized all figures.
+- -Aike Shi designed the user interface elements for Figs. 4, 10, and 11.
+- Jason O'Connor: Contributed to paper revisions and suggestions.
+- Zhi-Qi Cheng: Organized and rewrote the entire paper, and supervised the modification of all figures.
+
+## Presentation and Project Webpage:
+
+- Aike Shi and Zhi-Qi Cheng: Presented the paper.
+- Yifei Dong: Built the project website.
+- Aike Shi: Created the video demo.
+- Wei Liu and Yuzhi Hu: Provided materials for the project website.
+
+## Feedback and Guidance:
+
+- Jason O'Connor: Provided feedback and project guidance from a supply chain expert perspective.
+- Zhi-Qi Cheng, Kate S. Whitefoot, and Alexander G. Hauptmann: Provided guidance and supervision for the entire project.
+- (a) News report upload section of the user interface.
+
+<!-- image -->
+
+(b) Visualization and editing of the final prediction results.
+
+<!-- image -->
+
+Figure 11: User interface for the disruption prediction analysis in SHIELD.

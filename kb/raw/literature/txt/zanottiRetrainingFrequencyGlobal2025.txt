@@ -1,0 +1,528 @@
+## On the retraining frequency of global forecasting models.
+
+Marco Zanotti a, ∗
+
+a Department of Economics, Management and Statistics, University of Milano-Bicocca, Milan, Italy
+
+## Abstract
+
+In an era of increasing computational capabilities and growing environmental consciousness, organizations face a critical challenge in balancing the accuracy of forecasting models with computational efficiency and sustainability. Global forecasting models, lowering the computational time, have gained significant attention over the years. However, the common practice of retraining these models with new observations raises important questions about the costs of forecasting. Using ten different machine learning and deep learning models, we analyzed various retraining scenarios, ranging from continuous updates to no retraining at all, across two large retail datasets. We showed that less frequent retraining strategies maintain the forecast accuracy while reducing the computational costs, providing a more sustainable approach to large-scale forecasting. We also found that machine learning models are a marginally better choice to reduce the costs of forecasting when coupled with less frequent model retraining strategies as the frequency of the data increases. Our findings challenge the conventional belief that frequent retraining is essential for maintaining forecasting accuracy. Instead, periodic retraining offers a good balance between predictive performance and efficiency, both in the case of point and probabilistic forecasting. These insights provide actionable guidelines for organizations seeking to optimize forecasting pipelines while reducing costs and energy consumption.
+
+Keywords: Time series, Demand forecasting, Forecasting competitions, Cross-learning, Global models, Machine learning, Deep learning, Green AI, Conformal predictions
+
+## 1. Introduction
+
+Forecasting plays a critical role in decision-making processes across industries, from supply chain management to energy demand planning. Traditionally, time series forecasting has relied on a Local Modeling approach (LM), meaning that separate models 1 are trained for each series in isolation. However, recent advances have demonstrated the potential of Global forecasting Models (GM), a paradigm also known as cross-learning, which in turn consists of fitting a single forecasting model on the whole data set (Januschowski, Gasthaus, Wang, Salinas, Flunkert, Bohlke-Schneider &amp; Callot, 2020). This novel approach allows to leverage information across multiple time series to improve accuracy and generalization by employing machine learning or deep learning architectures 2 . Global modeling has affirmed itself as one of the most relevant innovations in time series forecasting of recent years (Semenoglou, Spiliotis, Makridakis &amp; Assimakopoulos, 2021), and its success is not only due to the demonstrated forecast accuracy in most time series competitions, but also to the particular computational benefit it provides. Indeed, while the local approach to time series forecasting is potentially beneficial for forecast accuracy, it comes with substantial computational overhead. Moreover, since the forecasts are usually produced through some cloud computing service that relies on pay-as-you-go pricing (Fotios Petropoulos &amp; Spiliotis, 2024), higher computing time and resources directly translate into higher costs of forecasting for organizations.
+
+∗ Corresponding author
+
+Email address: zanottimarco17@gmail.com
+
+(Marco Zanotti)
+
+The retail industry particularly exemplifies the complexity of modern forecasting challenges. Retailers must predict demand for thousands or even millions of products across hundreds of stores while accounting for seasonality, promotions, pricing strategies, and external factors such as weather and local events. Accurate demand forecasts directly impact inventory decisions: overestimation leads to excess inventory and waste, particularly critical for perishable goods, while underestimation results in stockouts and direct money loss for companies (Fildes, Ma &amp; Kolassa, 2022). Traditional approaches involving separate models for each product-store combination have proven increasingly inadequate, especially in contexts where the number of series (SKUs) to forecast is high, leading to the adoption of global forecasting models that can learn patterns across the entire product hierarchy and can drastically reduce the costs of producing forecasts 3 .
+
+Nevertheless, despite the growing adoption of global models, it is still common practice to update the forecasting models when new observations are available, often motivated by the assumption that continuous updates lead to better adaptability to changing patterns and more accurate predictions. Unlike local models, global models benefit from learning shared dynamics across multiple time series, potentially leading to more robust representations that are less sensitive to frequent retraining. In the context of local models, the seminal work of Spiliotis &amp; Petropoulos (2024) demonstrated that less frequent model updates do not harm forecasting accuracy. However, in the context of global models, the effects of retraining are not well understood. Is continuous retraining necessary to maintain forecast performance, or can global models remain effective without frequent updates? This aspect remains largely unexplored in the forecasting literature, and investigating the impact of retraining is crucial for both methodological and practical reasons. From a methodological perspective, understanding whether global models degrade in performance without frequent retraining provides insights into their stability and adaptability. If global models can maintain strong predictive accuracy with less frequent updates, it would challenge conventional wisdom on the necessity of continuous retraining in forecasting. Moreover, a stable forecasting model provides great benefit to the whole decision process the forecasts are used for. From a practical perspective, frequent retraining has significant computational and environmental costs. Training large-scale forecasting models requires substantial computational power, contributing to energy consumption and carbon emissions (Schwartz, Dodge, Smith &amp; Etzioni, 2020). Indeed, the energy consumption of model training extends beyond direct computational costs. In recent years, the environmental impact of machine learning models has become a growing concern. Data centers running these models contribute significantly to global carbon emissions, with estimates suggesting that training a single large deep learning model can emit as much carbon as five cars over their lifetimes (Strubell, Ganesh &amp; McCallum, 2019). The frequency of model retraining multiplies this impact, particularly in large organizations handling millions of series, emphasizing the need for more computationally efficient training practices. The implication is straightforward: reducing the retraining frequency of forecasting models could contribute substantially to sustainability by lowering energy consumption, possibly without harming accuracy performance.
+
+1 We use the words model and method interchangeably, even if the two have distinct statistical meanings (Svetunkov &amp; Boylan, 2023).
+
+2 We distinguish between traditional machine learning models, like linear regression or tree-based methods, and deep learning models, those that are based on some sort of neural network architecture.
+
+3 Most of the cost of producing forecasts is due to the algorithm's training time. The global modeling approach cuts it by training the model only once on the whole data set.
+
+## 1.1. Research Question
+
+We aim to extend the results presented in the influential work of Spiliotis &amp; Petropoulos (2024), addressing the question 'Is frequent retraining necessary in the context of global forecasting models?' . Specifically, we study whether skipping retraining when new observations are available harms the forecasting performance of global models. To answer this question, we use the two most recent and comprehensive retail forecasting datasets, namely the M5 and the VN1 competitions' data.
+
+To generally understand how retraining the forecasting models affects their performance, we consider ten different global forecasting methods (five from the 'classical' machine learning domain and five often-used deep neural network architectures), and several possible retraining scenarios, from continuous retraining to no retraining at all. We also explore intermediate periodic retraining strategies to broadly cover the most reasonable and effective scenarios.
+
+We also focus on the investigation of trade-offs between accuracy and sustainability, in terms of the computational cost of resources to produce the forecasts. This cost is indeed significant for large-scale applications, like the retail industry, and being able to reduce (or control) it somehow may result in direct and significant business savings.
+
+## 1.2. Contributions
+
+Our contribution is threefold:
+
+- We provide the first comprehensive study of the relationship between retraining frequency and forecast accuracy using 10 different global models, a diverse set of real-world datasets, and focusing on both point and probabilistic forecasting.
+- We compare different retraining scenarios (e.g., continuous, periodic, and no retraining) on different datasets to quantify the impact of frequent retraining in terms of the cost of forecasting.
+- We present practical guidelines for organizations and practitioners on when and how often to retrain global forecasting models to balance accuracy and cost.
+
+By addressing these points, this paper contributes to both the forecasting and machine learning communities, offering insights into the trade-offs between accuracy, efficiency, and sustainability in global forecasting models.
+
+## 1.3. Overview
+
+The rest of this paper is organized as follows. After a brief review of related works (Section 2), in Section 3, we describe the design of the experiment used in our study. The datasets and their characteristics are presented in 3.1, the methods adopted for global forecasting are discussed in 3.2, and the concepts related to model update and retrain scenario are explained in 3.3. The evaluation setup through rolling origin validation is presented in 3.4, and the metrics used to evaluate the model performances are shown in 3.5. In Section 4, we discuss the empirical findings of our study, including forecast accuracy, computing time, and cost analysis of the different scenarios. Finally, Section 5 contains our summary and conclusions.
+
+## 2. Related works
+
+The literature on cross-learning approach has evolved significantly in recent years. Nowadays, most of the works related to time series forecasting include at least some benchmark comparison with global models, demonstrating their relevance in the field. Semenoglou et al. (2021) extensively showed their accuracy on the M4 competition dataset, Hewamalage, Bergmeir &amp; Bandara (2022) evaluated the conditions when global forecasting models are competitive, and Montero-Manso &amp; Hyndman (2021) and Montero-Manso (2023) theoretically demonstrated that GM are at least as accurate as local models with less complexity and without any assumption on the similarity of the data. GM emerged as the most accurate approach in many forecasting areas, such as gas consumption (Gaweglyph[suppress] l &amp; Pali´ nski, 2024), electricity demand (Buonanno, Caliano, Pontecorvo, Sforza, Valenti &amp; Graditi, 2022), water demand (Groß &amp; Hans, 2024), crop production (Iba˜ nez &amp; Monterola, 2023), and retail demand (Spiliotis, Makridakis, Semenoglou &amp; Assimakopoulos (2022), Bandara, Shi, Bergmeir, Hewamalage, Tran &amp; Seaman (2019), Juan R Trapero &amp; Fildes (2015)). Moreover, GM effectiveness shined during the M5 competition (Makridakis, Spiliotis &amp; Assimakopoulos, 2022a), where tree-based models leveraging cross-learning were among almost all the top forecasting solutions (Januschowski, Wang, Torkkola, Erkkil¨ a, Hasson &amp; Gasthaus, 2022). Several techniques like clustering (Godahewa, Bandara, Webb, Smyl &amp; Bergmeir (2021a), Bandara, Bergmeir &amp; Smyl (2020)), and data augmentation (Bandara, Hewamalage, Liu, Kang &amp; Bergmeir, 2021) have been tested to further increase the performance of GM. Furthermore, new machine learning (Godahewa, Webb, Schmidt &amp; Bergmeir, 2023) and deep learning (Oreshkin, Carpov, Chapados &amp; Bengio, 2020) architectures specifically designed for cross-learning have been developed. Finally, a novel area of research is emerging that tries to improve the ability of GM to capture local patterns (Sen, Yu &amp; Dhillon, 2019), and their explainability (Rajapaksha, Bergmeir &amp; Hyndman, 2023).
+
+From a forecasting evaluation perspective, most of the literature on GM is focused on point prediction accuracy, possibly because most machine learning and deep learning methods do not directly output probabilistic forecasts (Makridakis, Spiliotis, Assimakopoulos, Chen, Gaba, Tsetlin &amp; Winkler, 2022c). Nevertheless, in many forecasting contexts (like supply chain) it is very important to be able to produce and evaluate predictions in a probabilistic way (being intervals, quantiles, or density based) (Fildes et al., 2022). Among others, Vovk, Gammerman &amp; Shafer (2005) introduced a novel tool for uncertainty quantification under any machine learning model, namely Conformal Inference, that can also be applied in time series forecasting experiments (Stankeviciute, M. Alaa &amp; van der Schaar, 2021).
+
+In the context of model retraining and updating strategies, instead, Spiliotis &amp; Petropoulos (2024) is the main work related to time series forecasting. The authors explored extensively the effects of different retraining scenarios and different forms of model parameter updates on the model performance, although they focused on the exponential smoothing family of models following the traditional local approach. Huber &amp; Stuckenschmidt (2020) briefly discussed retraining in the context of retail demand, but with few models and retraining scenarios, and on a proprietary daily dataset only. Despite the findings being promising, there has been little direct exploration of whether global models specifically require frequent retraining or if they can retain competitive accuracy with less frequent updates. However, this topic is under consideration of the broader machine learning community (Getzner, Charpentier &amp; G¨ unnemann, 2023), advocating for Green AI (Schwartz et al., 2020).
+
+Our study builds upon these existing works, directly investigating the necessity of retraining in global forecasting models. By evaluating many different retraining strategies and their impact on the forecast accuracy of several global models, we aim to provide both theoretical insights and practical recommendations for more sustainable forecasting practices.
+
+## 3. Experimental design
+
+This section describes the empirical analysis we conducted to study whether less frequent retraining scenarios may produce similar accuracy results compared to the baseline scenario (that with the highest retraining frequency). First, we describe the datasets used in the experiments, and then explain the different machine learning and deep learning models adopted. The performance measures, the several possible scenarios, and the strategy used to evaluate the forecasts are also discussed.
+
+## 3.1. Datasets
+
+For the experiment, we used two retail forecasting datasets: the M5 and the VN1 competition datasets. The M5 competition was organized by Spyros Makridakis and his colleagues as part of the M-competitions series, which aimed to compare different forecasting methods in the context of retail demand (Makridakis, Spiliotis &amp; Assimakopoulos, 2022b). The M5 (Howard &amp; Makridakis, 2020) is a well-known and well-studied dataset containing 30,490 SKU × Store daily time series of Walmart's unit sales of products. It covers the sales of three categories of products (Food, Hobbies, and Household) sold into ten different stores located in three US states (California, Texas, and Wisconsin). The time period spans from 2011 to 2016. The time series are highly intermittent and are hierarchically organized, allowing forecasting at multiple levels, such as individual products, product categories, stores, and States. Exogenous information that can influence sales, such as product prices, promotions, and special events (e.g., holidays) are also available. The VN1 Forecasting - Accuracy Challenge competition was jointly organized by Flieber, Syrup Tech, and SupChains in October 2024, and it is the first of its series (Vandeput, 2024). The dataset contains weekly sales of 15,053 products sold from 2020 until 2024 from e-vendors. In particular, they were mostly online from the US, and the products were directly sold to the final consumers. Contrary to the M5 dataset, where all the products were sold by a single retailer (Walmart) and from just a few stores, the VN1 dataset includes product sales of 328 warehouses from 46 different retailers. As far as we know, we are among the first to test forecasting models on this data. These sets of data are the most recent and comprehensive time series datasets related to retail demand, allowing for a good generalization of the results, in particular in the context of demand forecasting.
+
+Table 1: Characteristics of the different datasets used in the experiments. The number of series is based on the minimum number of observations per series.
+
+| Dataset   | Frequency   |   N. Series |   Min Obs per Series |
+|-----------|-------------|-------------|----------------------|
+| M5        | Daily (7)   |      28.298 |                  730 |
+| VN1       | Weekly (52) |      15.053 |                  157 |
+
+In both cases, in our experiment, we focused on the most disaggregated level (SKU × Store), since the potential benefit of retraining the models less frequently is much larger at lower levels of aggregation. Moreover, for the M5 competition dataset, we did not consider the whole set of time series to be able to consistently apply the evaluation setup described in Sections 3.4. In particular, for daily data, we kept only time series with at least two years of data (730 observations), while for weekly data we considered only those that had at least three years of data (157 observations).
+
+## 3.2. Forecasting models
+
+In this section, we provide an overview of the global models employed for our experiments.
+
+Let us define Y as the set of all available time series in a dataset, such that Y i represents a single component, and let F be the set of possible predictive functions, so that F corresponds to a single model 4 . Without loss of generality, we can assume that all the necessary information for prediction are contained in Y . Under the local approach, predictions for the forecast horizon h are obtained training a model for each time series in the data set, implying that each time series has its own model, defined by its own parameters values.
+
+$$Y _ { i } ^ { h } = F ( Y _ { i } , \theta _ { i } ) .$$
+
+On the contrary, following the global modeling framework, forecasts for each time series are produced by a model trained on the whole data set.
+
+$$Y _ { i } ^ { h } = F ( \mathcal { Y } , \Theta ) .$$
+
+Notice how in the cross-learning methodology, the parameters Θ are not series-specific, but are common to all time series.
+
+In our experiment, we focused on analyzing the performance of global methods only since we are interested in testing whether this approach, as opposed to the local one, can benefit from retraining the models less frequently. Indeed, nowadays, cross-learning is the go-to approach for almost all the industries involved with huge time series datasets, as in the context of retail demand forecasting, where the forecasts of many different SKUs have to be provided regularly (Januschowski et al., 2020).
+
+4 In our setting, F can be any predictive model in machine learning or deep learning framework. We do not consider classical statistical forecasting methods, like ARIMA or Exponential Smoothing, since in their common formulations are purely local models.
+
+For a comprehensive evaluation of global modeling approaches in demand forecasting, we used both traditional machine learning models and cutting-edge deep learning methodologies. The models were selected for their established performance in time series forecasting tasks and their diverse methodological approaches, enabling a wide comparison and avoiding results being dependent on a specific algorithm. Furthermore, as benchmarking against established methods is essential in time series forecasting, we included two widely recognized global forecasting models, Linear (Pooled) Regression and Multi-Layer Perceptron, as baselines to evaluate the performance of the proposed approaches.
+
+All the global models were trained using Python under Nixtla's framework (Nixtla, 2022). The mlforecast and the neuralforecast libraries were used to train machine learning and deep learning models efficiently.
+
+## 3.2.1. Machine learning models
+
+Machine learning models have demonstrated their effectiveness in forecasting tasks due to their ability to capture non-linear relationships in the data. Moreover, they are often easy to train and usually produce very accurate results, leveraging the cross-learning approach. In this study, we experimented with Linear (Pooled) Regression and four different tree-based methods.
+
+Linear Regression (LR) is a classical statistical model that assumes a linear relationship between input features and the target variable. Despite its simplicity, LR can be effective for time series forecasting when combined with appropriate feature engineering. The Pooled Regression is considered a solid benchmark for global model performance evaluation (Montero-Manso &amp; Hyndman, 2021; Godahewa, Bergmeir, Webb, Hyndman &amp; Montero-Manso, 2021b), and it has also proven to be quite effective (Bandara, Hewamalage, Godahewa &amp; Gamakumara, 2022).
+
+Random Forest (RF) is an ensemble learning method based on regression trees. It constructs multiple trees during training and aggregates their predictions through averaging. RF excels in capturing non-linear patterns and interactions between variables, and it is robust to overfitting, making it a strong tree-based model for demand forecasting (Breiman, 2001). It was the method used by Amazon until 2015 to forecast e-commerce products demand (Januschowski et al., 2022) 5 .
+
+Extreme Gradient Boosting (XGBoost) is a gradient-boosted decision tree algorithm designed for speed and performance. Iteratively optimizing an objective function combines weak learners'
+
+5 For the cost of computation, the Random Forest model is tested only on the VN1 weekly dataset.
+
+predictions to form a solid predictive model (Chen &amp; Guestrin, 2016). XGBoost incorporates regularization techniques to prevent overfitting, making it particularly effective for datasets with complex relationships (Shwartz-Ziv &amp; Armon, 2022).
+
+Light Gradient Boosting Machine (LGBM) is another gradient-boosted tree algorithm that emphasizes efficiency and scalability. It uses a histogram-based approach to split features and a leaf-wise growth strategy to reduce computation time. LGBM is particularly well-suited for large datasets and high-dimensional data, often outperforming other boosting algorithms in terms of speed and accuracy (Ke, Meng, Finley, Wang, Chen, Ma, Ye &amp; Liu, 2017). In demand forecasting, it is among the top solutions of all the major competitions (Favorita, Rossmann, M5, and VN1) (Makridakis et al., 2022a,c; In &amp; Jung, 2022; Lainder &amp; Wolfinger, 2022).
+
+Categorical Boosting (CatBoost) is a gradient-boosted decision tree algorithm specifically designed to handle categorical data. By leveraging ordered boosting and other innovations, it fosters accuracy and enhances generalization (Prokhorenkova, Gusev, Vorobev, Dorogush &amp; Gulin, 2018). CatBoost's ability to handle categorical features without extensive preprocessing makes it advantageous for forecasting tasks involving categorical covariates. During the last years, it consistently showed top performance on many tabular data studies, becoming the go-to solution for many practitioners in the field (Shmuel, Glickman &amp; Lazebnik, 2024; Ye, Liu, Cai, Zhou &amp; Zhan, 2025).
+
+Machine learning models have the advantage of being easier to train with respect to their deep learning alternatives. However, they require extensive and careful feature engineering to produce accurate results (Januschowski et al., 2022). For this reason, we followed simplified versions of the M5 and VN1 top solutions to build time series features. In particular, we used lags, rolling averages, expanding averages, calendar features (year, quarter, month, week, day of week, day), and static features (store, category, location, product identifiers) based on the frequency of the dataset. Moreover, for the M5 data, we also used external features related to special events as available. The most relevant hyperparameters of the models were selected based on top-performing solutions, otherwise the default values suggested by the software providers were adopted.
+
+## 3.2.2. Deep learning models
+
+Deep learning models have gained prominence in time series forecasting due to their capacity to model longer-term dependencies in the data and to easily learn hierarchical representations from raw data (Goodfellow, Bengio &amp; Courville, 2016). In our experiment, we employed five different neural network architectures, two well-known methods and three state-of-the-art models.
+
+Multi-Layer Perceptron (MLP) is a feedforward neural network consisting of an input layer, one or more hidden layers, and an output layer. Each layer applies a non-linear activation function to capture complex relationships in the data (Rosenblatt, 1958). MLPs are a versatile and very efficient solution. For this reason, many deep learning models specifically created for time series forecasting are MLP-based. MLP is also considered a solid benchmark for deep learning global forecasting models (Godahewa et al., 2021b).
+
+Recurrent Neural Networks (RNN) are designed to model sequential data by maintaining a hidden state that captures temporal dependencies. Standard RNNs, however, suffer from vanishing gradient problems, limiting their ability to learn long-term dependencies (Cho, van Merri¨ enboer, Gulcehre, Bahdanau, Bougares, Schwenk &amp; Bengio, 2014). Variants such as Long Short-Term Memory (LSTM) networks and Gated Recurrent Units (GRUs) address this limitation and are widely used for time series forecasting (Hochreiter &amp; Schmidhuber, 1997) 6 .
+
+For a long time in deep learning, sequence modeling was synonymous with recurrent networks, yet several papers have shown that simple convolutional architectures can outperform canonical recurrent networks like LSTMs by demonstrating longer effective memory. Temporal Convolutional Networks (TCN) are convolutional architectures tailored for sequential data that, by employing causal convolutions and dilations, capture long-range dependencies (Van den Oord, Dieleman, Zen, Simonyan, Vinyals, Graves, Kalchbrenner, Senior &amp; Kavukcuoglu, 2016).
+
+Neural Basis Expansion Analysis for Time Series (NBEATS) is a deep learning model specifically designed for time series forecasting. It employs a sequence of fully connected layers organized into blocks. Each block outputs both trend and seasonal components, enabling the model to decompose and predict time series effectively. The network has an interpretable configuration that sequentially projects the signal into polynomials and harmonic basis to learn trend and seasonality components (Oreshkin et al., 2020). The Neural Basis Expansion Analysis with Exogenous (NBEATSx) , allows for the inclusion of exogenous temporal variables available at the time of the prediction (Olivares, Challu, Marcjasz, Weron &amp; Dubrawski, 2023). This method has shown state-of-the-art performance on several benchmark datasets and competitions (Anderer &amp; Li, 2022).
+
+6 In our work, we used only the LSTM version, but, for the cost of computation, it was trained only on the VN1 weekly dataset.
+
+Neural Hierarchical Interpolation for Time Series (NHITS) builds upon the success of NBEATS by incorporating hierarchical interpolation mechanisms to better capture time hierarchies in time series data. Multi-rate input pooling, hierarchical interpolation, and backcast residual connections together induce the specialization of the additive predictions in different signal bands, reducing memory and computational time, thus improving the architecture's parsimony and accuracy (Challu, Olivares, Oreshkin, Garza, Mergenthaler-Canseco &amp; Dubrawski, 2022).
+
+Deep learning models typically do not require extensive feature engineering step needed by their machine learning counterpart, since they create such features (like lags and rolling averages) internally. Nevertheless, they usually are more difficult to train since they have many more hyperparameters to select affecting the forecasting performance (Smyl, 2020). We trained the global deep learning models by adding static, calendar, and external features only, and relying on the top competitions' solutions to set the hyperparameters' values.
+
+## 3.3. Retrain scenarios
+
+To answer our research question, we explored several possible retraining scenarios. A retrain scenario or retrain window, r , is identified as a positive integer representing the frequency at which the model is re-trained or updated. Essentially, it represents how many data points need to be passed before a new training step is performed. The retrain scenarios strongly depend on the frequency of the dataset considered because the frequency drives both the forecast horizon and the business review periods. Therefore, we defined different set of retrain scenarios based on the frequencies of our datasets:
+
+- for weekly data, r = { 1 , 2 , 3 , 4 , 6 , 8 , 10 , 13 , 26 , 52 }
+- for daily data, r = { 7 , 14 , 21 , 30 , 60 , 90 , 120 , 150 , 180 , 364 }
+
+For instance, in the case of daily data, r = 7 implies that the model is retrained every 7 new observations come in, that is, every week. Each set contains ten different values, being as exhaustive and computationally feasible as possible.
+
+Note that we are training global models, hence the training dataset is composed by the training set of each time series in the dataset. Since the datasets we considered are all aligned, which implies that, at every retrain period, we fit the model on a new training data set containing r new observations for each time series (where r is the chosen retrain scenario). Moreover, note also that we are considering only two different forms of model update: a model can either be completely updated when retraining is performed, or used as is to produce forecasts for r subsequent periods. Therefore, we are not examining the effect of hyperparameter tuning within each retrain scenario, given the expensive computational cost of this process and minor changes expected.
+
+The scenario r = 1 is the so-called continuous retraining, and it is the most expensive since it implies that the model is retrained for every new observation. Theoretically, but usually also practically, it should be the most accurate forecasting scenario, because the model used to predict has been trained on all the available data points up to that moment. For this reason, we considered this scenario as the benchmark both in terms of forecasting accuracy and computational cost. For daily data only, however, the benchmark scenario is r = 7, because it is not common to retrain a global model every day, and usually the update is performed once a week. The scenario r = T is the no retraining scenario, meaning that the forecasting model is fitted just once on the initial training set, then it is used to produce the forecasts for the entire test set T . It is the lowest computationally expensive but it should also be the lowest accurate. All the other scenarios such that 1 &lt; r &lt; T are considered as periodic updating strategies. Both the accuracy and the computing time should be non-increasing functions of r .
+
+## 3.4. Evaluation setup
+
+In time series forecasting, out-of-sample testing is crucial for assessing how well a model can generalize to unseen data. This is particularly important because patterns in historical data may not fully represent future trends, and unexpected changes in the data may occur (Tashman, 2000). As suggested by Bergmeir &amp; Ben´ ıtez (2012), rolling origin evaluation is the most widely used and correct method for conducting such tests, offering a systematic way to evaluate forecasting models over multiple iterations. The rolling origin evaluation process begins by dividing the time series into two parts: a training set, which is used to build the model, and a test set, which is used for evaluation. The test set always follows the training set chronologically to maintain the temporal order of the data. At each step, the model is trained on the training set and generates forecasts for a specified number of future points, the forecast horizon h . These forecasts are then compared to the actual values in the test set using a chosen evaluation metric (see Section 3.5). What makes rolling origin evaluation unique is its iterative nature. After each forecasting step, the forecast origin (the last point in the training set) is shifted forward by a fixed number of periods, the step size. The model is then retrained using the updated training set, which may either expand to include all available data up to the new forecast origin or remain fixed to a specific window size. This process is repeated until the test set is fully utilized, and the overall performance of the model is calculated by averaging the results across all the iterations.
+
+Compared to the fixed origin evaluation setup, which allows for a single evaluation step, the rolling origin evaluation is preferable for its ability to provide a more comprehensive assessment of a model's performance under different conditions, such as varying seasonal patterns, level shifts, or data trends. By simulating multiple forecast cycles, indeed, this method reduces the risk of bias that can arise from evaluating a model a single time and at a single forecast origin (Bergmeir &amp; Ben´ ıtez, 2012). This approach is beneficial in industries like retail and supply chain management, where forecasts need to be continuously updated to reflect real-time changes. By simulating multiple scenarios and evaluating a model's performance across different cycles, rolling origin evaluation provides valuable insights into the robustness and reliability of the forecasting methods adopted.
+
+In practice, the rolling origin evaluation setup can be adjusted based on the data and forecasting goals. For instance, the training set can be fixed to a rolling window of the most n recent observations (fixed window), or it can expand to include the full historical data (expanding window) (Bergmeir &amp; Ben´ ıtez, 2012). In real-life applications, most forecast practitioners use this second option, especially when the length of the time series is small (Petropoulos &amp; et al., 2022). In our study, we adopted the expanding window approach because we are interested in simulating a forecasting experiment as close as possible to the business reality. Moreover, it is also the only reasonable option when dealing with short time series, like the case for the weekly VN1 datasets.
+
+Table 2: Retraining scenarios, test windows, and forecast horizons for each dataset. The setup is based on the respective time series frequency.
+
+|                            | M5                                            | VN1                                  |
+|----------------------------|-----------------------------------------------|--------------------------------------|
+| Training Window ( w )      | ≥ 730                                         | ≥ 157                                |
+| Test Window ( T )          | 364                                           | 52                                   |
+| Horizon ( h )              | 28                                            | 13                                   |
+| Step size ( p )            | 1                                             | 1                                    |
+| Retraining Scenarios ( r ) | { 7, 14, 21, 30, 60, 90, 120, 150, 180, 364 } | { 1, 2, 3, 4, 6, 8, 10, 13, 26, 52 } |
+
+The size of the test set T , the length of the forecast horizon h , and the step size p , for shifting the forecast origin, are also customizable parameters that depend on the specific use case. Table 2 shows the parameters selected in our experiments. Following Spiliotis &amp; Petropoulos (2024), we set the size of the test set to cover at least one complete year so that the evaluation of the different scenarios does not depend on intra-year variations, such as any specific season or period of the year. We selected the forecast horizons based on the type of business decisions that usually daily and weekly forecasts support, i.e. operational vs strategic planning. Finally, the step size was always set equal to one to maximize the number of evaluations of each scenario.
+
+## 3.5. Performance metrics
+
+The accuracy evaluation of point predictive models is a controversial topic in time series forecasting: many metrics are available to capture models' performances, but no consensus has been reached in the literature on whether one metric is better than others (Hewamalage, Ackermann &amp; Bergmeir, 2023). However, since we are dealing with demand forecasting at SKU-level, implying that data intermittency is very much likely, all the metrics based on absolute or percentage errors are not optimal since they optimize for the median (Kolassa, 2020). Moreover, being the scale possibly different among the series, a scaled accuracy measure is preferable. For this reason, we considered the Root Mean Squared Scaled Error (RMSSE), proposed by Hyndman &amp; Koehler (2006), to evaluate the point forecast accuracy of the models. The RMSSE is defined as:
+
+$$R M S E = \sqrt { \frac { \frac { 1 } { h } \sum _ { t = n + 1 } ^ { n + h } ( y _ { t } - \hat { y } _ { t } ) ^ { 2 } } { \frac { 1 } { n - s } \sum _ { t = s + 1 } ^ { n } ( y _ { t } - y _ { t - s } ) ^ { 2 } } } .$$
+
+The RMSSE measures the relative prediction accuracy of a forecasting method by comparing the mean squared errors of the prediction and the observed value against the mean squared errors of the seasonal naive model. This metric was the official metric used to assess the performance of models in the M5 competition (with s = 1, hence using the naive model as a benchmark) (Makridakis et al., 2022b). Lower RMSSE values suggest higher model accuracy.
+
+Our work is not limited to the evaluation of point forecasting accuracy, but we also aim to assess the probabilistic performance of the models throughout each different retrain scenario. However, since the machine learning and deep learning models adopted for the experiments do not output density (or probabilistic) predictions by default, we relied on Conformal Inference as a general framework to build prediction intervals. Conformal Inference is a powerful tool that allows quantification of the uncertainty associated with out-of-sample predictions simply using a validation set on a point forecaster model to produce intervals at the desired levels (Vovk et al., 2005). It was originally proposed for non-temporal data, because the data exchangeability assumption, nevertheless, in recent years it has been extended to be used also in the context of time series data (Stankeviciute et al., 2021). In particular, given its guaranteed coverage, distribution-free, model-agnostic, computational efficiency, and low dataset size requirements, Conformal Inference is likely the only tool available to evaluate the uncertainty in a global forecasting setting where different models are compared among several datasets and scenarios. One may prefer, instead, to train models using quantile losses to directly yield quantile forecasts, but this would require training a single model for each quantile. Even if it may be a valuable way of modeling uncertainty, as demonstrated by the M5 Uncertainty competition (Makridakis et al., 2022c; Lainder &amp; Wolfinger, 2022), it has the huge disadvantage of being very computationally expensive, hence negatively impacting on the sustainability of forecasting applications in large-scale environments. Moreover, even if multi-quantile losses can provide multiple quantiles, and prediction intervals, they usually are uncalibrated, meaning that the actual frequency of observations falling within the interval does not align with the confidence level associated with it. Therefore, for these multiple reasons, we decided to adopt Conformal Inference as general tool to estimate quantile forecasts.
+
+Once the quantiles are obtained, we used a scaled version of the Multi-Quantile Loss to comprehensively measure the goodness of the probabilistic predictions. The scaled Quantile Loss, also known as (scaled) Pinball Loss, and the scaled Multi-Quantile Loss are defined as:
+
+$$S Q L = \frac { 1 } { h } \frac { \sum _ { t = n + 1 } ^ { n + h } ( q \cdot ( y _ { t } - \hat { y } _ { t } ) \cdot \mathbb { I } _ { y _ { t } \geq \hat { y } _ { t } } + ( 1 - q ) \cdot ( \hat { y } _ { t } - y _ { t } ) \cdot \mathbb { I } _ { y _ { t } < \hat { y } _ { t } } ) } { \frac { 1 } { n - s } \sum _ { t = s + 1 } ^ { n } | y _ { t } - y _ { t - s } | } ,$$
+
+$$S M Q L = \frac { 1 } { | \mathcal { Q } | } \sum _ { q \in \mathcal { Q } } S Q L ( q ) ,$$
+
+where Q is the set of possible quantiles. The QL, being a proper scoring rule, allows for the correct evaluation of the probabilistic forecasts (Kolassa, 2016). The scaling factor is the in-sample, one-step-ahead mean absolute error of the seasonal Naive model. The scaled MQL (weighted and with s = 1) was also the official metric used to evaluate the overall performance of the forecasting methods during the M5 Uncertainty competition (Makridakis et al., 2022c). For daily data we used s = 7, because s = 1 is arguably an irrelevant benchmark in daily retail data, which typically exhibits strong day-of-week seasonality (Fildes et al., 2022). Instead, we set s = 1 for weekly data.
+
+Note that we considered a total of 14 different quantiles, q , of probability levels { 0.005, 0.025, 0.050, 0.100, 0.150, 0.200, 0.025, 0.750, 0.800, 0.850, 0.900, 0.950, 0.975, 0.995 } . Therefore, we studied the 50% 60%, 70%, 80%, 90%, 95%, and 99% central prediction intervals. The 50% and 60% central prediction intervals provide a good description of the center of the forecast distribution, while the 90%, 95%, and 99% give more information about its tails, which in retail demand forecasting problems are fundamental to determine the appropriate safety stock levels (Barrow &amp; Kourentzes, 2016). These quantiles provide sufficient information about the uncertainty of the forecasts and allow for the effective description of the whole distribution.
+
+Note also that we computed conformal prediction intervals on a validation set at least twice as long as the forecast horizon. This was the main reason that forced us to reduce the number of time series in the datasets, that is to be able to obtain a reliable estimate of the model uncertainty through prediction intervals 7 .
+
+Finally, we addressed the problem of evaluating the cost associated to producing the forecasts by calculating the Computing Time (CT). CT is defined as the time in seconds required for training and predicting the next h time steps ahead with the model. Among the possible measures of complexity, such as the number of parameters, number of iterations, model's depth, etc, CT is the most directly related to the monetary cost of forecasting since the forecasts are usually produced through some sort of cloud computing service that relies on pay-as-you-go fares (Spiliotis &amp; Petropoulos, 2024). Hence, CT is analyzed for each forecasting model and retraining scenario combination. Lower CT values imply lower forecasting costs.
+
+Note that we related each evaluation metric result to the baseline retraining scenario, depending on the frequency of the dataset, to be able to easily compare the performance among different models and retrain windows. Furthermore, to statistically verify our research question, we tested the scenarios' results using the Friedman-Nemenyi test for multiple comparisons (Demˇ sar, 2006).
+
+For the experiments, we used a cloud computing machine NC6s v3 hosted on Microsoft Azure, with Linux Ubuntu 24 operating system, 1 Graphical Processing Unit, 6 Computing Processing Units, 112GB of memory. Parallelization and GPUs were used whenever possible within the model libraries. The utilsforecast library was used to evaluate the model performance.
+
+7 We used a validation set four times larger than the forecast horizon for the M5 dataset and twice the forecast horizon for the VN1 dataset. This limited the number of time series from 30,490 to 28,298 for the M5 dataset.
+
+## 4. Results and discussion
+
+In general, the models tested performed better, in absolute terms, on the M5 dataset compared to the VN1 (see the RMSSE and SMQL tables in the Supplementary materials). This may be due to different factors like the dataset size, the frequency of the time series, the availability of external regressors to account for promotions, events, etc, and the absence of reference hyperparameter values to use during the training process.
+
+Figure 1 shows the forecast accuracy of each model along the different retraining scenarios for the M5 and the VN1 datasets. To simplify comparisons, for each dataset, we report the results in relative terms with respect to the corresponding baseline scenario, that is r = 7 for M5 and r = 1 for VN1. With the exception of the CatBoost model, the RMSSE profiles are very stable over the retraining frequencies. Indeed, the accuracy remains practically the same in the M5 dataset and even improves in the VN1 dataset, regardless of the retraining scenario considered. Especially for low periodic retraining scenarios, the performance of most global models is indistinguishable from the baseline, and even if some deterioration is present for higher retraining frequencies, this is less than 5% also for the no retraining setup. These results imply that less frequent retraining does not harm the point forecast accuracy of global models. This can be explained by the fact that, if the demand patterns remain stable without significant trends or concept drifts, as is the case for both the M5 and VN1 datasets, the forecasts will accurately track demand over extended periods.
+
+Figure 2 statistically confirms the above results for the M5 dataset 8 . It is clear that the retraining scenarios are not statistically different in terms of point forecast accuracy at the 5% level. Indeed, even though the mean rank of the continuous retraining scenario is lower, the intervals intersect with the other scenarios, hence we can not differentiate between them. For the VN1 dataset (see Supplementary materials), less frequent retrainings are even statistically significant, meaning that periodic retraining does improve accuracy over continuous retraining.
+
+In a similar fashion to Figure 1, Figure 3 summarizes the relative accuracy in a probabilistic forecasting setting, as defined in 3.5. In this context, we observe that, for the M5 dataset, the accuracy (as measured by Multi Quantile Loss) is clearly an increasing function of the retraining scenario, meaning that less frequent updates harm the probabilistic forecasting performance of the models. This is true regardless of the method used. Nonetheless, the differences in accuracy are irrelevant for low retraining scenarios and slightly more pronounced for higher retraining levels, but in any case, less than 5-6 percentage points. We also note a small difference in the performances of machine learning and deep learning models, where the formers perform consistently better as the retraining scenario increases. For the VN1 dataset, instead, we observe an almost convex relationship between the accuracy and the retraining period. On average, models' performance improves for low retraining scenarios and then starts deteriorating around r = 4. The only exceptions are NBEATSx and NHITS models, designed also for long-term forecasting, which are consistently better compared to the others for longer retraining scenarios, both for point and probabilistic forecasting.
+
+8 The Friedman-Nemenyi test is usually adopted to compare and rank the performance of different models. Here we use it to compare the accuracy produced by the same model over different retraining scenarios.
+
+Figure 1: RMSSE results for each method and retrain scenario combination in relative terms with respect to the baseline scenario, r = 7 for the M5 dataset and r = 1 for the VN1 dataset.
+
+<!-- image -->
+
+Figure 2: M5 Friedman-Nemenyi test results based on RMSSE.
+
+<!-- image -->
+
+The statistical test to compare probabilistic forecasting performances among the different retraining scenarios on the M5 dataset, as depicted in Figure 4, confirms that there are significant differences in accuracy. In particular, lower restraining scenarios tend to produce more accurate probabilistic forecasts, that is, less frequent retraining effectively harms the accuracy. However, this is not true for low retraining scenarios where the differences are not statistically significant, implying that even in the context of probabilistic forecasting the frequency of retraining may be reduced to at least once a month (or every two months). For the VN1 (results in Supplementary materials), instead, some level of periodic retaining is better than continuous retraining, most of the time.
+
+Figure 5 shows the relative computational time of each retraining scenario for the two datasets. We observe that CT decreases exponentially as the retraining scenario increases. On average, reductions are similar for both, the M5 and the VN1: going from the baseline to the first periodic retraining scenario ( r = 14 or r = 2) almost halves CT, retraining the models every month often reduces computing time by 75%, and this reduction reaches 90% in the no retraining scenario, where the models are trained just once. However, we observe that there is a strong difference between machine learning and deep learning models in the M5 data. While the former continuously undergoes CT reductions, the latter seems to plateau at 50%, experiencing much lower gains over increasing retraining scenarios. As expected, this difference is less evident in the VN1 dataset, since it is smaller and of lower frequency compared to the M5. These results will have direct implications in terms of the costs of forecasting, which in turn may guide the choice of the model to adopt.
+
+Overall, the results of Figures 1, 3, and 5, combined with the Friedman-Nemenyi tests, suggest that retraining the global models less frequently does not harm (or even improves) forecast accuracy, while at the same time significantly reducing the computing time of producing the forecasts. Thus, extending the retraining time from the standard practice of continuous retaining to some level of periodic retraining allows for effective management of the computing time, and in turn, the costs of forecasting. Indeed, as already observed, the computational time can be directly translated into actual costs for the company. Following Nikolopoulos &amp; Petropoulos (2018) and Fotios Petropoulos &amp; Spiliotis (2024), we assumed some standard costs for computing services to estimate the costs of forecasting associated with each retrain scenario. Note that costs and savings are normalized by the number of series considered in each dataset (28,298 and 15,053) so that they can be directly compared and conclusions can be drawn in terms of the frequency of the time series. Figures 6, and 7 show the costs and associated savings for a large retailer, given a fixed computing service cost of $ 3.5/hour, 200,000 unique SKUs and 5,000 stores, which is approximately the size of the forecasting problem of Walmart (Spiliotis &amp; Petropoulos, 2024). As expected, the costs decrease exponentially with less frequent retraining. For daily data, forecasting with machine learning models usually costs less than with deep learning models. On average, the continuous retraining scenario costs approximately $ 750,000 and this cost drops down to almost $ 250,000 in the no retraining scenario, implying direct savings of more than 60%. Moreover, machine learning models allow for higher savings. Indeed, even if the models have to be updated, going from retraining every week to retraining every month allows to get direct savings of almost 75%, while it can be less than 30% for deep learning models. This implies that machine learning methods are a marginally better choice to reduce the costs of forecasting when coupled with less frequent model retraining as the frequency of the data increases. For weekly data, these differences are less evident, meaning that machine learning and deep learning models usually have very similar costs and savings profiles (without considering the Random Forest model, which is usually more than 10 times slower than other methods). This is to be expected since lower frequencies also imply smaller datasets and lower computing time. In this case, the average cost of forecasting under a continuous retraining scenario is $ 250,000 (1/3 of that of daily data), and it drops to $ 15,000 in the least frequent retraining scenario, producing direct savings of 90%. Nevertheless, for weekly data too, moving from retraining a model every week ( r = 1) to just once a month ( r = 4) allows to reduce the cost of almost 75%.
+
+Figure 3: SMQL results for each method and retrain scenario combination in relative terms with respect to the baseline scenario, r = 7 for the M5 dataset and r = 1 for the VN1 dataset.
+
+<!-- image -->
+
+Figure 4: M5 Friedman-Nemenyi test results based on SMQL.
+
+<!-- image -->
+
+Figure 5: CT results for each method and retrain scenario combination in relative terms with respect to the baseline scenario, r = 7 for the M5 dataset and r = 1 for the VN1 dataset.
+
+<!-- image -->
+
+It may be argued that for a large retailer (like Walmart), these costs (and savings) may be negligible. However, it has to be noted that the cost reduction obtained from less frequent retraining comes with no shortcomings in terms of forecasting accuracy (especially for point forecasting). Indeed, as already mentioned, models under a periodic retraining scenario result in at least the same (if not even better) forecasting performance compared to the usual practice of continuous retraining. Moreover, periodic retraining may be a good practice even when probabilistic forecasts are needed, balancing costs and accuracy effectively.
+
+Finally, in this study, since we are dealing with global models, we assumed a fixed model retraining frequency across all forecast origins and time series. While our results showed no significant difference in forecasting accuracy when reducing the retraining frequency, we believe there is potential to further improve accuracy, especially when adopting some form of periodic retraining, for instance, by allowing the retraining frequency to vary dynamically. Such adaptive strategies could involve automated procedures that monitor forecast error levels and trigger updates only when errors exceed a certain threshold. This approach would still yield computational savings, albeit smaller, since the model re-training would not be required at every review point. In this direction, Figures 8 and 9 illustrate the 'optimal' retraining frequency identified for each series in the M5 and VN1 datasets, considering all the models, based on our experiments. The results confirm that although certain series may benefit from frequent retraining, in most cases, a less frequent retraining of the models leads to better accuracy and efficiency. Indeed, for point forecasting, the optimal retraining frequency was found to be between 3 and 4 weeks (approximately 21 observations) for the M5 dataset, and around 8 to 10 weeks for the VN1 dataset. In the context of probabilistic forecasting, instead, the optimal retraining intervals were shorter (around 2 weeks for M5 and 4 weeks for VN1), suggesting that uncertainty estimation may require more frequent updates to maintain accurate levels. Moreover, while these results do not differentiate among the global forecasting methods used in the experiment, individual model differences exist, implying that even further improvements may be obtained by relying on specific model (see Supplementary material). These findings suggest that exploring intermediate retraining strategies and determining the optimal retraining frequency offers promising avenues for reducing the computational cost of the forecasting process while maintaining a high level of accuracy.
+
+Figure 6: Daily data estimated costs and percentage savings for each method and retrain scenario combination. The black line represents the average. Costs are in real values, while savings are expressed in relative terms with respect to the baseline scenario, r = 7.
+
+<!-- image -->
+
+Figure 7: Weekly data estimated costs and percentage savings for each method and retrain scenario combination. The black line represents the average. Costs are in real values, while savings are expressed in relative terms with respect to the baseline scenario, r = 1.
+
+<!-- image -->
+
+Figure 8: Overall optimal retraining frequency based on RMSSE. For each series, the optimal frequency is identified based on the average accuracy reported across the evaluation rounds per update frequency, considering all the models.
+
+<!-- image -->
+
+## 5. Conclusions
+
+In this study, we went beyond the traditional evaluation of forecasting models by also exploring the computational cost associated with generating forecasts. We examined the effects of retraining frequency on the accuracy and computational efficiency of global time series forecasting models. By systematically evaluating various retraining scenarios, ranging from continuous retraining to no retraining at all, across multiple machine learning and deep learning models, we aimed to address a key question in forecasting: is frequent retraining necessary for maintaining the high predictive performance of global models? Our findings, derived from an extensive evaluation of ten different global models across two large-scale, real-world retail datasets, challenge the conventional wisdom of continuous model retraining. Indeed, our results indicate that the common practice of continuous retraining may not always be justified, and that periodic retraining strategies can offer substantial benefits in terms of computational efficiency without a significant loss in accuracy.
+
+Figure 9: Overall optimal retraining frequency based on SMQL. For each series, the optimal frequency is identified based on the average accuracy reported across the evaluation rounds per update frequency, considering all the models.
+
+<!-- image -->
+
+Our empirical evaluation provides evidence that the forecasting accuracy of global models remains stable even when the retraining frequency is significantly reduced. For point forecasting, the root mean squared scaled error (RMSSE) results indicate that models trained less frequently do not exhibit substantial performance degradation. In fact, in some cases, particularly for periodic retraining frequencies, we observe marginal improvements in accuracy. For probabilistic forecasting, the results are slightly more nuanced. While less frequent retraining does lead to minor reductions in accuracy as measured by the scaled Multi-Quantile Loss (SMQL), the degradation is relatively small (typically within 5-6%). This implies that for most practical applications, especially those where forecasting costs are key considerations, periodic retraining provides a favorable balance between accuracy and efficiency. This suggests that global models, that learn shared dynamics across multiple time series, are robust to the absence of frequent updates, especially in contexts with relatively stable demand patterns.
+
+Considering periodic retraining scenarios allows for effective management of the computing time, and in turn, the costs of forecasting. Indeed, we have shown how the computational time can be directly translated into actual costs for the company. One of the most significant findings of this study is the exponential reduction in computational costs as retraining frequency decreases. The computational time (CT) analysis demonstrates that moving from continuous retraining to a monthly retraining schedule can reduce computational costs by approximately 75%. In the extreme case of no retraining, the cost reductions approach 90%, representing a resource-saving opportunity with no shortcomings. Furthermore, the cost analysis performed on realistic retail settings (e.g., Walmart-sized operations) reveals that periodic retraining can yield relevant financial savings. The estimated costs of forecasting, which scale with computing service expenses, decrease sharply when retraining is performed less frequently. This suggests that organizations can achieve economic benefits by optimizing their retraining schedules without compromising the forecast quality.
+
+The implications of these findings are highly relevant for both academic research and industry applications. First, they challenge the prevailing assumption that forecasting models require frequent updates to maintain high predictive performance. Instead, our results suggest that global models remain effective over extended periods, meaning that retraining can be strategically planned rather than performed continuously. For practitioners, our results provide concrete guidelines on how often retraining should occur. In general, retraining every month appears to be a viable option to balance probabilistic accuracy and costs. Instead, if the forecasting objective is on point forecast, then even longer retraining scenarios may be adopted. Moreover, our results shed some light on the computational comparison between machine learning and deep learning models. We found that the former benefits more from less frequent retraining as the frequency of the data increases. This implies that, for large-scale applications, like the retail industry, where the forecasts of many different SKUs have to be provided regularly, machine learning models are a marginally better choice to reduce the costs of forecasting when coupled with less frequent model retraining strategies as the frequency of the data increases. These insights also have broader implications for sustainability in machine learning and AI-driven forecasting. The computational cost savings associated with reduced retraining directly translate into lower energy consumption, making forecasting operations more environmentally sustainable. This aligns with recent discussions on 'Green AI' which emphasizes the importance of optimizing computational resources to reduce the environmental impact of machine learning applications.
+
+While our findings provide strong evidence for the feasibility of less frequent retraining in global forecasting models, some limitations remain. First, our study focused on two large retail datasets (M5 and VN1), which may not fully capture all possible time series patterns. Moreover, in this paper, we assumed that the data-generating process remains stable without exhibiting significant trends or concept drifts, but in some real-world applications, this assumption may simply not be valid. Future research could extend this analysis to other domains, such as financial time series or industrial production data, to verify the general validity of these findings. Furthermore, our study did not explore adaptive retraining strategies, where models are updated only when a significant drift in data distribution is detected. Such adaptive approaches could provide an even more refined balance between accuracy and computational efficiency. Future work could investigate the integration of drift detection mechanisms to optimize retraining schedules dynamically. Another direction for future studies may be the analysis of the effect of different retraining scenarios on the stability of global models, that is, answering the question 'Do global models produce stable forecasts even if not continuously retrained?' . Extending the analysis to some very recent global forecasting methods that demonstrate state-of-the-art performance (e.g., transformers) would also be a natural path for future research. Finally, we encourage further studies to explore the interaction between retraining frequency and hyperparameter optimization. Indeed, different models may respond differently to retraining strategies depending on their hyperparameter configurations, and understanding these interactions could lead to even more efficient forecasting strategies.
+
+In summary, our study shows that frequent retraining is not necessarily required to maintain high forecasting accuracy in global models. Less frequent retraining can significantly reduce computational costs while maintaining competitive forecasting performance. These findings have important implications for organizations seeking to optimize their forecasting pipelines, offering a pathway toward more efficient and sustainable forecasting practices. By shifting from a continuous retraining paradigm to a periodic retraining approach, businesses can achieve relevant cost savings while still ensuring high predictive performance.
+
+## References
+
+- Anderer, M., &amp; Li, F. (2022). Hierarchical forecasting with a top-down alignment of independent-level forecasts. International Journal of Forecasting , 38 , 1405-1414. URL: https://www.sciencedirect.com/science/article/pii/ S0169207021002211 . doi: https://doi.org/10.1016/j.ijforecast.2021.12.015 . Special Issue: M5 competition.
+- Bandara, K., Bergmeir, C., &amp; Smyl, S. (2020). Forecasting across time series databases using recurrent neural networks on groups of similar series: A clustering approach. Expert Systems with Applications , 140 , 112896. URL: https://www.sciencedirect.com/science/article/pii/S0957417419306128 . doi: https://doi.org/10.1016/j. eswa.2019.112896 .
+- Bandara, K., Hewamalage, H., Godahewa, R., &amp; Gamakumara, P. (2022). A fast and scalable ensemble of global models with long memory and data partitioning for the m5 forecasting competition. International Journal of Forecasting , 38 , 1400-1404. URL: https://www.sciencedirect.com/science/article/pii/S0169207021001783 . doi: https://doi.org/10.1016/j.ijforecast.2021.11.004 . Special Issue: M5 competition.
+- Bandara, K., Hewamalage, H., Liu, Y.-H., Kang, Y., &amp; Bergmeir, C. (2021). Improving the accuracy of global forecasting models using time series data augmentation. Pattern Recognition , 120 , 108148. URL: https://www. sciencedirect.com/science/article/pii/S0031320321003356 . doi: https://doi.org/10.1016/j.patcog.2021. 108148 .
+- Bandara, K., Shi, P., Bergmeir, C., Hewamalage, H., Tran, Q., &amp; Seaman, B. (2019). Sales demand forecast in e-commerce using a long short-term memory neural network methodology. In T. Gedeon, K. W. Wong, &amp; M. Lee (Eds.), Neural Information Processing (pp. 462-474). Cham: Springer International Publishing.
+- Barrow, D. K., &amp; Kourentzes, N. (2016). Distributions of forecasting errors of forecast combinations: Implications for inventory management. International Journal of Production Economics , 177 , 24-33. URL: https://www.sciencedirect.com/science/article/pii/S0925527316300226 . doi: https://doi.org/10.1016/j. ijpe.2016.03.017 .
+- Bergmeir, C., &amp; Ben´ ıtez, J. M. (2012). On the use of cross-validation for time series predictor evaluation. Information Sciences , 191 , 192-213. URL: https://www.sciencedirect.com/science/article/pii/S0020025511006773 . doi: https://doi.org/10.1016/j.ins.2011.12.028 . Data Mining for Software Trustworthiness.
+- Breiman, L. (2001). Random forests. Machine Learning , 45 , 5-32. doi: 10.1023/A:1010933404324 .
+- Buonanno, A., Caliano, M., Pontecorvo, A., Sforza, G., Valenti, M., &amp; Graditi, G. (2022). Global vs. local models for short-term electricity demand prediction in a residential/lodging scenario. Energies , 15 . URL: https: //www.mdpi.com/1996-1073/15/6/2037 . doi: 10.3390/en15062037 .
+- Challu, C., Olivares, K. G., Oreshkin, B. N., Garza, F., Mergenthaler-Canseco, M., &amp; Dubrawski, A. W. (2022). N-hits: Neural hierarchical interpolation for time series forecasting. ArXiv , abs/2201.12886 . URL: https: //api.semanticscholar.org/CorpusID:246430557 .
+- Chen, T., &amp; Guestrin, C. (2016). Xgboost: A scalable tree boosting system. In Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining KDD '16 (p. 785-794). New York, NY, USA: Association for Computing Machinery. URL: https://doi.org/10.1145/2939672.2939785 . doi: 10.1145/2939672.2939785 .
+
+- Cho, K., van Merri¨ enboer, B., Gulcehre, C., Bahdanau, D., Bougares, F., Schwenk, H., &amp; Bengio, Y. (2014). Learning phrase representations using RNN encoder-decoder for statistical machine translation. In A. Moschitti, B. Pang, &amp; W. Daelemans (Eds.), Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP) (pp. 1724-1734). Doha, Qatar: Association for Computational Linguistics. URL: https: //aclanthology.org/D14-1179/ . doi: 10.3115/v1/D14-1179 .
+- Demˇ sar, J. (2006). Statistical comparisons of classifiers over multiple data sets. Journal of Machine Learning Research , 7 , 1-30. URL: http://jmlr.org/papers/v7/demsar06a.html .
+- Fildes, R., Ma, S., &amp; Kolassa, S. (2022). Retail forecasting: Research and practice. International Journal of Forecasting , 38 , 1283-1318. URL: https://www.sciencedirect.com/science/article/pii/S016920701930192X . doi: https://doi.org/10.1016/j.ijforecast.2019.06.004 . Special Issue: M5 competition.
+- Fotios Petropoulos, E. S., Yael Grushka-Cockayne, &amp; Spiliotis, E. (2024). Wielding occam's razor: Fast and frugal retail forecasting. Journal of the Operational Research Society , 0 , 1-20. URL: https://doi.org/10.1080/01605682.2024. 2421339 . doi: 10.1080/01605682.2024.2421339 . arXiv:https://doi.org/10.1080/01605682.2024.2421339 .
+- Gaweglyph[suppress] l, B., &amp; Pali´ nski, A. (2024). Global and local approaches for forecasting of long-term natural gas consumption in poland based on hierarchical short time series. Energies , 17 . URL: https://www.mdpi.com/1996-1073/17/2/347 . doi: 10.3390/en17020347 .
+- Getzner, J., Charpentier, B., &amp; G¨ unnemann, S. (2023). Accuracy is not the only metric that matters: Estimating the energy consumption of deep learning models. URL: https://arxiv.org/abs/2304.00897 . arXiv:2304.00897 .
+- Godahewa, R., Bandara, K., Webb, G. I., Smyl, S., &amp; Bergmeir, C. (2021a). Ensembles of localised models for time series forecasting. Knowledge-Based Systems , 233 , 107518. URL: https://www.sciencedirect.com/science/ article/pii/S0950705121007802 . doi: https://doi.org/10.1016/j.knosys.2021.107518 .
+- Godahewa, R., Webb, G. I., Schmidt, D., &amp; Bergmeir, C. (2023). Setar-tree: a novel and accurate tree algorithm for global time series forecasting. Mach. Learn. , 112 , 2555-2591. URL: https://doi.org/10.1007/ s10994-023-06316-x . doi: 10.1007/s10994-023-06316-x .
+- Godahewa, R. W., Bergmeir, C., Webb, G. I., Hyndman, R., &amp; Montero-Manso, P. (2021b). Monash time series forecasting archive. In Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track (Round 2) . URL: https://openreview.net/forum?id=wEc1mgAjU-.
+- Goodfellow, I., Bengio, Y., &amp; Courville, A. (2016). Deep Learning . MIT Press. http://www.deeplearningbook.org .
+- Groß, M., &amp; Hans, L. (2024). Leveraging potentials of local and global models for water demand forecasting. Engineering Proceedings , 69 . URL: https://www.mdpi.com/2673-4591/69/1/129 . doi: 10.3390/engproc2024069129 .
+- Hewamalage, H., Ackermann, K., &amp; Bergmeir, C. (2023). Forecast evaluation for data scientists: common pitfalls and best practices. Data Mining and Knowledge Discovery , 37 , 788-832. doi: 10.1007/s10618-022-00894-5 .
+- Hewamalage, H., Bergmeir, C., &amp; Bandara, K. (2022). Global models for time series forecasting: A simulation study. Pattern Recognition , 124 , 108441. URL: https://www.sciencedirect.com/science/article/pii/ S0031320321006178 . doi: https://doi.org/10.1016/j.patcog.2021.108441 .
+- Hochreiter, S., &amp; Schmidhuber, J. (1997). Long short-term memory. Neural Comput. , 9 , 1735-1780. URL: https: //doi.org/10.1162/neco.1997.9.8.1735 . doi: 10.1162/neco.1997.9.8.1735 .
+- Howard, A., &amp; Makridakis, S. (2020). M5 forecasting -accuracy. https://kaggle.com/competitions/
+
+[m5-forecasting-accuracy . Kaggle.](https://kaggle.com/competitions/m5-forecasting-accuracy)
+
+- Huber, J., &amp; Stuckenschmidt, H. (2020). Daily retail demand forecasting using machine learning with emphasis on calendric special days. International Journal of Forecasting , 36 , 1420-1438. URL: https://www.sciencedirect. com/science/article/pii/S0169207020300224 . doi: https://doi.org/10.1016/j.ijforecast.2020.02.005 .
+- Hyndman, R. J., &amp; Koehler, A. B. (2006). Another look at measures of forecast accuracy. International Journal of Forecasting , 22 , 679-688. URL: https://www.sciencedirect.com/science/article/pii/S0169207006000239 . doi: https://doi.org/10.1016/j.ijforecast.2006.03.001 .
+- Iba˜ nez, S. C., &amp; Monterola, C. P. (2023). A global forecasting approach to large-scale crop production prediction with time series transformers. Agriculture , 13 . URL: https://www.mdpi.com/2077-0472/13/9/1855 . doi: 10.3390/ agriculture13091855 .
+- In, Y., &amp; Jung, J.-Y. (2022). Simple averaging of direct and recursive forecasts via partial pooling using machine learning. International Journal of Forecasting , 38 , 1386-1399. URL: https://www.sciencedirect.com/science/ article/pii/S0169207021001813 . doi: https://doi.org/10.1016/j.ijforecast.2021.11.007 . Special Issue: M5 competition.
+- Januschowski, T., Gasthaus, J., Wang, Y., Salinas, D., Flunkert, V., Bohlke-Schneider, M., &amp; Callot, L. (2020). Criteria for classifying forecasting methods. International Journal of Forecasting , 36 , 167-177. URL: https://www.sciencedirect.com/science/article/pii/S0169207019301529 . doi: https://doi.org/10.1016/j. ijforecast.2019.05.008 . M4 Competition.
+- Januschowski, T., Wang, Y., Torkkola, K., Erkkil¨ a, T., Hasson, H., &amp; Gasthaus, J. (2022). Forecasting with trees. International Journal of Forecasting , 38 , 1473-1481. URL: https://www.sciencedirect.com/science/ article/pii/S0169207021001679 . doi: https://doi.org/10.1016/j.ijforecast.2021.10.004 . Special Issue: M5 competition.
+- Juan R Trapero, N. K., &amp; Fildes, R. (2015). On the identification of sales forecasting models in the presence of promotions. Journal of the Operational Research Society , 66 , 299-307. URL: https://doi.org/10.1057/jors. 2013.174 . doi: 10.1057/jors.2013.174 . arXiv:https://doi.org/10.1057/jors.2013.174 .
+- Ke, G., Meng, Q., Finley, T., Wang, T., Chen, W., Ma, W., Ye, Q., &amp; Liu, T.-Y. (2017). Lightgbm: A highly efficient gradient boosting decision tree. In I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, &amp; R. Garnett (Eds.), Advances in Neural Information Processing Systems . Curran Associates, Inc. volume 30. URL: https://proceedings.neurips.cc/paper\_files/paper/2017/file/ 6449f44a102fde848669bdd9eb6b76fa-Paper.pdf .
+- Kolassa, S. (2016). Evaluating predictive count data distributions in retail sales forecasting. International Journal of Forecasting , 32 , 788-803. URL: https://www.sciencedirect.com/science/article/pii/S0169207016000315 . doi: https://doi.org/10.1016/j.ijforecast.2015.12.004 .
+- Kolassa, S. (2020). Why the 'best' point forecast depends on the error or accuracy measure. International Journal of Forecasting , 36 , 208-211. URL: https://www.sciencedirect.com/science/article/pii/S0169207019301359 . doi: https://doi.org/10.1016/j.ijforecast.2019.02.017 . M4 Competition.
+- Lainder, A. D., &amp; Wolfinger, R. D. (2022). Forecasting with gradient boosted trees: augmentation, tuning, and cross-validation strategies: Winning solution to the m5 uncertainty competition. International Journal of
+
+- Forecasting , 38 , 1426-1433. URL: https://www.sciencedirect.com/science/article/pii/S0169207021002090 . doi: https://doi.org/10.1016/j.ijforecast.2021.12.003 . Special Issue: M5 competition.
+- Makridakis, S., Spiliotis, E., &amp; Assimakopoulos, V. (2022a). M5 accuracy competition: Results, findings, and conclusions. International Journal of Forecasting , 38 , 1346-1364. URL: https://www.sciencedirect.com/science/ article/pii/S0169207021001874 . doi: https://doi.org/10.1016/j.ijforecast.2021.11.013 . Special Issue: M5 competition.
+- Makridakis, S., Spiliotis, E., &amp; Assimakopoulos, V. (2022b). The m5 competition: Background, organization, and implementation. International Journal of Forecasting , 38 , 1325-1336. URL: https://www.sciencedirect.com/ science/article/pii/S0169207021001187 . doi: https://doi.org/10.1016/j.ijforecast.2021.07.007 . Special Issue: M5 competition.
+- Makridakis, S., Spiliotis, E., Assimakopoulos, V., Chen, Z., Gaba, A., Tsetlin, I., &amp; Winkler, R. L. (2022c). The m5 uncertainty competition: Results, findings and conclusions. International Journal of Forecasting , 38 , 13651385. URL: https://www.sciencedirect.com/science/article/pii/S0169207021001722 . doi: https://doi.org/ 10.1016/j.ijforecast.2021.10.009 . Special Issue: M5 competition.
+- Montero-Manso, P. (2023). How to leverage data for time series forecasting with artificial intelligence models: Illustrations and guidelines for cross-learning. In M. Hamoudia, S. Makridakis, &amp; E. Spiliotis (Eds.), Forecasting with Artificial Intelligence: Theory and Applications (pp. 123-162). Cham: Springer Nature Switzerland. URL: https://doi.org/10.1007/978-3-031-35879-1\_6 . doi: 10.1007/978-3-031-35879-1\_6 .
+- Montero-Manso, P., &amp; Hyndman, R. J. (2021). Principles and algorithms for forecasting groups of time series: Locality and globality. International Journal of Forecasting , 37 , 1632-1653. URL: https://www.sciencedirect. com/science/article/pii/S0169207021000558 . doi: https://doi.org/10.1016/j.ijforecast.2021.03.004 .
+- Nikolopoulos, K., &amp; Petropoulos, F. (2018). Forecasting for big data: Does suboptimality matter? Computers &amp; Operations Research , 98 , 322-329. URL: https://www.sciencedirect.com/science/article/pii/S0305054817301193 . doi: https://doi.org/10.1016/j.cor.2017.05.007 .
+- Nixtla (2022). Nixtla - state-of-the-art time series and forecasting software. https://nixtlaverse.nixtla.io/ . Nixtla.
+- Olivares, K. G., Challu, C., Marcjasz, G., Weron, R., &amp; Dubrawski, A. (2023). Neural basis expansion analysis with exogenous variables: Forecasting electricity prices with nbeatsx. International Journal of Forecasting , 39 , 884-900. URL: https://www.sciencedirect.com/science/article/pii/S0169207022000413 . doi: https://doi. org/10.1016/j.ijforecast.2022.03.001 .
+- Van den Oord, A., Dieleman, S., Zen, H., Simonyan, K., Vinyals, O., Graves, A., Kalchbrenner, N., Senior, A. W., &amp; Kavukcuoglu, K. (2016). Wavenet: A generative model for raw audio. CoRR , abs/1609.03499 . URL: http://dblp.uni-trier.de/db/journals/corr/corr1609.html#OordDZSVGKSK16 .
+- Oreshkin, B. N., Carpov, D., Chapados, N., &amp; Bengio, Y. (2020). N-beats: Neural basis expansion analysis for interpretable time series forecasting. In International Conference on Learning Representations . URL: https: //openreview.net/forum?id=r1ecqn4YwB .
+- Petropoulos, F., &amp; et al. (2022). Forecasting: theory and practice. International Journal of Forecasting , 38 , 705871. URL: https://www.sciencedirect.com/science/article/pii/S0169207021001758 . doi: https://doi.org/
+
+[10.1016/j.ijforecast.2021.11.001 .](http://dx.doi.org/https://doi.org/10.1016/j.ijforecast.2021.11.001)
+
+- Prokhorenkova, L., Gusev, G., Vorobev, A., Dorogush, A. V., &amp; Gulin, A. (2018). Catboost: unbiased boosting with categorical features. In Proceedings of the 32nd International Conference on Neural Information Processing Systems NIPS'18 (p. 6639-6649). Red Hook, NY, USA: Curran Associates Inc.
+- Rajapaksha, D., Bergmeir, C., &amp; Hyndman, R. J. (2023). Lomef: A framework to produce local explanations for global model time series forecasts. International Journal of Forecasting , 39 , 1424-1447. URL: https://www.sciencedirect.com/science/article/pii/S0169207022000978 . doi: https://doi.org/10.1016/j. ijforecast.2022.06.006 .
+- Rosenblatt, F. (1958). The perceptron: A probabilistic model for information storage and organization in the brain. Psychological Review , 65 , 386-408. doi: 10.1037/h0042519 .
+- Schwartz, R., Dodge, J., Smith, N. A., &amp; Etzioni, O. (2020). Green ai. Commun. ACM , 63 , 54-63. URL: https://doi.org/10.1145/3381831 . doi: 10.1145/3381831 .
+- Semenoglou, A.-A., Spiliotis, E., Makridakis, S., &amp; Assimakopoulos, V. (2021). Investigating the accuracy of cross-learning time series forecasting methods. International Journal of Forecasting , 37 , 1072-1084. URL: https://www.sciencedirect.com/science/article/pii/S0169207020301850 . doi: https://doi.org/10.1016/j. ijforecast.2020.11.009 .
+- Sen, R., Yu, H.-F., &amp; Dhillon, I. S. (2019). Think globally, act locally: A deep neural network approach to highdimensional time series forecasting. In H. Wallach, H. Larochelle, A. Beygelzimer, F. d ' Alch´ e-Buc, E. Fox, &amp; R. Garnett (Eds.), Advances in Neural Information Processing Systems . Curran Associates, Inc. volume 32. URL: https: //proceedings.neurips.cc/paper\_files/paper/2019/file/3a0844cee4fcf57de0c71e9ad3035478-Paper.pdf .
+- Shmuel, A., Glickman, O., &amp; Lazebnik, T. (2024). A comprehensive benchmark of machine and deep learning across diverse tabular datasets. URL: https://arxiv.org/abs/2408.14817 . arXiv:2408.14817 .
+- Shwartz-Ziv, R., &amp; Armon, A. (2022). Tabular data: Deep learning is not all you need. Information Fusion , 81 , 84-90. URL: https://www.sciencedirect.com/science/article/pii/S1566253521002360 . doi: https://doi. org/10.1016/j.inffus.2021.11.011 .
+- Smyl, S. (2020). A hybrid method of exponential smoothing and recurrent neural networks for time series forecasting. International Journal of Forecasting , 36 , 75-85. URL: https://www.sciencedirect.com/science/article/pii/ S0169207019301153 . doi: https://doi.org/10.1016/j.ijforecast.2019.03.017 . M4 Competition.
+- Spiliotis, E., Makridakis, S., Semenoglou, A., &amp; Assimakopoulos, V. (2022). Comparison of statistical and machine learning methods for daily sku demand forecasting. Operational Research , 22 , 3037-3061. doi: 10.1007/ s12351-020-00605-2 . Publisher Copyright: © 2020, Springer-Verlag GmbH Germany, part of Springer Nature.
+- Spiliotis, E., &amp; Petropoulos, F. (2024). On the update frequency of univariate forecasting models. European Journal of Operational Research , 314 , 111-121. URL: https://www.sciencedirect.com/science/article/pii/ S0377221723006859 . doi: https://doi.org/10.1016/j.ejor.2023.08.056 .
+- Stankeviciute, K., M. Alaa, A., &amp; van der Schaar, M. (2021). Conformal time-series forecasting. In M. Ranzato, A. Beygelzimer, Y. Dauphin, P. Liang, &amp; J. W. Vaughan (Eds.), Advances in Neural Information Processing Systems (pp. 6216-6228). Curran Associates, Inc. volume 34. URL: https://proceedings.neurips.cc/paper\_ files/paper/2021/file/312f1ba2a72318edaaa995a67835fad5-Paper.pdf .
+
+- Strubell, E., Ganesh, A., &amp; McCallum, A. (2019). Energy and policy considerations for deep learning in NLP. In A. Korhonen, D. Traum, &amp; L. M` arquez (Eds.), Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics (pp. 3645-3650). Florence, Italy: Association for Computational Linguistics. URL: https://aclanthology.org/P19-1355/ . doi: 10.18653/v1/P19-1355 .
+- Svetunkov, I., &amp; Boylan, J. E. (2023). iets: State space model for intermittent demand forecasting. International Journal of Production Economics , 265 , 109013. URL: https://www.sciencedirect.com/science/article/pii/ S0925527323002451 . doi: https://doi.org/10.1016/j.ijpe.2023.109013 .
+- Tashman, L. J. (2000). Out-of-sample tests of forecasting accuracy: an analysis and review. International Journal of Forecasting , 16 , 437-450. URL: https://www.sciencedirect.com/science/article/pii/S0169207000000650 . doi: https://doi.org/10.1016/S0169-2070(00)00065-0 . The M3- Competition.
+- Vandeput, N. (2024). Vn1 forecasting -accuracy challenge. https://www.datasource.ai/en/home/ data-science-competitions-for-startups/phase-2-vn1-forecasting-accuracy-challenge/description . DataSource.ai.
+- Vovk, V., Gammerman, A., &amp; Shafer, G. (2005). Algorithmic Learning in a Random World . Berlin, Heidelberg: Springer-Verlag.
+- Ye, H.-J., Liu, S.-Y., Cai, H.-R., Zhou, Q.-L., &amp; Zhan, D.-C. (2025). A closer look at deep learning methods on tabular datasets. URL: https://arxiv.org/abs/2407.00956 . arXiv:2407.00956 .
+
+## Supplementary material
+
+In this section, we provide tables and figures related to the empirical results of the M5 and VN1 datasets. Note that results are obtained by averaging over the whole dataset after trimming almost 0.5% of the time series at the extremes of the distribution of each metric. This is a standard practice, since those time series that exhibit completely out-of-scale values of the evaluation metric should be modeled separately.
+
+The Tables 3 and 4 show the forecast accuracy of the different models along the examined retrain scenarios for the M5 daily dataset, while Table 5 depicts the computing time in seconds.
+
+The Tables in 6 and 7 show the forecast accuracy of the different models along the examined retrain scenarios for the VN1 weekly dataset, while 8 depicts the computing time in seconds.
+
+Figures 10 and 11 show the results of the Friedman-Nemenyi test in the context of both point and probabilistic forecasting for the VN1 dataset.
+
+The costs tables 9 and 10 show the estimated cost in real values of each scenario for daily and weekly data, respectively.
+
+Figures 12 and 13 display the optimal retraining frequency for each model in the context of the M5 dataset for point and probabilistic forecasting. Figures 14 and 15 display the optimal retraining frequency for each model in the context of the VN1 dataset for point and probabilistic forecasting. For each series, the optimal frequency is identified based on the average accuracy reported across the evaluation rounds per retraining period.
+
+Table 3: M5 RMSSE values for each method and retrain scenario combination.
+
+| Method   |     7 |    14 |    21 |    30 |    60 |    90 |   120 |   150 |   180 |   364 |
+|----------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| LR       | 0.760 | 0.760 | 0.760 | 0.759 | 0.759 | 0.759 | 0.759 | 0.759 | 0.760 | 0.759 |
+| XGBoost  | 0.738 | 0.738 | 0.738 | 0.738 | 0.738 | 0.738 | 0.737 | 0.737 | 0.737 | 0.736 |
+| LGBM     | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 | 0.754 |
+| CatBoost | 0.931 | 0.945 | 0.937 | 0.944 | 0.936 | 0.952 | 0.941 | 0.946 | 0.950 | 0.941 |
+| MLP      | 0.804 | 0.801 | 0.801 | 0.802 | 0.801 | 0.803 | 0.800 | 0.802 | 0.802 | 0.802 |
+| TCN      | 0.849 | 0.849 | 0.848 | 0.848 | 0.848 | 0.848 | 0.848 | 0.848 | 0.847 | 0.845 |
+| NBEATSx  | 0.798 | 0.797 | 0.797 | 0.807 | 0.798 | 0.798 | 0.797 | 0.798 | 0.798 | 0.797 |
+| NHITS    | 0.811 | 0.809 | 0.818 | 0.809 | 0.809 | 0.807 | 0.808 | 0.808 | 0.808 | 0.807 |
+
+Table 4: M5 SMQL values for each method and retrain scenario combination.
+
+| Method   |     7 |    14 |    21 |    30 |    60 |    90 |   120 |   150 |   180 |   364 |
+|----------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| LR       | 0.268 | 0.268 | 0.269 | 0.269 | 0.271 | 0.272 | 0.273 | 0.272 | 0.273 | 0.274 |
+| XGBoost  | 0.245 | 0.246 | 0.247 | 0.247 | 0.249 | 0.251 | 0.252 | 0.251 | 0.252 | 0.254 |
+| LGBM     | 0.247 | 0.247 | 0.248 | 0.248 | 0.249 | 0.250 | 0.250 | 0.250 | 0.250 | 0.252 |
+| CatBoost | 0.282 | 0.273 | 0.283 | 0.276 | 0.278 | 0.274 | 0.270 | 0.276 | 0.273 | 0.272 |
+| MLP      | 0.263 | 0.264 | 0.265 | 0.266 | 0.269 | 0.272 | 0.272 | 0.272 | 0.275 | 0.277 |
+| TCN      | 0.272 | 0.273 | 0.274 | 0.275 | 0.277 | 0.279 | 0.280 | 0.280 | 0.282 | 0.284 |
+| NBEATSx  | 0.262 | 0.263 | 0.264 | 0.269 | 0.268 | 0.271 | 0.271 | 0.271 | 0.274 | 0.276 |
+| NHITS    | 0.267 | 0.266 | 0.274 | 0.268 | 0.271 | 0.273 | 0.274 | 0.274 | 0.277 | 0.279 |
+
+Table 5: M5 CT values for each method and retrain scenario combination.
+
+| Method   |      7 |     14 |     21 |     30 |     60 |     90 |    120 |    150 |    180 |    364 |
+|----------|--------|--------|--------|--------|--------|--------|--------|--------|--------|--------|
+| LR       | 11,372 |  6,068 |  4,388 |  3,275 |  2,012 |  1,517 |  1,410 |  1,358 |  1,133 |    964 |
+| XGBoost  | 15,417 |  8,189 |  5,843 |  4,413 |  2,567 |  2,022 |  1,748 |  1,750 |  1,402 |  1,160 |
+| LGBM     | 44,428 | 23,835 | 17,279 | 13,245 |  8,332 |  6,656 |  5,802 |  5,966 |  4,971 |  4,256 |
+| CatBoost | 10,423 |  5,521 |  3,907 |  2,901 |  1,693 |  1,285 |  1,082 |  1,113 |    891 |    709 |
+| MLP      | 17,583 | 14,044 | 12,864 | 12,219 | 11,411 | 11,156 | 11,080 | 10,972 | 10,711 | 10,639 |
+| TCN      | 33,363 | 27,960 | 25,931 | 25,102 | 23,721 | 23,332 | 23,046 | 23,033 | 22,825 | 22,591 |
+| NBEATSx  | 21,226 | 16,331 | 14,965 | 13,583 | 12,387 | 11,969 | 11,670 | 11,681 | 11,458 | 11,265 |
+| NHITS    | 21,969 | 16,684 | 14,863 | 13,682 | 12,390 | 11,929 | 11,722 | 11,712 | 11,440 | 11,219 |
+
+Table 6: VN1 RMSSE values for each method and retrain scenario combination.
+
+| Method   |     1 |     2 |     3 |     4 |     6 |     8 |    10 |    13 |    26 |    52 |
+|----------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| LR       | 7.564 | 7.540 | 7.374 | 7.444 | 7.339 | 7.550 | 7.552 | 7.364 | 7.495 | 7.560 |
+| RF       | 1.871 | 1.873 | 1.872 | 1.868 | 1.867 | 1.866 | 1.861 | 1.863 | 1.852 | 1.840 |
+| XGBoost  | 1.898 | 1.871 | 1.884 | 1.865 | 1.842 | 1.851 | 1.809 | 1.833 | 1.851 | 1.797 |
+| LGBM     | 3.540 | 3.520 | 3.471 | 3.282 | 3.414 | 3.743 | 3.447 | 3.355 | 3.382 | 3.561 |
+| CatBoost | 6.384 | 6.348 | 6.388 | 5.969 | 5.738 | 6.051 | 5.072 | 5.300 | 5.785 | 6.156 |
+| MLP      | 1.554 | 1.483 | 1.477 | 1.472 | 1.472 | 1.475 | 1.480 | 1.480 | 1.467 | 1.455 |
+| LSTM     | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 |
+| TCN      | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 | 1.960 |
+| NBEATSx  | 1.704 | 1.696 | 1.661 | 1.561 | 1.519 | 1.525 | 1.544 | 1.462 | 1.455 | 1.456 |
+| NHITS    | 1.705 | 1.680 | 1.629 | 1.556 | 1.547 | 1.460 | 1.528 | 1.453 | 1.455 | 1.451 |
+
+Table 7: VN1 SMQL values for each method and retrain scenario combination.
+
+| Method   |     1 |     2 |     3 |     4 |     6 |     8 |    10 |    13 |    26 |    52 |
+|----------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|
+| LR       | 4.905 | 4.923 | 4.802 | 4.901 | 4.871 | 4.911 | 4.941 | 4.830 | 4.752 | 5.072 |
+| RF       | 1.220 | 1.230 | 1.232 | 1.224 | 1.237 | 1.254 | 1.257 | 1.284 | 1.313 | 1.326 |
+| XGBoost  | 1.503 | 1.496 | 1.493 | 1.505 | 1.483 | 1.488 | 1.466 | 1.451 | 1.515 | 1.479 |
+| LGBM     | 2.318 | 2.292 | 2.230 | 2.157 | 2.230 | 2.322 | 2.266 | 2.366 | 2.226 | 2.275 |
+| CatBoost | 4.945 | 4.867 | 5.084 | 4.771 | 4.476 | 4.582 | 4.081 | 4.133 | 4.351 | 5.023 |
+| MLP      | 0.806 | 0.800 | 0.796 | 0.795 | 0.803 | 0.805 | 0.807 | 0.819 | 0.824 | 0.847 |
+| LSTM     | 0.892 | 0.895 | 0.899 | 0.903 | 0.910 | 0.917 | 0.924 | 0.935 | 0.957 | 1.003 |
+| TCN      | 0.891 | 0.895 | 0.899 | 0.903 | 0.910 | 0.917 | 0.924 | 0.935 | 0.957 | 1.003 |
+| NBEATSx  | 0.991 | 0.995 | 0.966 | 0.897 | 0.861 | 0.866 | 0.893 | 0.825 | 0.839 | 0.875 |
+| NHITS    | 0.992 | 0.996 | 0.944 | 0.894 | 0.876 | 0.814 | 0.880 | 0.820 | 0.833 | 0.862 |
+
+Table 8: VN1 CT values for each method and retrain scenario combination.
+
+| Method   |      1 |      2 |     3 |     4 |     6 |     8 |    10 |    13 |    26 |   52 |
+|----------|--------|--------|-------|-------|-------|-------|-------|-------|-------|------|
+| LR       |    236 |    121 |    89 |    66 |    50 |    39 |    33 |    34 |    23 |   17 |
+| RF       | 24,862 | 12,380 | 8,715 | 6,177 | 4,355 | 3,084 | 2,461 | 2,570 | 1,262 |  602 |
+| XGBoost  |    530 |    274 |   198 |   146 |   108 |    81 |    69 |    70 |    44 |   31 |
+| LGBM     |  7,824 |  4,037 | 2,894 | 2,144 | 1,576 | 1,188 | 1,007 | 1,027 |   630 |  429 |
+| CatBoost |    805 |    412 |   287 |   207 |   149 |   109 |    90 |    93 |    51 |   31 |
+| MLP      |    962 |    534 |   409 |   327 |   265 |   223 |   202 |   202 |   159 |  138 |
+| LSTM     |  1,284 |    759 |   602 |   495 |   418 |   363 |   338 |   340 |   285 |  258 |
+| TCN      |  1,127 |    639 |   494 |   394 |   322 |   272 |   247 |   253 |   200 |  175 |
+| NBEATSx  |  1,244 |    694 |   531 |   421 |   342 |   285 |   258 |   259 |   203 |  175 |
+| NHITS    |  1,251 |    704 |   537 |   427 |   346 |   288 |   261 |   261 |   208 |  180 |
+
+Figure 10: VN1 Friedman-Nemenyi test results based on RMSSE.
+
+<!-- image -->
+
+Figure 11: VN1 Friedman-Nemenyi test results based on SMQL.
+
+<!-- image -->
+
+Table 9: M5 estimated costs (in $ ) for each method and retrain scenario combination.
+
+| Method   |         7 |      14 |      21 |      30 |      60 |      90 |     120 |     150 |     180 |     364 |
+|----------|-----------|---------|---------|---------|---------|---------|---------|---------|---------|---------|
+| LR       |   390,732 | 208,499 | 150,791 | 112,547 |  69,132 |  52,131 |  48,474 |  46,678 |  38,937 |  33,151 |
+| XGBoost  |   529,679 | 281,358 | 200,778 | 151,635 |  88,200 |  69,495 |  60,082 |  60,155 |  48,189 |  39,861 |
+| LGBM     | 1,526,424 | 818,569 | 593,676 | 455,075 | 286,262 | 228,698 | 199,337 | 204,972 | 170,802 | 146,252 |
+| CatBoost |   358,123 | 189,714 | 134,258 |  99,699 |  58,167 |  44,164 |  37,206 |  38,266 |  30,622 |  24,362 |
+| MLP      |   604,120 | 482,505 | 441,981 | 419,823 | 392,046 | 383,287 | 380,697 | 376,968 | 368,023 | 365,525 |
+| TCN      | 1,146,256 | 960,626 | 890,924 | 862,432 | 815,006 | 801,612 | 791,801 | 791,348 | 784,201 | 776,181 |
+| NBEATSx  |   729,263 | 561,105 | 514,166 | 466,683 | 425,593 | 411,232 | 400,953 | 401,352 | 393,673 | 387,058 |
+| NHITS    |   754,783 | 573,233 | 510,655 | 470,077 | 425,684 | 409,844 | 402,731 | 402,394 | 393,071 | 385,470 |
+| Average  |   754,922 | 509,451 | 429,654 | 379,746 | 320,011 | 300,058 | 290,160 | 290,267 | 278,440 | 269,733 |
+
+Table 10: VN1 estimated costs (in $ ) for each method and retrain scenario combination.
+
+| Method   |         1 |       2 |       3 |       4 |       6 |       8 |      10 |      13 |     26 |     52 |
+|----------|-----------|---------|---------|---------|---------|---------|---------|---------|--------|--------|
+| LR       |    15,234 |   7,839 |   5,731 |   4,292 |   3,205 |   2,508 |   2,140 |   2,190 |  1,463 |  1,099 |
+| RF       | 1,605,768 | 799,597 | 562,896 | 398,954 | 281,246 | 199,214 | 158,959 | 165,975 | 81,529 | 38,865 |
+| XGBoost  |    34,254 |  17,687 |  12,796 |   9,413 |   6,944 |   5,262 |   4,473 |   4,534 |  2,863 |  2,005 |
+| LGBM     |   505,304 | 260,721 | 186,904 | 138,460 | 101,775 |  76,738 |  65,013 |  66,335 | 40,721 | 27,701 |
+| CatBoost |    52,021 |  26,594 |  18,515 |  13,366 |   9,611 |   7,022 |   5,798 |   5,977 |  3,311 |  2,023 |
+| MLP      |    62,102 |  34,489 |  26,431 |  21,149 |  17,121 |  14,391 |  13,027 |  13,015 | 10,255 |  8,891 |
+| LSTM     |    82,927 |  49,019 |  38,851 |  31,962 |  27,022 |  23,465 |  21,829 |  21,932 | 18,415 | 16,652 |
+| TCN      |    72,763 |  41,291 |  31,910 |  25,464 |  20,791 |  17,579 |  15,983 |  16,365 | 12,936 | 11,284 |
+| NBEATSx  |    80,337 |  44,837 |  34,283 |  27,179 |  22,057 |  18,387 |  16,686 |  16,702 | 13,085 | 11,277 |
+| NHITS    |    80,776 |  45,458 |  34,688 |  27,585 |  22,336 |  18,607 |  16,888 |  16,855 | 13,405 | 11,601 |
+| Average  |   259,149 | 132,753 |  95,301 |  69,782 |  51,211 |  38,317 |  32,080 |  32,988 | 19,798 | 13,140 |
+
+Figure 12: M5 optimal retraining frequency results for each model based on RMSSE.
+
+<!-- image -->
+
+Figure 13: M5 optimal retraining frequency results for each model based on SMQL.
+
+<!-- image -->
+
+24
+
+32
+
+Figure 14: VN1 optimal retraining frequency results for each model based on RMSSE.
+
+<!-- image -->
+
+12
+
+28
+
+16
+
+24
+
+52
+
+12
+
+24
+
+32
+
+Figure 15: VN1 optimal retraining frequency results for each model based on SMQL.
+
+<!-- image -->
+
+36

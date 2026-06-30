@@ -3,17 +3,17 @@ type: source
 domain: timeseries-forecasting
 project: P1
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p1-cluster-pretrained-deep-models
 tags:
-  - cluster-models
-  - covariate-selection
-  - entmax
-  - feature-importance
-  - forecasting
+- cluster-models
+- covariate-selection
+- entmax
+- feature-importance
+- forecasting
 ---
 
 # Source: P1 — Cluster-pretrained deep models

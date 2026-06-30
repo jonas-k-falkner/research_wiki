@@ -1,0 +1,242 @@
+## Data2Neo - A Tool for Complex Neo4j Data Integration
+
+Julian Minder ∗ jminder@ethz.ch
+
+Chair of Systems Design, ETH Zürich Zurich, Switzerland
+
+Luis Salamanca
+
+luis.salamanca@sdsc.ethz.ch Swiss Data Science Center, ETH Zürich Zurich, Switzerland
+
+## ABSTRACT
+
+This paper introduces Data2Neo, an open-source Python library for converting relational data into knowledge graphs stored in Neo4j databases. With extensive customization options and support for continuous online data integration from various data sources, Data2Neo is designed to be user-friendly, efficient, and scalable to large datasets. The tool significantly lowers the barrier to entry for creating and using knowledge graphs, making this increasingly popular form of data representation accessible to a wider audience. The code is available at jkminder/data2neo.
+
+## CCS CONCEPTS
+
+· Information systems → Mediators and data integration ; Extraction, transformation and loading ; Data cleaning ; Graphbased database models .
+
+## KEYWORDS
+
+neo4j, data integration, graph databases, data migration, data cleaning, data conversion, relational databases
+
+## 1 INTRODUCTION
+
+Relational databases are the most common way of organising data. However, they pose severe limitations for data handling because of their static set of tables with a fixed set of columns, each table representing a different entity or concept [8, 9, 11, 34, 35, 43]. Therefore, graph databases have emerged as a widely accepted substitute for relational databases, with Neo4j as one of the most prominent systems. In graph databases information is stored in nodes and their relationships. Any node can store any amount of information and can be connected to any other node through relationships, represented as directed edges between related nodes. Additionally, relationships can store any data.
+
+Such databases are more flexible also because they can grow organically and support dynamic data. Consequently, graph databases have attracted a lot of interest in the scientific community [12, 16, 21, 28, 30, 32, 36, 38]. While relational database systems are optimized for aggregated data, graph databases are optimized for highly interlinked data [25], i.e. they can be visualized in Knowledge Graphs (KGs). Depending on the data, KGs have been shown to provide significant advantages in terms of query execution time [6, 7, 19]
+
+KGs are proving to be pivotal in many machine learning applications, including Large Language Models and Retrieval-Augmented
+
+∗ Correspondence to jminder@ethz.ch
+
+## Laurence Brandenberger
+
+lbrandenberger@ethz.ch Chair of Systems Design, ETH Zürich
+
+Zurich, Switzerland
+
+Frank Schweitzer fschweitzer@ethz.ch Chair of Systems Design, ETH Zürich Zurich, Switzerland
+
+Generation (RAG) systems, by enhancing the integration and retrieval of structured knowledge. They provide context and background knowledge that is essential for sophisticated applications, such as question answering and advanced automated reasoning across various domains [10, 13, 15, 20, 23, 29, 31, 37, 39, 41]. In addition, they serve as a rich source of semantically structured information for high-quality training data [5, 27, 40]. Beyond their role in machine learning frameworks, KGs also have intrinsic potential for data analysis in their own right. They enable the extraction of insights through the relationships they map between different data points, which is critical in domains such as biomedicine [26, 42], cybersecurity [17, 22], and financial services [18]. The capacity of KGs to seamlessly integrate diverse data types and provide a holistic view makes them invaluable for predictive analytics and decision-making processes.
+
+While certain datasets may opt for graph databases as their storage solution from the outset, there is considerable value in integrating existing relational data into knowledge graphs. However, integrating data into KGs might not be straightforward for many interested users, especially when the data integration necessitates employing complicated data transformation pipelines, e.g. when the data needs to be cleaned up or updated in real-time. To tackle these challenges, and to lower the entry barrier of data integration, we introduce Data2Neo 1 , an open-source Python library designed for building data pipelines that convert relational data into knowledge graphs. The library provides extensive customization options while remaining easy to use. The main contributions of Data2Neo are i) abstraction of an easy-to-define YAML-like conversion recipe, ii) trivial integration of custom pipeline steps, iii) the ability to convert and stream from any data source, and iv) optimized parallelized data processing and KG generation.
+
+## 2 EXISTING SOLUTIONS
+
+The official Neo4j documentation mentions several ways to import data into a Neo4j graph database [3].
+
+Direct Import (DI) . Neo4j has native support for importing CSV files, which can be a convenient option for simple conversions. This option requires a dump of individual entity tables, converted to nodes, and join-tables, converted to relationships, formatted as CSV files. It is the simplest and most efficient way to import data into Neo4j. It is possible to add customization through CYPHER, Neo4j's query language, but this adds complexity to the process, making it unsuitable for complicated data integration. DI is comparable to processing and manipulating data directly via SQL in a relational database. An extension to this is the APOC plugin [2] for Neo4j, which adds support for more data sources and various CYPHER add-ons, such as conditional CYPHER execution. While the plugin provides additional functionality, it does not solve the problem of the overhead complexity of CYPHER queries for data processing.
+
+[1 https://github.com/jkminder/data2neo](https://github.com/jkminder/data2neo)
+
+Figure 1: A schematic overview of data integration with Data2Neo: We are given three input data sources, each represented by a color, with one row per table. The Figure displays three timesteps ( 𝑡 = 0 , 𝑡 = 1 , 𝑡 = 2 ). The user defines a ResourceIterator that iterates over all the input data and specifies an abstract conversion recipe for each data source within a Conversion Schema. We visualize different node labels by colors. The converted data is pushed to the Knowledge Graph. You can also merge information from different sources - the 𝑓 and 𝑥 node from the blue and green data source are merged because they have the same value ( 0 ) and share the same label (as represented by the color). To customize the integration the user can define pre- and postprocessor functions. These functions support arbitrary Python code.
+
+<!-- image -->
+
+Extract-Transform-Load tools (ETL) . These mostly GUI-based software solutions are designed to handle general data conversion and transformation tasks. While there are many ETL options available, the official Neo4j Developer Guides [3] recommend two in particular. The first is the native Neo4j ETL Tool [4] which translates relational data from a JDBC connection to a Neo4j graph.
+
+Although this tool is well integrated into the Neo4j Desktop application and supports various relational databases, it allows for only limited customization. For instance, apart from basic type conversions, it lacks the option to add data cleaning steps. The second one is Apache Hop [1], an integration platform for data and metadata orchestration. It scales well to large systems and databases, and provides a visual representation of a data transformation, but its wide range of features can create significant complexity, particularly in research and non-enterprise situations.
+
+Programmatic. The final option is to code the conversion pipeline from scratch. This approach provides full control and the ability to handle arbitrary complexity, but also has significant drawbacks. Developing a data conversion pipeline from scratch is a time-consuming task that quickly becomes overly complicated, especially if the pipeline needs to be dynamically extended or parallelized. Data2Neo targets this context.
+
+Data2Neo is a lightweight conversion library that bridges the gap between the simplicity of ETL tools and the flexibility of a programmatic approach. It frees the developers from implementing the graph interactions, allowing them to focus on the abstract conversion recipe and data processing using the intuitive options for data conversion and wrangling implemented.
+
+It should be noted that Data2Neo is based on concepts introduced by the py2neo Python library [33], which is deprecated and no longer maintained. The Data2Neo Python library is independent of the py2neo library, and integrates some of its functionalities.
+
+## 3 LIBRARY OVERVIEW
+
+Data2Neo decomposes the data integration process for a user into three distinct parts, shown in Figure 1:
+
+- ResourceIterator: This part iterates over the rows or entities in the input data, which may consist of various data sources, such as multiple tables in a single database or different tables across multiple databases. We call a single row or entity a Resource. It must be assigned a static type such as, for example, the table name in a relational database. Resources with the same type should have the same properties. The Resource type is used to determine how a Resource should be converted. This abstraction provides us with the flexibility to accommodate various data sources.
+- Conversion Schema: This part specifies the conversion recipe for each Resource type, effectively serving as a blueprint for their integration. Its syntax is an extension to YAML and is intuitive to understand.
+- Converter: It takes data from the ResourceIterator and integrates it into an existing KG, based on the specifications provided in the Conversion Schema. The Converter automatically parallelizes the processing onto multiple cores,
+
+enabling it to scale to large systems. This is the main Python class a user interacts with.
+
+Users define how to iterate over data (ResourceIterator) and how to convert it at an abstract level (Conversion Schema). The Converter then automates the concurrent integration process. Data2Neo greatly facilitates the creation of a KG from multiple data sources and can be a real advantage for users without expertise in graph database technologies.
+
+Furthermore, Data2Neo excels the most on its customizability. As sketched in Figure 1 (middle), users can customize the processing by defining pre- and post-processing functions. A preprocessor adjusts a Resource prior to its processing by the Converter, while a postprocessor alters the output. These functions, referred to as "wrappers", offer limitless customization possibilities and can incorporate any Python code. For example, they can be used to filter and clean data, enrich data with additional information, verify and moderate data, and more.
+
+## 3.1 Sample Task
+
+We present a sample task to demonstrate the library's API. We examine a simple retail sales system consisting of five relational database tables: Product, Order, Supplier, Employee and OrderDetail. When using this information for downstream analysis tasks, the synergies and relationships between these different actors are essential. For this reason, a knowledge graph, as the one shown in Figure 2, is the representation that enables richer and more complex exploration.
+
+We transform each entity from the Supplier, Order, and Employee tables into individual nodes. Additionally, within the Order table, each entity contains a unique ID corresponding to the employee responsible for creating the order. This foreign key is transformed into a relationship linking the Employee and Order nodes. The Product entities are divided into two distinct nodes: the Product node itself and a Category node linked to the Product node via an IN relationship. To ensure data integrity, we merge Category nodes based on the CategoryCode attribute, consolidating them into a single node for each unique category code. Lastly, the OrderDetail entities are converted into a relationship between the Order and Product nodes, detailing the quantity of product in each order. To showcase the library's customization capabilities, we make two enhancements to the Category node. First, the CategoryCode is translated to its string name. Second, we parse the parent Category, corresponding to the first CategoryCode digit, and add its translated string name as a label to the Category node. Even though these examples may seem simple, they are impossible, or require much more involved coding, when using existing methods because they require external data input and custom logic.
+
+## 3.2 Workflow
+
+In Listing 1 we present the standard steps required in Data2Neo to carry out the population of the knowledge graph. The Converter is the main Python object that the user interacts with, and needs to be initialized with the following three elements: an ResourceIterator declared according to the data sources, a Conversion Schema that details the mapping from entities to nodes and relationships, and the graph credentials. Once the Converter is instantiated,
+
+Figure 2: Example Conversion Task: A simple product sales system is converted into a knowledge graph.
+
+<!-- image -->
+
+```
+1 from tqdm import tqdm 2 from data2neo import Converter 3 from data2neo.relational_modules.sqlite 4 import SQLiteIterator 5 6 # Connect to the SQLite database and create iterator 7 iterator = SQLiteIterator(sqlite3.connect(...)) 8 9 # define schema 10 schema = ... # Conversion Schema as string 11 12 # define graph credentials 13 uri, auth = ... # (host, (user, password)) 14 15 # setup Converter 16 converter = Converter(schema, iterator, uri, auth) 17 18 # run pipeline 19 converter(progress_bar = tqdm)
+```
+
+Listing 1: The Python interface of Data2Neo. We connect to a sqlite3 database, for which Data2Neo provides a ResourceIterator out of the box.
+
+the user invokes it to start the conversion, which processes the data in two steps. First, it iterates over all Resources to create the nodes in the Neo4j graph, and then it creates the relationships in a second iteration. By default, the Converter uses multiple processes to speed up the conversion process by dividing the Resources into batches and distributing them among the available processes. The transfer of data to the graph is always serialized to ensure correctness.
+
+In the example presented in Listing 1 we presume that the data is stored in a SQLite database. For SQLite databases and pandas [24] DataFrames, Data2Neo provides a ResourceIterator natively; for other databases, users can customize their own Resource and ResourceIterator. The library offers the opportunity to connect multiple iterators together, regardless of their data source.
+
+## 3.3 Schema Syntax
+
+The Conversion Schema is an user-defined recipe that allows to declare how relational entities are converted to graph elements (nodes, relationships and their attributes, which correspond to keyvalue pairs stored on a node or relationship). Each Resource passed to the Converter has an associated type, and conversion rules are specified for each type. The schema allows for one-to-one, one-tomany and many-to-one conversions of relational entities to graph elements.
+
+```
+1 ENTITY ( "Product" ): 2 NODE ("Product") productnode : 3 + name = Product .Name 4 5 ParseParentCategory( NODE ("Category", CodeToCategory( Product .ParentCategory))) categorynode : ↩ → 6 + name = CodeToCategory( Product .CategoryCode) 7 -conversion_date = Product .ConversionDate 8 9 RELATIONSHIP ( productnode , "IN", categorynode ): 10 RELATIONSHIP ( MATCH ("Supplier", id= Product .SupplierID), "SUPPLIES", productnode ): ↩ → 11 12 ENTITY ( "Order" ): 13 NODE ("Order") ordernode : 14 + id = Order .ID 15 -date = Order .Date 16 17 RELATIONSHIP ( MATCH ("Employee", id= ordernode .EmployeeID), "SELLS", ordernode ): ↩ → 18 19 ENTITY ( "Supplier" ): 20 NODE ("Supplier"): 21 + id = Supplier .ID 22 -name = Supplier .Name 23 24 ENTITY ( "Employee" ): 25 NODE ("Employee"): 26 + id = Employee .ID 27 -name = Employee .Name 28 29 ENTITY ( "OrderDetail" ): 30 RELATIONSHIP ( MATCH ("Order", id= OrderDetail .OrderID), "CONTAINS", MATCH ("Product", id= OrderDetail .ProductID): ↩ → 31 -amount = OrderDetail .Amount
+```
+
+Listing 2: Conversion Schema for sample task.
+
+The full Conversion Schema for the sample task is shown in Listing 2, with which we illustrate the main features provided by Data2Neo, required to build and populate the KG.
+
+The schema follows a YAML-like syntax. There are four main keywords: ENTITY , NODE , RELATIONSHIP and MATCH . Each keyword is followed by parentheses containing keyword-specific definitions. At the first indent level, we define the Resource type using the ENTITY keyword, and the specific Resource type in quotes. Following YAML syntax the line must end with a colon.
+
+```
+ENTITY ( "Product" ): conversion definitions...
+```
+
+Now, different attributes of the Resource can be specified using the entity name as prefix, e.g., Product .Name . These attributes from the ENTITY can be used to define nodes and relationships.
+
+Nodes. To generate nodes from input data, we use the NODE keyword. In parentheses, we specify the comma-separated labels. In Neo4j a label is a type associated with a node. Each node can have multiple labels. We can also use an attribute of the Resource as a label:
+
+```
+NODE ("Label", "Other Label", Product .Name)
+```
+
+After the parentheses, we can define an optional identifier with which we can reference the node when defining Relationships. In lines 2-3 of Listing 2, productnode serves as the identifier. See line 9 for its reference when defining a relationship; more details on defining relationships are provided later.
+
+To set attributes of a node, we follow standard YAML syntax. The attribute name can be different from that of the Resource attribute, as we can observe in line 3 where name is used for attribute Name of Product . Also in line 3 we can observe how -has been replaced by a + to specify it is the primary attribute of the node. A primary attribute is a unique, non-null identifier assigned to a node. Primary attributes as well as the first specified label are used to merge nodes, i.e. if the primary attribute of two nodes is the same and they have an identical first label, they are merged. When merging elements, Data2Neo will update all the attributes and labels of the existing element with the new information. This is useful to push information from different Resources to the same node, allowing for complex many-to-one conversions. However, it is important to bear in mind that primary attributes can slow down the conversion process as it requires additional computation for matching.
+
+Relationships. The RELATIONSHIP keyword requires three arguments: the source node, the type of the relationship, and the target node:
+
+```
+RELATIONSHIP (-source-, "TYPE",
+```
+
+```
+-target-):
+```
+
+The reference to the -sourceand -targetcan be done either through node identifiers or with a MATCH clause, which allows matching any set of nodes in the graph. If the source or the target has multiple nodes, a relationship is created for each combination of source and target. The MATCH clause expects one or more commaseparated labels, followed by zero or more attribute equalities. For example, in line 10 we match a Supplier node in the graph whose id attribute matches the value of Product .SupplierID , and create a relationship of type SUPPLIES between these nodes and the node with identifier productnode . Attributes are defined in the same way as they are for nodes, and similarly, primary attributes can be used to merge relationships.
+
+## 3.4 Customization with Wrappers
+
+Wrappers are a fundamental component of the Data2Neo library, enabling users to enhance its functions and tailor it to their individual requirements.
+
+After the user has defined the three elements required - a ResourceIterator, a Conversion Schema, and the Converter the process of building and populating the KG can be started. The Converter compiles the blueprints, outlined in the Conversion Schema into a conversion pipeline. This pipeline processes each Resource in two main steps. First, a subgraph, a graph formed by just the nodes and/or relationships from one single Resource, is built. Then, the attributes of the nodes and relationships in the subgraph are filled in one at a time. Pre- and postprocessors, built as Python functions, can be used in each of these steps. They allow to customize either the input or output data, acting before (preprocessor) or after (postprocessor) a Resource is processed in each step. A subgraph postprocessor acts on the nodes and relationships of a subgraph, while an attribute postprocessor manipulates the attributes, i.e., key-value pairs, of nodes and relationships. A node label or relationship type is also treated as an attribute, except its key is empty. Both a subgraph preprocessor and an attribute preprocessor operate on the input Resource.
+
+This system offers considerable flexibility. Although modifications can often be made in more than one way, either before or after data conversion, this two points intervention capability allows for a high degree of customization, accommodating any user's specific needs. It is important to remark that defining a wrapper is
+
+```
+1 from data2neo import register_attribute_postprocessor 2 from data2neo import register_subgraph_preprocessor 3 from data2neo import Attribute 4 5 @register_attribute_postprocessor 6 def CodeToCategory(attribute): 7 # an attribute is defined by its key and a value 8 code = attribute.value 9 conversion = { 10 1: "Clothing", 11 2: "Home appliances", 12 101: "T-Shirts", 13 102: "Pants", 14 ... 15 } # You could also query an API here 16 return Attribute(attribute.key, conversion[code]) 17 18 @register_subgraph_preprocessor 19 def ParseParentCategory(resource): 20 resource["ParentCategory"] = int(str(resource["CategoryCode"])[0]) 21 return resource
+```
+
+Listing 3: Definitions of wrappers for the sample task. The attribute postprocessor CodeToCategory converts the category code to its string corespondent. The AddConversionDate subgraph preprocessor adds the parent category, which is the first digit of the CategoryCode. as an attribute to the Resource. This can then be accessed in the schema as any other Resource attribute.
+
+as easy as registering a Python function with Data2Neo through a decorator. Afterward, the wrapper's name can be referenced in the Conversion Schema.
+
+In our example scenario, we convert the category code of the Category node to a name. We define the function CodeToCategory and register it as attribute postprocessor. We also modify the Resource to include the parent category using the ParseParentCategory subgraph preprocessor. We can reuse the CodeToCategory wrapper to convert this to its string version. See Listing 3 for the definition of the wrappers and lines 5 and 6 in Listing 2 for their use in the schema. Besides, let's note that we have the freedom to use any other Python tools, including state-full wrappers. For further details, please consult the documentation.
+
+## 4 PERFORMANCE ANALYSIS
+
+We compare the runtime performance of the Data2Neo library to Direct Import (DI) using CYPHER and CSV files. To analyse the runtime of the two methods, we present a new conversion task.
+
+## 4.1 Task
+
+The benchmark uses open-source Github data from [14] as the data source. For each repository, the data is stored in a relational database with two tables: commits and edits. We create nodes for each commit, file, and author. Edits are represented as relationships from the commit to the file with the relationship type given by the edit\_type attribute of the edit column in all upper letters. If an edit renames a file, we also create a RENAMED\_TO relation to the new file.
+
+The task requires conditionals, dynamic type setting and attribute modification. In pure CYPHER this is not possible, so we need to complement CYPHER queries with extra functionalities from the APOC plugin. The use of APOC requires further expertise. The task has moderate difficulty and is suitable for testing the performance of Data2Neo and DI.
+
+Methodology. We conduct our evaluation on a machine equipped with an Intel Xeon (Skylake) CPU, 64 cores, and 256 GB of RAM. We run a local instance of Neo4j version 5.18.1, using the default configuration with the exception of db.import.csv.buffer\_size , which was set to 1GB to accommodate large input CSV files. For data import with Data2Neo, we utilized 32 workers and a batch size of 20,000. Similarly, for DI, we used transactions of 20,000 rows. Each experiments is repeated 5 times. The input data is stored in an SQLite database. For the DI, we need to first export the database to CSV to be readable via CYPHER. Data2Neo can directly access the SQLite database. The benchmark scripts, including the Conversion Schema and the CYPHER commands, are available at jkminder/data2neo-performance-evaluation.
+
+## 4.2 Analysis
+
+Wecompare the performance of Data2Neo to that of DI across three different repository sizes. To run DI, one must install the APOC plugin. Further, one needs to adjust neo4j configurations to handle large CSV inputs. The results, presented in Table 1, demonstrate that DI is consistently faster due to its utilization of Neo4j's internal structures and performance optimizations. However, Data2Neo, as a pure Python library, still efficiently processes large datasets, handling up to 34 million rows in under 2 hours. Notably, Data2Neo offers a much simpler and more intuitive approach compared to executing this task by first exporting the database and then leveraging CYPHER and APOC. The CYPHER command alone is about 2,500 characters long, whereas the Data2Neo conversion scheme is only about 1,000 characters long, and is much more intuitive.
+
+In summary, while it may not match DI in speed, Data2Neo provides greater flexibility, adaptability, and simplicity, making it a valuable tool for developers and data scientists.
+
+Table 1: Conversion runtime comparison for three repositories on the described task. The table includes the number of input rows, as well as the number of nodes and relationships in the created graph. The runtime is displayed in minutes, representing the mean and standard deviation across five experiment repetitions.
+
+| Repository            | Input      | Output               | Runtime [min]   | Runtime [min]   |
+|-----------------------|------------|----------------------|-----------------|-----------------|
+| Name                  | Rows       | Nodes / Relations    | DI              | Data2Neo        |
+| ansible/ansible       | 6 917 313  | 86 755 / 6 968 631   | 8.7 ± 0 . 1     | 23.5 ± 0 . 4    |
+| tensorflow/tensorflow | 22 707 206 | 135 234 / 22 808 448 | 28.1 ± 2 . 0    | 75.3 ± 1 . 7    |
+| openshift/origin      | 34 846 906 | 125 515 / 34 889 186 | 39.7 ± 0 . 7    | 112.9 ± 2 . 9   |
+
+## 5 CONCLUSION
+
+We present Data2Neo, an open-source Python library that enables the seamless creation of conversion pipelines from relational data to Neo4j graph databases. Data2Neo simplifies the process by minimizing boilerplate code while still allowing for complex conversion scenarios and enabling continuous online integration of data from any source. Its flexibility makes it an ideal solution for users who have a dynamic research environment and need to regularly update their graph structure and processing functions. The library separates the conversion process into a clear and easily modifiable Conversion Schema and the processing code itself, making it easy to manage and update conversion pipelines. It combines the simplicity of ETL tools like the Neo4j ETL Tool with the limitless customization options of a programmatic approach in Python.
+
+In addition to its ease of use, Data2Neo has proven to be highly efficient and scalable, even for large datasets. Despite its Python backend, we have shown that its runtime overhead is manageable, even when compared to native Neo4j import functions, and it can process millions of records per hour with automatic parallelization. Overall, Data2Neo is a valuable tool for developers and data scientists looking to convert relational data to knowledge graphs.
+
+## REFERENCES
+
+- [1] 2024. Apache Hop. https://hop.apache.org [Accessed: 2024-04-30].
+- [2] 2024. Awesome Procedures On Cypher (APOC). https://neo4j.com/labs/apoc/ [Accessed: 2024-04-30].
+- [3] [2024. Import: RDBMS to graph - developer guides. https://neo4j.com/docs/ getting-started/data-import/relational-to-graph-import/ [Accessed: 2024-04-30].](https://neo4j.com/docs/getting-started/data-import/relational-to-graph-import/)
+- [4] 2024. Neo4j ETL Tool. https://neo4j.com/labs/etl-tool/ [Accessed: 2024-04-28].
+- [5] Oshin Agarwal, Heming Ge, Siamak Shakeri, and Rami Al-Rfou. 2020. Knowledge graph based synthetic corpus generation for knowledge-enhanced language model pre-training. arXiv preprint arXiv:2010.12688 (2020).
+- [6] Soad Almabdy. 2018. Comparative Analysis of Relational and Graph Databases for Social Networks. In 2018 1st International Conference on Computer Applications &amp; Information Security (ICCAIS) . 1-4. https://doi.org/10.1109/CAIS.2018.8441982
+- [7] Shalini Batra and Tyagi Charu. 2012. Comparative analysis of relational and graph databases.. In International Journal of Soft Computing and Engineering (IJSCE) 2.2 . 509-512.
+- [8] Shalini Batra and Charu Tyagi. 2012. Comparative analysis of relational and graph databases. International Journal of Soft Computing and Engineering (IJSCE) 2, 2 (2012), 509-512.
+- [9] Jinhua Chen, Qingyu Song, Can Zhao, and Zhiheng Li. 2020. Graph database and relational database performance comparison on a transportation network. In Advances in Computing and Data Sciences: 4th International Conference, ICACDS 2020, Valletta, Malta, April 24-25, 2020, Revised Selected Papers 4 . Springer, 407418.
+- [10] Zhikai Chen, Haitao Mao, Hang Li, Wei Jin, Hongzhi Wen, Xiaochi Wei, Shuaiqiang Wang, Dawei Yin, Wenqi Fan, Hui Liu, et al. 2024. Exploring the potential of large language models (llms) in learning on graphs. ACM SIGKDD Explorations Newsletter 25, 2 (2024), 42-61.
+- [11] Roberto De Virgilio, Antonio Maccioni, and Riccardo Torlone. 2013. Converting relational to graph databases. In First International Workshop on Graph Data Management Experiences and Systems . 1-6.
+- [12] Lisa Ehrlinger and Wolfram Wöß. 2016. Towards a definition of knowledge graphs. SEMANTiCS (Posters, Demos, SuCCESS) 48, 1-4 (2016), 2.
+- [13] Junyi Gao, Chaoqi Yang, Joerg Heintz, Scott Barrows, Elise Albers, Mary Stapel, Sara Warfield, Adam Cross, and Jimeng Sun. 2022. MedML: fusing medical knowledge and machine learning models for early pediatric COVID-19 hospitalization and severity prediction. Iscience 25, 9 (2022).
+- [14] Christoph Gote, Pavlin Mavrodiev, Frank Schweitzer, and Ingo Scholtes. 2021. Big Data = Big Insights? Operationalising Brooks' Law in a Massive GitHub Data Set (Data Sets) . https://doi.org/10.5281/zenodo.5294965
+- [15] Xiaoxin He, Yijun Tian, Yifei Sun, Nitesh V Chawla, Thomas Laurent, Yann LeCun, Xavier Bresson, and Bryan Hooi. 2024. G-Retriever: Retrieval-Augmented Generation for Textual Graph Understanding and Question Answering. arXiv preprint arXiv:2402.07630 (2024).
+- [16] Aidan Hogan, Eva Blomqvist, Michael Cochez, Claudia d'Amato, Gerard de Melo, Claudio Gutierrez, Sabrina Kirrane, José Emilio Labra Gayo, Roberto Navigli, Sebastian Neumaier, et al. 2021. Knowledge graphs. Synthesis Lectures on Data, Semantics, and Knowledge 12, 2 (2021), 1-257.
+- [17] Yan Jia, Yulu Qi, Huaijun Shang, Rong Jiang, and Aiping Li. 2018. A practical approach to constructing a knowledge graph for cybersecurity. Engineering 4, 1 (2018), 53-60.
+- [18] Natthawut Kertkeidkachorn, Rungsiman Nararatwong, Ziwei Xu, and Ryutaro Ichise. 2023. FinKG: A Core Financial Knowledge Graph for Financial Analysis. In 2023 IEEE 17th International Conference on Semantic Computing (ICSC) . IEEE, 90-93.
+- [19] Malgorzata Lazarska and Olga Siedlecka-Lamch. 2019. Comparative study of relational and graph databases. 000363-000370. https://doi.org/10.1109/ Informatics47936.2019.9119303
+- [20] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. 2020. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems 33 (2020), 9459-9474.
+- [21] Yankai Lin, Zhiyuan Liu, Maosong Sun, Yang Liu, and Xuan Zhu. 2015. Learning entity and relation embeddings for knowledge graph completion. In Proceedings of the AAAI conference on artificial intelligence , Vol. 29.
+- [22] Kai Liu, Fei Wang, Zhaoyun Ding, Sheng Liang, Zhengfei Yu, and Yun Zhou. 2022. Recent progress of using knowledge graph for cybersecurity. Electronics 11, 15 (2022), 2287.
+- [23] Gengchen Mai, Weiming Huang, Jin Sun, Suhang Song, Deepak Mishra, Ninghao Liu, Song Gao, Tianming Liu, Gao Cong, Yingjie Hu, et al. 2023. On the opportunities and challenges of foundation models for geospatial artificial intelligence. arXiv preprint arXiv:2304.06798 (2023).
+- [24] Wes McKinney. 2010. Data Structures for Statistical Computing in Python. In Proceedings of the 9th Python in Science Conference (Proceedings of the Python in Science Conference) , Stéfan van der Walt and Jarrod Millman (Eds.). SciPy, 56-61. https://doi.org/10.25080/Majora-92bf1922-00a
+- [25] Justin J Miller. 2013. Graph database applications and concepts with Neo4j. In Proceedings of the southern association for information systems conference, Atlanta, GA, USA , Vol. 2324.
+- [26] David N. Nicholson and C. Greene. 2020. Constructing knowledge graphs and their biomedical applications. Computational and Structural Biotechnology Journal 18 (2020), 1414 - 1428. https://doi.org/10.1016/j.csbj.2020.05.017
+- [27] Maximilian Nickel, Kevin Murphy, Volker Tresp, and Evgeniy Gabrilovich. 2015. A review of relational machine learning for knowledge graphs. Proc. IEEE 104, 1 (2015), 11-33.
+- [28] Natasha Noy, Yuqing Gao, Anshu Jain, Anant Narayanan, Alan Patterson, and Jamie Taylor. 2019. Industry-scale Knowledge Graphs: Lessons and Challenges: Five diverse technology companies show how it's done. Queue 17, 2 (2019), 48-75.
+- [29] Shirui Pan, Linhao Luo, Yufei Wang, Chen Chen, Jiapu Wang, and Xindong Wu. 2024. Unifying large language models and knowledge graphs: A roadmap. IEEE Transactions on Knowledge and Data Engineering (2024).
+- [30] Heiko Paulheim. 2017. Knowledge graph refinement: A survey of approaches and evaluation methods. Semantic web 8, 3 (2017), 489-508.
+- [31] Brenda Potts. 2024. GraphRAG: A new approach for discovery using complex information. https://www.microsoft.com/en-us/research/blog/graphragunlocking-llm-discovery-on-narrative-private-data/
+- [32] Jay Pujara, Hui Miao, Lise Getoor, and William Cohen. 2013. Knowledge graph identification. In The Semantic Web-ISWC 2013: 12th International Semantic Web Conference, Sydney, NSW, Australia, October 21-25, 2013, Proceedings, Part I 12 . Springer, 542-557.
+- [33] [Nigel Small. 2024. py2neo. https://github.com/neo4j-contrib/py2neo.](https://github.com/neo4j-contrib/py2neo)
+- [34] Yelda Unal and Halit Oguztuzun. 2018. Migration of data from relational database to graph database. In Proceedings of the 8th International Conference on Information Systems and Technologies . 1-5.
+- [35] HR Vyawahare, Pravin P Karde, and Vilas M Thakare. 2018. A hybrid database approach using graph and relational database. In 2018 International Conference on Research in Intelligent and Computing in Engineering (RICE) . IEEE, 1-4.
+- [36] Quan Wang, Zhendong Mao, Bin Wang, and Li Guo. 2017. Knowledge graph embedding: A survey of approaches and applications. IEEE Transactions on Knowledge and Data Engineering 29, 12 (2017), 2724-2743.
+- [37] Yanan Wang, Michihiro Yasunaga, Hongyu Ren, Shinya Wada, and Jure Leskovec. 2023. Vqa-gnn: Reasoning with multimodal knowledge via graph neural networks for visual question answering. In Proceedings of the IEEE/CVF International Conference on Computer Vision . 21582-21592.
+- [38] Zhen Wang, Jianwen Zhang, Jianlin Feng, and Zheng Chen. 2014. Knowledge graph embedding by translating on hyperplanes. In Proceedings of the AAAI conference on artificial intelligence , Vol. 28.
+- [39] Tianbao Xie, Chen Henry Wu, Peng Shi, Ruiqi Zhong, Torsten Scholak, Michihiro Yasunaga, Chien-Sheng Wu, Ming Zhong, Pengcheng Yin, Sida I Wang, et al. 2022. Unifiedskg: Unifying and multi-tasking structured knowledge grounding with text-to-text language models. arXiv preprint arXiv:2201.05966 (2022).
+- [40] Michihiro Yasunaga, Antoine Bosselut, Hongyu Ren, Xikun Zhang, Christopher D Manning, Percy S Liang, and Jure Leskovec. 2022. Deep bidirectional languageknowledge graph pretraining. Advances in Neural Information Processing Systems 35 (2022), 37309-37323.
+- [41] Michihiro Yasunaga, Hongyu Ren, Antoine Bosselut, Percy Liang, and Jure Leskovec. 2021. QA-GNN: Reasoning with language models and knowledge graphs for question answering. arXiv preprint arXiv:2104.06378 (2021).
+- [42] Xiangxiang Zeng, Xinqi Tu, Yuansheng Liu, Xiangzheng Fu, and Yansen Su. 2022. Toward better drug discovery with knowledge graph. Current opinion in structural biology 72 (2022), 114-126.
+- [43] Meihui Zhang, Marios Hadjieleftheriou, Beng Chin Ooi, Cecilia M Procopiuc, and Divesh Srivastava. 2011. Automatic discovery of attributes in relational databases. In Proceedings of the 2011 ACM SIGMOD International Conference on Management of data . 109-120.

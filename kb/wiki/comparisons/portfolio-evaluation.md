@@ -3,16 +3,16 @@ type: comparison
 domain: shared
 project: shared
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-27
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p4-availability-nowcasting
-  - src-2026-06-tsf-literature-review
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p4-availability-nowcasting
+- src-2026-06-tsf-literature-review
 tags:
-  - comparison
-  - portfolio
+- comparison
+- portfolio
 ---
 
 # Portfolio evaluation matrix

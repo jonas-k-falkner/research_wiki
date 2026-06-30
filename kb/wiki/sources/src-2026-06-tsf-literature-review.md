@@ -3,16 +3,16 @@ type: source
 domain: timeseries-forecasting
 project: P1
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-27
 sources:
-  - src-2026-06-tsf-literature-review
+- src-2026-06-tsf-literature-review
 tags:
-  - literature-review
-  - deep-research
-  - forecasting
-  - covariate-selection
+- literature-review
+- deep-research
+- forecasting
+- covariate-selection
 ---
 
 # Source: TSF literature review (deep-research synthesis, Jan 2024–mid 2026)

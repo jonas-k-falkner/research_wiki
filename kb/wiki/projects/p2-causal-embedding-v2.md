@@ -3,16 +3,16 @@ type: project
 domain: embedding-models
 project: P2
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p2-causal-embedding-model
-  - src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p2-causal-embedding-model
+- src-2026-06-p1-cluster-pretrained-deep-models
 tags:
-  - embeddings
-  - causality
-  - covariate-retrieval
+- embeddings
+- causality
+- covariate-retrieval
 ---
 
 # P2 — Causal embedding model v2

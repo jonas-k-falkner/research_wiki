@@ -3,17 +3,17 @@ type: source
 domain: shared
 project: shared
 status: active
-confidence: high
 stage: seed
+confidence: high
 updated: 2026-06-25
 sources:
-  - src-2026-05-sybilion-ai-projects-review
+- src-2026-05-sybilion-ai-projects-review
 tags:
-  - portfolio
-  - strategy
-  - p1
-  - p2
-  - p3
+- portfolio
+- strategy
+- p1
+- p2
+- p3
 ---
 
 # Source: Sybilion AI projects review

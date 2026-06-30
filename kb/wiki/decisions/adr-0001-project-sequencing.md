@@ -3,15 +3,15 @@ type: decision
 domain: shared
 project: shared
 status: active
-confidence: high
 stage: seed
+confidence: high
 updated: 2026-06-25
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - adr
-  - sequencing
+- adr
+- sequencing
 ---
 
 # ADR-0001: Project sequencing

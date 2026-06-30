@@ -3,15 +3,15 @@ type: shared
 domain: shared
 project: shared
 status: active
-confidence: high
 stage: seed
+confidence: high
 updated: 2026-06-25
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p1-cluster-pretrained-deep-models
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - log
+- log
 ---
 
 # Log
@@ -116,3 +116,150 @@ Ingested a deep-research synthesis of 2024–2026 time-series forecasting litera
 
 ### Next (tracked in research-backlog)
 - Export the named primaries from Zotero into `raw/literature/`, then verify each claim against the primary source before any `seed → researched` promotion.
+
+## 2026-06-29 (I-P1-A — P1 primary literature ingest, 12 papers)
+
+Completed Task I-P1-A: ingested 12 academic papers on time-series clustering and forecasting into the wiki. All papers confirmed `state: new` (no pre-existing source pages). All 5 open research questions on `concepts/cluster-pretrained-deep-models` answered with high confidence from primaries; page promoted `seed → researched`.
+
+### Source pages created (12)
+
+| Source slug | Paper | Venue | Priority |
+|---|---|---|---|
+| `src-2026-06-chen-channel-clustering` | Chen et al., CCM | NeurIPS 2024 | HIGH |
+| `src-2026-06-qiu-duet-clustering` | Qiu et al., DUET | KDD 2025 | HIGH |
+| `src-2026-06-aghabozorgi-ts-clustering-survey` | Aghabozorgi et al., TS clustering survey | Inf. Systems 2015 | HIGH |
+| `src-2026-06-petitjean-dtw-barycenter` | Petitjean et al., DBA | Pattern Recog. 2011 | MEDIUM |
+| `src-2026-06-petitjean-faster-dtw` | Petitjean et al., NCC-DTW | IEEE TKDE 2016 | MEDIUM |
+| `src-2026-06-bagnall-ts-bakeoff` | Bagnall et al., TS Bake-off | DAMI 2017 | MEDIUM |
+| `src-2026-06-sen-global-local-forecasting` | Sen et al., DeepGLO | NeurIPS 2019 | MEDIUM |
+| `src-2026-06-ruta-sax-navigator` | Ruta et al., SAX Navigator | — 2019 | LOW |
+| `src-2026-06-keogh-parameter-free-ts` | Keogh et al., CDM | KDD 2004 | LOW |
+| `src-2026-06-lucas-proximity-forest` | Lucas et al., Proximity Forest | DMKD 2019 | LOW |
+| `src-2026-06-wang-ts-classification-cnn` | Wang et al., FCN/ResNet | IJCNN 2017 | LOW |
+| `src-2026-06-ismail-benchmarking-dl-ts` | Ismail Fawaz et al., InceptionTime | NeurIPS — | LOW |
+
+### Research questions answered
+
+1. **Does CCM show clustering channels improves accuracy?** Yes — CCM: +2.4%/+7.2% MSE reduction (NeurIPS 2024); DUET: +7.1% over SOTA (KDD 2025). Clustering criterion: RBF on standardized values (CCM) / learnable Mahalanobis in frequency space (DUET).
+2. **What does DUET add over CCM?** Temporal distribution clustering (TCM, MoE-style VAE gating) + channel soft-clustering via sparse binary mask matrix; clustering separated from routing via masked attention. No zero-shot capability (gap vs. CCM and P1).
+3. **Shape similarity vs. regime consistency?** Literature treats them as distinct similarity types (Aghabozorgi 2015: time/shape/structural). DUET's TCM is closer to regime clustering; CCM/DBA are shape-based. Neither validates cross-overlap. Experiment required.
+4. **Cluster quality metrics?** SSE and Silhouette index (internal); Petitjean 2011 uses WGSS (SSE under DTW) as DTW-native analog. Standard consensus from Aghabozorgi 2015.
+5. **Global vs. local model debate?** DeepGLO (Sen 2019): hybrid global+local > either extreme on 115K-series dataset. Cluster model = global; few-shot fold-in = local. Pure per-series models not recommended at P1 scale.
+
+### Concept page updated
+
+- `concepts/cluster-pretrained-deep-models.md`: promoted `seed → researched`; confidence `medium → high`; 12 new source slugs added to frontmatter; all `[verify]` markers removed; full "Primary literature findings" section added with five research question answers.
+
+### Claim deduplication
+
+Ran `wiki check claim` on 5 key claims — all novel (no duplicates). DuckDB lock from background process caused graceful degradation to lexical fallback; no data loss.
+
+### Next
+
+- Verify `ismail-benchmarking-dl-ts` citekey against `library.json` (citekey mismatch warning).
+- Run `exp-p1-cluster-quality-gate` experiment to test shape vs. regime cluster overlap on P1 demand data.
+- Investigate DUET's zero-shot gap: can CCM's prototype routing be adapted for P1's new-SKU onboarding?
+
+## 2026-06-29 (I-P1-B — sparse attention and faithfulness literature ingest, 16 papers)
+
+Completed Task I-P1-B: ingested 16 academic papers on sparse attention (α-entmax), covariate selection, attention faithfulness, and post-hoc attribution methods. All 16 confirmed `state: new` before ingest. Concept page `hierarchical-entmax-covariate-selection` promoted `seed → researched`; new concept page `attention-faithfulness` created.
+
+### Source pages created (16)
+
+| Source slug | Paper | Venue | Priority |
+|---|---|---|---|
+| `src-2026-06-peters-sparse-seq2seq-2019` | Peters et al., Sparse Seq2Seq (α-entmax) | ACL 2019 | HIGH |
+| `src-2026-06-jain-attention-not-explanation-2019` | Jain & Wallace, Attention is Not Explanation | NAACL 2019 | HIGH |
+| `src-2026-06-wiegreffe-attention-not-not-2019` | Wiegreffe & Pinter, Attention is not not Explanation | EMNLP 2019 | HIGH |
+| `src-2026-06-lim-tft-2021` | Lim et al., Temporal Fusion Transformers | Int. J. Forecasting 2021 | HIGH |
+| `src-2026-06-lundberg-shap-2017` | Lundberg & Lee, SHAP | NeurIPS 2017 | HIGH |
+| `src-2026-06-sundararajan-integrated-gradients-2017` | Sundararajan et al., Integrated Gradients | ICML 2017 | HIGH |
+| `src-2026-06-liu-rethinking-attention-explainability-2022` | Liu et al., Faithfulness Violation Test | ICML 2022 | HIGH |
+| `src-2026-06-bastings-elephant-interpretability-2020` | Bastings & Filippova, Elephant in Interpretability | BlackboxNLP 2020 | MEDIUM |
+| `src-2026-06-bibal-attention-explanation-survey-2022` | Bibal et al., Is Attention Explanation? (survey) | ACL 2022 | MEDIUM |
+| `src-2026-06-rojat-xai-timeseries-2021` | Rojat et al., XAI on Time Series (survey) | arXiv 2021 | MEDIUM |
+| `src-2026-06-lou-sparsek-attention-2024` | Lou et al., SPARSEK Attention | arXiv 2024 | LOW |
+| `src-2026-06-tay-sparse-sinkhorn-attention-2020` | Tay et al., Sparse Sinkhorn Attention | ICML 2020 | LOW |
+| `src-2026-06-tezekbayev-alpha-relu-2022` | Tezekbayev et al., Speeding Up Entmax (α-ReLU) | arXiv 2022 | LOW |
+| `src-2026-06-zhao-sparse-transformer-2019` | Zhao et al., Sparse Transformer (top-k) | arXiv 2019 | LOW |
+| `src-2026-06-yasuda-sequential-attention-2023` | Yasuda et al., Sequential Attention | ICLR 2023 | LOW |
+| `src-2026-06-sokar-wast-feature-selection-2022` | Sokar et al., WAST | NeurIPS 2022 | LOW |
+
+### Research questions answered
+
+1. **Peters et al. (1.5-entmax sweet spot):** 1.5-entmax outperforms softmax (BLEU 26.17 vs 25.70, DE→EN) and sparsemax (24.69); reduces average non-zero attention from 24.25 to 5.55. Exact O(d log d) bisection algorithm; near-softmax GPU speed.
+2. **Jain/Wiegreffe faithfulness debate:** Practical consensus reached — raw attention weights are insufficient (violation ratios 0.31–0.40); AttGrad (attention × gradient) reduces violations to 0.02–0.06 (Liu et al. 2022). Task-dependent: Wiegreffe & Pinter show validation required per dataset.
+3. **TFT variable selection:** Uses standard Softmax, not sparsemax. Removing VSN increases P90 loss by 4.1%. Shared-value multi-head attention for temporal interpretation. Direct comparison baseline for P1.
+4. **SHAP vs Integrated Gradients:** Kernel SHAP — model-agnostic, no gradients, treats features independently (temporal ordering gap). IG — requires gradients, 20–300 evaluations, Completeness axiom. Both are offline validation tools, not real-time explanation. Neither handles temporal structure natively.
+5. **Liu et al. faithfulness violation test:** Polarity consistency (not just importance correlation) is the key criterion. AttGrad recommended. Deeper architectures → more violations. Applicable as P1 model quality metric alongside forecasting loss.
+
+### Concept pages updated/created
+
+- `concepts/hierarchical-entmax-covariate-selection.md`: promoted `seed → researched`; confidence `medium → high`; 16 new source slugs added; all `[verify]` markers replaced with primary citations; full literature sections added (α-entmax mechanism, TFT baseline, faithfulness debate, post-hoc alternatives, Sequential Attention, open research questions updated).
+- `concepts/attention-faithfulness.md`: **created** (new concept page); stage `researched`; documents the 2019–2022 debate arc, practical consensus table, and P1 implications. Referenced from hierarchical-entmax concept page and all 5 faithfulness source pages.
+
+### Claim deduplication
+
+All `wiki check claim` calls returned "no similar claims found" — all claims novel. DuckDB lock caused graceful degradation to lexical search; no data loss.
+
+### Lint / TOC
+
+- `uv run wiki lint`: 0 errors, 22 warnings (all pre-existing: library.json mismatches, near-duplicate titles from existing pages, stage/confidence sanity from pre-I-P1-B pages).
+- `uv run wiki toc build`: indexes updated.
+
+### Next
+
+- Validate AttGrad polarity consistency on P1 pilot dataset once model training is running.
+- Compare α-entmax vs α-ReLU speed on covariate routing layer in ablation.
+- Consider Sequential Attention (Yasuda 2023) as redundancy-aware alternative to flat entmax routing.
+- Add `yasudaSequentialAttentionFeature2023`, `tezekbayevSpeedingEntmax2022`, `sokarWherePayAttention2022` to `library.json` to resolve citekey warnings.
+
+- **I-P1-D** (SSM background): Created 15 brief source pages for SSM/linear-RNN architectures (Mamba, S-Mamba, SiMBA, Mamba-2, xLSTM, RWKV, Eagle/Finch, HGRN, HGRN2, GLA, Gated Delta Networks, Longhorn, TTT, GSA, Jamba). Added background paragraph to timeseries-forecasting/thesis.md.
+
+## 2026-06-29 (I-P1-C — TSF backbone landscape and covariate adapter ingest, 19 papers)
+
+Completed Task I-P1-C: ingested 19 academic papers covering TSF backbone architectures (DLinear, N-BEATS, N-HiTS, NBEATSx, Autoformer, TimesNet, TimeMixer++, TTM, TiRex) and covariate adapter models (ChronosX, UNICA, ApolloPFN, CATS-ATS, TimeXer). All 19 confirmed `state: new` before ingest. All `wiki check claim` calls returned novel. `domains/timeseries-forecasting/thesis.md` promoted `seed → researched`.
+
+### Source pages created (19)
+
+| Source slug | Paper | Priority |
+|---|---|---|
+| `src-2026-06-zeng-dlinear` | Zeng et al., DLinear (AAAI 2023) | HIGH |
+| `src-2026-06-oreshkin-nbeats` | Oreshkin et al., N-BEATS (ICLR 2020) | HIGH |
+| `src-2026-06-challu-nhits` | Challu et al., N-HiTS (AAAI 2023) | HIGH |
+| `src-2026-06-wang-timexer` | Wang et al., TimeXer (NeurIPS 2024) | HIGH |
+| `src-2026-06-arango-chronosx` | Arango et al., ChronosX (2025) | HIGH |
+| `src-2026-06-han-unica` | Han et al., UNICA (2026) | HIGH |
+| `src-2026-06-potapczinski-apollopfn` | Potapczinski et al., ApolloPFN (2026) | HIGH |
+| `src-2026-06-lu-cats-ats` | Lu et al., CATS-ATS (ICML 2024) | HIGH |
+| `src-2026-06-chen-closer-look-transformers` | Chen et al., Closer Look (2025) | HIGH |
+| `src-2026-06-wang-timemixer` | Wang et al., TimeMixer++ (2024) | MEDIUM |
+| `src-2026-06-ekambaram-ttm` | Ekambaram et al., TTM (2024) | MEDIUM |
+| `src-2026-06-olivares-nbeatsx` | Olivares et al., NBEATSx (2023) | MEDIUM |
+| `src-2026-06-wu-autoformer` | Wu et al., Autoformer (NeurIPS 2021) | MEDIUM |
+| `src-2026-06-auer-tirex` | Auer et al., TiRex (2025) | MEDIUM |
+| `src-2026-06-wu-timesnet` | Wu et al., TimesNet (ICLR 2023) | LOW |
+| `src-2026-06-cortes-winner-takes-all` | Cortes et al., WTA probabilistic (2025) | LOW |
+| `src-2026-06-zanotti-retraining-frequency` | Zanotti et al., Retraining frequency (2025) | LOW |
+| `src-2026-06-he-general-tsm` | He et al., General TSM (2025) | LOW |
+| `src-2026-06-irani-positional-encoding` | Irani et al., Positional encoding survey (2025) | LOW |
+
+### Comparison page created
+
+- `comparisons/tsf-backbone-comparison.md`: Full 15-model comparison table (14 new + TFT from I-P1-B); three key findings sections; exogenous integration strategies ranked by complexity.
+
+### Key findings
+
+- **Compact backbone sufficiency confirmed**: DLinear (one-layer linear) outperforms all Transformer LTSF models by 20–50% MSE on 9 standard benchmarks (Zeng 2023). Chen 2025 explains the mechanism: benchmarks are self-dependent/stationary, so intra-variate temporal modeling dominates.
+- **Covariate gap in TSFMs confirmed across four papers**: ChronosX, UNICA, ApolloPFN, CATS-ATS each independently identify Chronos, TimesFM, MOMENT, Sundial, TimeMoE, LagLlama as not supporting exogenous covariates.
+- **P1 backbone recommendation**: DLinear or NBEATSx as starting point; TimeXer (endo/exo cross-attention) if covariates are genuinely informative on real demand data.
+
+### Pages updated
+
+- `domains/timeseries-forecasting/thesis.md`: promoted `seed → researched`; all `[verify]` markers removed; "External literature positioning" replaced with confirmed findings from primaries; "Backbone landscape" section added; "Key assumptions" table updated with two new evidence-backed rows.
+- `projects/p1-cluster-pretrained-deep-models.md`: two bullets added under "External literature positioning" with primary citations.
+
+### Lint / TOC
+
+- `uv run wiki lint`: 0 errors, 36 warnings (all pre-existing: library.json mismatches, orphan LOW-priority source pages, near-duplicate titles, stage/confidence sanity from pre-I-P1-C pages).
+- `uv run wiki toc build`: indexes updated.

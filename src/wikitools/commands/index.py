@@ -377,11 +377,10 @@ def build_index(
             but use more memory.  Progress is logged after each batch.
     """
     con = _open_db(kb_root)
+    # Drop and recreate so schema changes (e.g. embedding dim) take effect on full rebuilds.
+    con.execute("DROP TABLE IF EXISTS chunks")
+    con.execute("DROP TABLE IF EXISTS meta")
     _ensure_schema(con)
-
-    # Drop existing content for full rebuild
-    con.execute("DELETE FROM chunks")
-    con.execute("DELETE FROM meta")
 
     wiki_chunks = _collect_wiki_chunks(kb_root)
     txt_chunks = _collect_txt_chunks(kb_root)

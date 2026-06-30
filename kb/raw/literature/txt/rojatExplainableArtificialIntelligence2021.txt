@@ -1,0 +1,463 @@
+## Explainable Artificial Intelligence (XAI) on Time Series Data: A Survey
+
+Thomas Rojat, Rapha¨ el Puget, David Filliat, Javier Del Ser, Rodolphe Gelin, and Natalia D´ ıaz-Rodr´ ıguez
+
+Abstract -Most of state of the art methods applied on time series consist of deep learning methods that are too complex to be interpreted. This lack of interpretability is a major drawback, as several applications in the real world are critical tasks, such as the medical field or the autonomous driving field. The explainability of models applied on time series has not gather much attention compared to the computer vision or the natural language processing fields. In this paper, we present an overview of existing explainable AI (XAI) methods applied on time series and illustrate the type of explanations they produce. We also provide a reflection on the impact of these explanation methods to provide confidence and trust in the AI systems.
+
+Index Terms -Explainable Artificial Intelligence, Deep learning, Time Series, Convolutional Neural Networks, Recurrent Neural Networks
+
+## I. INTRODUCTION
+
+Time series are ubiquitous in nature, as they can represent any variable that varies over time. In industry, too, there are areas such as the medical field where temporal data is of particular importance. Thus, machine learning applied to temporal data is of particular importance as it has many potential applications in various fields. Several tasks can be performed by the machine learning methods applied to time series, the main ones being time series classification, time series forecasting, and time series clustering. To perform these tasks, deep learning (DL) methods are since several years state of the art models for problems with time series as input data. Recurrent methods are adapted to work with time series thanks to their memory state and their ability to learn relations through time. Convolutional neural networks (CNNs) with temporal convolutional layers are able to build temporal relationships as well, and generate high level features from raw data. The introduction of those methods to work on time series enable to increase the accuracy of the models and avoid the heavy data pre-processing of former methods that could not directly take as input raw data. However, one of the major drawback of these methods is the lack of interpretability due
+
+- T. Rojat is with U2IS, ENSTA Paris, Institut Polytechnique Paris and Inria Flowers and Renault, France, France. Email: thomas.rojat@renault.com.
+- R. Puget is with Renault, France, France. email: raphael.puget@renault.com.
+
+D. Filliat is with U2IS, ENSTA Paris, Institut Polytechnique Paris and Inria Flowers, France. Email: david.filliat@ensta-paris.fr.
+
+- J. Del Ser is with TECNALIA, Basque Research and Technology Alliance (BRTA), 48160 Derio, Spain and the University of the Basque Country (UPV/EHU), 48013 Bilbao, Spain- Email: javier.delser@tecnalia.com.
+- R. Gelin is with Renault France, France. Email: rodolphe.gelin@renault.com.
+
+N. D´ ıaz-Rodr´ ıguez is with U2IS, ENSTA Paris, Institut Polytechnique Paris, Inria Flowers Team, 828 boulevard des Mar´ echaux, 91120 Palaiseau, France. Email: natalia.diaz@ensta-paris.fr
+
+to their high complexity. EXplainable Artificial Intelligence (XAI) is therefore a key concern for time series as most state of the art methods are not interpretable. This is a major drawback, as several applications of time series in the real world, such as the medical field or the autonomous driving field, are of critical importance and therefore require interpretability.
+
+Although a lot of work has been done on explainability in the computer vision and natural language processing (NLP) fields, there is still a lot of work to be done to explain methods applied on time series. This might be caused by the unintuitive nature of time series [1], that we can not understand at first sight. Indeed, when a human being looks at a photo, or reads a text, he intuitively and instinctively understands the underlying information contained in the data. Although temporal data is ubiquitous in nature, through all forms of sound for example, humans are not used to representing this temporal data in the form of a signal that varies as a function of time. This may have an impact on the EXplainable Artificial Intelligence (XAI) applied to time series, especially for the evaluation of explanations, where qualitative assessments may have less potential than for the domains of computer vision or natural language explanation.We need some expert knowledge or additional methods to leverage the underlying information present in the data. This problem might explain why, as for the computer vision field, a lot of existing methods focus on highlighting the parts of the input responsible for a prediction [2] [3].
+
+Motivated by the rationale above, the aim of this overview is to critically examine the current state of the art related to the explainability of models learned from time series data. Specifically, the contributions of this survey can be summarized as follows:
+
+- An overview of the XAI methods applied on time series through their methodology, scope, and targets.
+- An overview of explainable methods that can be used to increase the confidence, stability and robustness of models.
+- An overview of the different approaches to qualitative and quantitative evaluate explanations provided by XAI methods applied to time series.
+- A discussion on the state of the art of explainability methods applied on time series, its limitations and potential lines of research.
+
+The rest of the paper is organized as follows: First we present some important definitions of the XAI field, and the concepts of confidence, robustness and trustworthiness in Section II. Then, we present an overview of XAI methods applied on time series through their methodology in III, scope in Section IV and targets in Section V. Then, we tackle the evaluation of the explanations in the Section VI. Finally, Section VII discusses the main outcomes of the paper. Figure 1 illustrates schematically the overall structure followed in our survey.
+
+Fig. 1: Questions answered throughout the survey and their connection to the different sections in which it is structured.
+
+<!-- image -->
+
+## II. XAI TERMINOLOGY AND DEFINITIONS
+
+The explainability methods always have one or more objectives to achieve through the explanations that generate. These goals will have their importance in the choice of the methodology, the scope of the explanations, and the targets. The following is a list of potential purposes of explainability methods that are necessary to know for understanding the rest of the paper, which we relate to each other in the knowledge graph depicted in Figure 2:
+
+- Explainability : An ' active characteristic of a model, denoting any action or procedure taken by a model with the intent of classifying or detailing its internal functions ' [4], [5]. ' Given an audience, an explainable Artificial Intelligence is one that produces details or reasons to make its functioning clear or easy to understand ' [5].
+- Interpretability : The passive characteristic of a model referring to the level at which a given model makes sense for a human observer [4]. An interpretable system is a system where a user cannot only see, but also study how inputs are mathematically mapped to outputs [6].
+- Trustworthiness : The ' confidence of whether a model will act as intended when facing a given problem ' [4]. Trust can be achieved when the model can provide ' detailed explanations ' of its decisions [6]. A person may be more confident using a model if he understands it [7].
+- Interactivity : The interactivity with the user is ' one of the goals targeted by an explainable machine learning model ' [5]. This is specially important in fields where 'users are of great importance'.
+- Stability : A model is stable if it is not misled by small perturbations that might occur in the real world, such as noises due to the source of data itself (e.g. thermal noise in a sensor).
+- Robustness : A model is considered robust if it is able to withstand disturbances that may have been intentionally created by humans.
+- Reproducibility : A model is reproducible if it repeatedly obtains similar results when run several times on the same dataset.
+- Confidence : The confidence is the probability of an event coming true. The goal is to quantify the trust in the decision [8]. It is defined in [9] ' measure of risk as to how sure users are that they received the correct suggestions by the AI-based model '. A model with a high confident score on its predictions should be reproducible as it should get similar predictions when it is repeatedly run on the same dataset.
+
+Fig. 2: Knowledge graph relating all the purposes of explainability methods for time series.
+
+<!-- image -->
+
+The whole purpose of explainability is to explain models that are too abstract to be interpretable by themselves. The need for explainability arises in certain practical scenarios when the task to perform is both too complex to be solved by a simple interpretable model, and too critical to be solved by a model that we cannot understand, and therefore cannot trust.
+
+Providing trustworthiness by explaining the inner behavior of these complex models can be one way to overcome these limitations. Most of the methods covered in this survey aim to provide trustworthiness in the model they explain. The interactivity with the final user is often neglected. Many methods provide insights on model behaviors without considering how a final user would receive the information provided by their methods.
+
+The explainability brought by most of the methods presented in this survey can not assert the stability, robustness, and confidence in machine learning (ML) models applied on time series. This is why, to the best of our knowledge, there still are needs for developing metrics that will guarantee the right behavior of a model. Indeed there is little interest in providing an explanation if a small input noise can radically change the model behavior, making this explanation valid only for a very specific example.
+
+As shown in Figure 3, in the remainder of this section we elaborate on how XAI methods for time series analysis can contribute to the stability, robustness and confidence of systems with this particular kind of data at their core, delving into the contributions reported to date where such purposes have been targeted.
+
+Fig. 3: Rationale connecting the contents of Section II.
+
+<!-- image -->
+
+## A. Stability, robustness and confidence of systems
+
+It should be necessary for the certification of Artificial Intelligence (AI) systems to carefully assess the risks of the impacts of the Artificial Intelligence system on its environment [10]. Let us take the example of an automated car. The risks involved are the road users that can be injured or killed if the automated system takes one wrong decision. The task to perform is critical and the risks associated are high.
+
+For a classification task, the metric always used to certify the quality of an AI system is the accuracy. It gives us the percentage of the examples that have been correctly classified, which is a satisfying insight to assess the quality of an AI system in most cases. However, some aspects are not covered by the accuracy. For instance, it cannot certify that the model output does not change when a small perturbation is applied on the input or the model, or when a noise is added in the input. Therefore, a high accuracy does not ensure the good behavior of the system, because such situations might occur in the real world. When the task to perform is critical, additional metrics are needed because we need to be sure that the AI system behaves well in every situation.
+
+The study of the stability, robustness, and confidence of AI system might be a way to tackle this limitations.
+
+1) Stability: As stated above, a model is stable if its output does not change when a small perturbation is applied on the input or on the model. These perturbations can occur in the real world.
+
+Let us take again the example of an automated car. Let us imagine that the car arrives in front of a stop sign. This stop sign is unusual because it has a white sticker sticked on its red part [11]. Eykholt et al. [11] show in their experiments that all the model deployed in the autonomous car missclassified these modified stop signs. However, it is crucial that the model identifies it correctly, because otherwise, it could lead to an accident. When facing this perturbation in the input sample, a stable model should be able to correctly classify the sample as a stop sign. If not, it should at least be able to warn the system that it is not certain of this prediction, as the situation encountered is unusual.
+
+2) Robustness: A robust model is defined as a model that can withstand adversarial attacks. Morgulis et al. [12] conduct an experiment in which they perform adversarial attacks on traffic sign images by adding some imperceptible noise into the image such that human eyes cannot differentiate the real image and the modified one. They show that with the right amount of noise, the model deployed in the autonomous car is not able to identify correctly the objects in the modified images. The models that are fooled by these attacks cannot be labeled as robust. This might be a major security concern as some hackers can endanger the drivers life on the road simply by conducting these attacks on the input samples representing every type of traffic signs.
+
+Another type of intentional perturbation of the inputs in order to modify the output of a given model are counterfactuals. Counterfactuals are defined in [13] as 'the smallest change to the feature values that changes the prediction to a predefined output' . While perturbations generated by adversarial attacks are undetectable by humans, counterfactual perturbations are plausible and realistic because the modified samples are contained in the underlying distribution of data that can be encountered in the real world.
+
+3) Confidence: When an AI system encounters attacks and perturbations similar as those describe in Sections II-A1 and II-A2, we cannot have the guarantee that the model will remain stable and robust. There always might be a perturbation, or a noise that can mislead the system, and lead to a potential accident in the case of the automated car.
+
+Therefore, training the system to handle noises and perturbations might never be enough to guarantee the robustness and the stability of a system. However, what a model can potentially do is assess how unusual is a prediction vector compared to other points in the validation dataset [14]. It could identify examples that are far from the input data distribution, and thus identify samples that the model cannot classify with confidence. Thus, to every prediction could be associated a score relating how confident is the model in its decision. We could define a threshold, so that if the model confidence score is below this threshold, the model does not know and is not able to take a decision.
+
+Generally, uncertainty can be classified into two categories, aleatoric uncertainty and epistemic uncertainty. Aleatoric uncertainty is caused by the hazards that can occur when performing the same experiment several times and that can therefore change its result. Epistemic uncertainty is of different nature, it is due to limited data and knowledge. It occurs when a model encounters an example far from the distribution of input data, or when a model has difficulty extrapolating between the different examples in the learning base and thus generalizing.
+
+We will focus on epistemic uncertainty in this paper, and we will see in Section V-B how the explainability provided by XAI methods can be used to increase the robustness and the stability of a model by reducing epistemic uncertainty, and thus provide confidence in its outcomes.
+
+## B. User Trust
+
+Even if the explainability methods can bring confidence, explanations naturally bring trustworthiness thanks to the information they provide to better understand the model and its predictions. While confidence and robustness may be approached with technical considerations, the trust of a user can also be built by other means than objective metrics. The trust of a user in an AI system can be both defined subjectively and objectively [7]. Interactions between the user and the AI system might be a key point to build trust between the automated system and the user [15]. Without trust, users will not rely in automated systems, especially to conduct critical tasks. In automated driving for instance, AI systems suffer from the lack of trust of the users in the vehicle's autonomy [16]. Such systems might suffer from a lack of feedback [17] explaining for example why a specific action has been conducted by the automated system. These interactions are specifically important in semi-automated systems [17].
+
+The interactions are particularly important when the AI is in opposition to a user or a business stakeholder [18]. The user might try to find why he disagrees with the AI prediction. He might therefore either find an example of failure of the system, or learn from its outcomes. This might not be achieved without proper feedback and interaction between the AI system and the user [15]. Without it, it is rather unlikely that the driver handles the uncertainty and risk associated with giving driving control to the vehicle's autonomy [19].
+
+One important concern is how to provide efficient interaction and feedback to the user [17]. Providing the explanation before rather than after the action is likely to lead to greater trust in the autonomous system [15]. Explaining why and how an action will be conducted might be appropriate to explain to users the action that is going to be conducted by the system [17]. In semi-automated driving systems, providing drivers with an option to decide if the automated car will perform the action or not should lead to more trust beyond just providing an explanation [15]. The feedback could also be from the human to the system, by giving the possibility to edit the system [20] whenever the human identifies a failure. This would be an example of collaborative exploration that leads to improvement of both the user and the system.
+
+All the studies around the interactions between AI and humans should be human-centered [17]. A stated in [21], ' we must design our technologies for the way people actually behave, not the way we would like them to behave '. These involve the related notions of inclusion and accessibility [22], [23], related to the FAT and FATE AI (Fairness, Accessibility, Transparency, Ethics). The human responses to feedback and interaction with the system should be analyzed to progressively design interaction systems that lead to learn continuously [24] and increase trust and acceptance of the system.
+
+Most of the explainable methods applied on time series produce explanations for the developers. Those methods focus on the technical aspects of their models without considering the human dimension of the explainability. More generally, for other types of users, ML is not the only field to consider when designing an explainable automated system. The psychology of the driver, for instance, is something to consider to be sure that the explanations provided will be useful for the user.
+
+## III. XAI TECHNIQUES FOR TIME SERIES
+
+We will now present explainable methods that increase the trust in the ML model by explaining the prediction, or explaining what the model has learnt. All the methods we will present are applied on time series. First, we study post-hoc methods explaining convolutional neural networks (CNNs). Post-hoc methods approximate the behavior of a model by extracting relationships between feature values and predictions [25]. Post-hoc methods can be model-agnostic, usable on every type of models, or model-specific, only usable on one type of model. They are opposed to Ante-hoc methods that incorporates explainability into the structure of the model, that is thus already explainable at the end of the training phase.
+
+The post-hoc methods that we will present are all specific to convolutional neural network (Table I) (Sections III-A1 and III-A2). They are all originally used in the computer vision field, and can be separated in two sections, back-propagation based methods and perturbation-based methods. Then, we will present some Ante-Hoc explainability methods specific to recurrent neural networks (RNNs), that might also be applied on the natural language processing (NLP) field, in Section III-B. Finally, we will present some explainable data mining methods applied on time series in Section III-C and methods that provide explainability through representative examples in Section III-D.
+
+## A. XAI for Convolutional Neural Networks
+
+We identify two types of methods to explain convolutional neural networks applied on time series, backpropagation-based methods and perturbation-based methods (Table I).
+
+1) Backpropagation-based methods: Backpropagation methods provide explanations by doing a single forward and backward pass in the network. Most of the backpropagationbased explanation methods originally used to explain deep learning methods applied on images can also be used on DL methods applied on time series.
+
+Wang et al. [26], Fawaz et al. [27], and Oviedo et al. [28] use the class activation mapping (CAM) [29], a post-hoc method to provide explanations that highlights the regions in the input data that have the most influence on CNNs output classification prediction [29]. CAM can highlight sub-sequences in the input time series that are maximally representative of a class. It relies on the presence of global average pooling layers at the end of the convolutional layers. The global pooling layer takes N channels and returns its spatial average values. Channels with higher activations have higher signals. Then, a weight is assigned per filter by using a dense linear layer with a softmax activation layer. Assuming there are n classes, n heatmaps are then created by computing the weighted sum of N fi lters for every class. Finally, by up-sampling the class activation maps to the size of the input time series, we can identify the sub-sequences most relevant to any particular class. The class activation mapping method has the disadvantage that the model explained needs to have a specific architecture. A global average pooling layer needs to be added after the convolutional layers. Wang et al. [26] conduct their experiments on the UCR time series repository datasets [30] with a little more than 80 datasets, which ares commonly used to evaluate models applied on time series. Fawaz et al. [27] perform surgical skills evaluation using the JIGSAWS dataset [31], and Oviedo et al. [28] carry out time series classification from X-ray diffraction datasets.
+
+On the other hand, Strodthoff et al. [32], Siddiqui et al. [1] and Cho et al. [33] use the 'Gradient*Input' method which computes the partial derivative of the current layer with respect to the input and multiplies it by the input itself. Therefore, they compute the neurons and filters activation with respect to one specific instance. The input subsequences processed by the most activated filters have the highest contribution to the prediction (Fig. 4) § .
+
+Fig. 4: Usage of 'Gradient*Input' to identify the contribution of the input raw data when performing time series classification. It extracts the highly activated nodes in a channel and visualize the input sub-sequences that contribute to the highly activated nodes. Then, each extracted sub-sequence is assigned to a cluster of similar patterns. Figure reproduced with authorization from Cho et al. [33].
+
+<!-- image -->
+
+.
+
+The 'Gradient*Input' approach can be used both for classification and regression tasks [1] as it only needs the neurons activations to produce its explanations. For the experiments, Strodthoff et al. [32] detect myocardial infarction using an ECG dataset, the PTB diagnostic ECG dataset [34], [35]. Siddiqui et al. [1] create a dummy dataset with threee features, the pressure, the temperature, and the torque to perform time series classification. Finally, Cho et al. [33] interpret deep temporal representations using two open source time series datasets: UWaveGestureLibraryAll [36], a set of eight simple gestures generated from accelerometers, and Smartphone Dataset for human Activity Recognition [37], a smartphone sensor dataset recording human perform eight different activities.
+
+§ For the sake of exemplifying the output of the reviewed techniques while acknowledging third party's work, we include original figures after permission being granted by their corresponding authors.
+
+2) Perturbation-based methods: Perturbation-based methods directly compute the contribution of the input features by removing, masking, or altering them, running a forward pass on the new input, and measuring the difference with the original input [38]. The higher the difference, the higher the contribution of the input subsequence that has been altered. In theory, perturbation-based methods can be used as long as it is possible to compute distance values between the different outputs of the model. Thus, perturbation-based methods can be used for both classification and regression tasks [39].
+
+ConvTimeNet [40] uses the occlusion sensitivity method [41] which occludes parts of the time series and computes the difference in the probability y for the predicted class (Fig. 5). They perform time series classification using 85 datasets taken from UCR [30] TSC Archive Benchmark belonging from seven diverse categories: Image outline, Sensor Readings, Motion Capture, Spectrographs, ECG, Electric Devices and Simulated Data.
+
+Tonekaboni et al. [39] define the importance of each observation as the change in the model output caused by replacing the observation with a generated one. They carry out mortality prediction with the Intensive Care Unit (ICU) Time Series dataset from MIMIC [42].
+
+Fig. 5: (a) Sample time series with top-2 relevant filters from Two Patterns dataset, (b) their activation maps, and (c) occlusion sensitivity plot. The goal is to use the occlusion sensitivity method [41] to compute the raw input contribution. Figure reproduced with authorization from Kashiparekh et al. [40].
+
+<!-- image -->
+
+## B. XAI techniques for Recurrent neural networks
+
+The convolutional neural networks are not the only deep learning methods that can perform time series classification. The recurrent neural networks, which are perfectly adapted to sequential data types, are also used to accomplish this kind of task.
+
+A first way to explain a recurrent model is to use attention mechanisms (Table I). Attention mechanisms assign values corresponding to the importance of the different parts of the time series according to the model (Fig. 6). It helps to overcome the fact that RNNs can't encode the information from too long input sequences. Attention mechanisms can be used for time series classification [43] or time series forecasting [44].
+
+Choi et al. [45] combine a CNN as a feature extractor and a Long Short Term Memory (LSTM) model to learn the temporal dependencies. Then, the hidden states and output states of the Long Short Term Memory (LSTM) are used as input of a feedforward neural network layer which performs classification. The weights of this feedforward layer are the attention weights that indicate the importance of the different timesteps of the time series [43], [44]. Choi et al. [45] use the same feedforward layer to compute temporal attention, but they stack another neural network layer that takes as input the output of the temporal attention layer and the entire memory state of the LSTM to compute variable attention. Vinayavekhin et al. [46] compute more focused attention than the previous methods by using the whole input sequence to calculate an attention value for each timestep. Ge et al. [47] compute variable attention directly from the weights of the LSTM. To conduct their experiments, Schockaert et al. [44] generate an artificial dataset to perform time series forecasting for the temperature of the hot metal produced by a blast furnace. Vinayavekhin et al. [46] carry out time series classification using a public dataset for 3D human motion [48]. Finally, Ge et al. [47] perform mortality prediction based on an ICU dataset.
+
+On the other hand, attention mechanisms are also at the heart of transformers [49], which can detect globally important variables for the prediction problem, persistent temporal patterns, and significant events that lead to significant changes in temporal dynamics [50]. Lim et al. [50] carry out time series forecasting on several real world datasets like the UCI Electricity Load Diagrams Dataset and the UCI PEM-SF Traffic Dataset.
+
+To summarize, attention mechanisms are Ante-Hoc explainability methods (Table I) because they are embedded in the structure of recurrent networks and the explicability they offer is available directly at the end of the learning phase. This is in opposition to the methods that explain convolutional neural networks (Section III-A) which are specific post-hoc methods, as their explainability mechanisms are not incorporated in the structure of convolution networks, but are nevertheless only usable to explain convolution networks. However, there is also the possibility to explain recurrent models by using a model-agnostic explanation method. Kim et al. [51] use the SHapley Additive exPlanations (SHAP) algorithm [52], a common model-agnostic feature attribution method, to explain the output of a recurrent model.
+
+## C. Data mining based XAI models
+
+As mentioned earlier, the deep learning explainability methods presented in the previous sections (Sections III-A and III-B) are not specific to the domain of time series data and can be applied to other fields. On the other hand, there are explainability methods only applicable to the time series. This is the case of the data mining methods that we will introduce in this section. Several methods use data mining approaches to perform interpretable time series classification. Some of these methods are extensions of two data mining methods applied on time series: Symbolic Aggregate Approximation (SAX) [53] (Table I) and Fuzzy Logic.
+
+Fig. 6: (a) Global temporal attention, (b) Global spatio/temporal attention, (c) Local temporal attention, (d) Local spatio/temporal attention. 'High attention' means a high contribution to the output while 'low attention' means a low contribution to the output. Attention mechanisms assign values corresponding to the importance of the different parts of the time series according to the mode. Figure reproduced with authorization from Schockaert et al. [44]
+
+<!-- image -->
+
+Symbolic Aggregate approXimation (SAX) [54] transforms the input time series into strings. The algorithm consists of two steps. First, it transforms the time series into piece-wise aggregate approximation (PAA) representation [55], and then converts this representation into strings. To transform the input data into piece-wise aggregate approximation (PAA) representations, the time series are split into equal-sized segments which are computed by averaging the values of these segments . Then, symbols are assigned to each segment. Assuming that the underlying input data distribution is Gaussian, each symbol is assigned to a segment by equiprobability with equal sized areas under the Gaussian curve. The input time series are then transformed into a sequence of symbols. This method is a well known way to detect recurrent patterns that occur in data.
+
+Senin and Malinchik [56], and Le Nguyen et al. [57] extend SAX to perform time series classification. They build interpretable high level features from raw data thanks to SAX, and select the best features according to each representations, providing both performance and interpretability. Compared to deep learning approaches, these approaches can be applied on variable-length time series, and are easier to interpret. To conduct their experiments, Senin and Malinchik [56], Le Nguyen et al. [58], and Le Nguyen et al. [57] perform time series classification using datasets from the UCR Time Series Classification Archive [30].
+
+Fuzzy logic [59], fuzzy sets [60] and computing with words [61] approaches are other methods used as drivers of explainability [62]. They aim at providing approximate reasoning and model outputs that are closer to natural language or use linguistic terms. In a way, their process is designed to be like human thinking [63]. While in crisp rules, only 'True' or 'False' are accepted as outputs, in fuzzy logic outputs can be associated to any value between 0 and 1, giving a degree of possibility. It can be used to perform time series forecasting [64], [65] or detect hidden temporal patterns [66]. It can also be associated with neural networks to perform time series prediction [67] and time series modeling [63].
+
+El-Sappagh et al. [68] and Wang et al. [69] combine the representational capacity of data-driven approaches and the intepretability of fuzzy-based approaches. To do that, ElSappagh et al. [68] develop a fuzzy rule-based system (FRBS) to perform diabetes prediction from numerical time series data and static textual features. Wang et al. [69] propose a fuzzy cognitive map (FCM), a system with several components that can be connected to each other, and is interpretable because the interactions between components are weighted, to perform multivariate time series forecasting. They conduct their experiments on four real-world multivariate time series dataset.
+
+Paiva and Dourado [70] also develop a neuro-fuzzy model to perform time series forecasting with the goal of solving complex tasks while keeping interpretability. That is why they use a linguistic model with fuzzy sets, instead of a TakagiSugano model with a first order fit function that is hard to interpret. They perform experiments on the Mackey-Glass time series [71] and Box-Jenkis gas furnace datasets [72].
+
+## D. Explaining models through representative examples
+
+Other types of methods, such as some methods that generate explanations by example, can be specific to the time series field. A type of explanations by example consists in giving the closest example in the training dataset that explains, as prototype, what the typical behaviour of a similar sample would look like. In this area we can find embeddings-based models that look at the k-Nearest Neighbours (kNNs) in the embedding space to a given data point [73], [74], [75].
+
+An example of methods that produce explanations by example specific to time series are Shapelets , which are time series subsequences that are maximally representative of a class [76] (Fig. 7).
+
+Shapelets were first introduced by Ye et al. [77] in time series classification to overcome the limitations of state of the art time series classifiers. Shapelets are more interpretable, faster, and more accurate than k-Nearest Neighbours (kNN) [78] which is a traditional approach to perform time series classification [79]. They are computed by finding subsequences and associated thresholds that maximize the information gain when splitting the set of all subsequences into two classes following their distance to the candidate shapelet.
+
+One limitation of shapelets is that there is a choice to make between efficient training and interpretability [80]. Wang et al. [81] and Kidger et al. [80] develop a regularization term that constrains the model to learn more interpretable shapelets. Another limitation is the computational time. Fang et al. [82] use PAA [55] to discover candidate shapelets and thus reduce the computational time. Finally, Li et al. [83] develop a new way to find shapelets and perform time series classification which strongly reduces the computational time.
+
+Fig. 7: Example of shapelets , explaining maximally representative subsequences of a class. Figure reproduced with authorization from Li et al. [83].
+
+<!-- image -->
+
+To conduct their experiments, Wang et al. [81], Fang et al. [82] and Li et al. [83] carry out time series classification using datasets from the UCR repository Time Series Datasets [30], while Kidger et al. [80] perform time series calssification using datasets from the UEA Time Series Archive [84].
+
+## IV. EXPLANATIONS SCALE
+
+The methods presented in the Section III can provide local explanations or global explanations. The explanations are qualified as local when they are valid for a specific sample, and as global when they are valid for a set of samples or for the entire dataset.
+
+## A. Local explanations
+
+Methods will tend to have local explanations when they make predictions sample by sample, and when the knowledge is not shared from one prediction to another. Thus, explainability methods specific to convolution networks naturally produce local explanations.
+
+Backpropagation-based methods (see Table I) rely on the activation of the neurons corresponding to a single prediction. Class Activation Mapping (CAM) [29], for instance, relies on the average of the channel activations of the last convolutional layer. The activation of the neurons change for every prediction and are therefore local parameters.
+
+Perturbation-based methods such as ConvTimeNet [40] (Table I) alter a sub-sequence from the input time series and look at the difference in prediction with the original sub-sequence. The computed relevances correspond to the sub-sequence that has been altered.
+
+Although, like convolutional neural networks, recurrent neural networks (Section III-B) make their predictions sample by sample, they have a memory state that retains the knowledge built during previous representations. Unlike convolution neural networks, their latent representations are designed to handle one or several samples depending if the internal states are reset after each prediction. Therefore, the choice of this parameter will influence the scope of explanations of recurrent neural networks. The explanations are local if the internal states represent one instance, or global if the internal states represent several instances.
+
+## B. Global explanations
+
+Other methods like Shapelets (Section III-D) or SAX (Section III-C) do not process the data sample by sample. For instance, the research of the candidate shapelet is not limited and can be carried on over the entire dataset. The scope of the explanations is defined by the size of the time series given as input.
+
+Fig. 8: (a) 1-D Convolutional Filters, (b) 1-D Convolutional Filters with importance and saliency, and (c) 1-D Convolutional Filters with importance, saliency, and clusters. The goal is to compute input saliency and to cluster the filters. Figure reproduced with authorization from Siddiqui et al. [1].
+
+<!-- image -->
+
+.
+
+Finally, some papers extend the methods generating local explanations to produce global explanations. For instance, Oviedo et al. [28] generalize CAM to all training samples within a class. The average CAM allows to visualize the main discriminative features per class. Some methods provide global explanations through the usage of clustering. The backpropagation-based method Tsviz [1] highlights the important regions of the input data and computes the importance of filters for a given prediction. They also build global insights by clustering filters according to their activation pattern, as filters with similar activation patterns are essentially capturing the same concepts (Fig. 8). Cho et al. [33] do not compute clusters with filters but with input sub-sequences. Each cluster is composed of a list of temporal sequences that activate the same nodes. They assign a general time series profile to these clusters with some uncertainty. This might be one of the most complete approach to explain a convolutional neural network with time series as input data. To the best of our knowledge, it is one of the only explainable methods applied on time series that explain the latent representations of convolutional neural networks.
+
+## V. PURPOSE AND INTENDED AUDIENCE OF EXPLANATIONS
+
+The scope of explanations has an impact on the purpose of explainability methods. Global explanations can potentially be interesting to give trustworthiness and confidence, but local explanations may be more interesting for giving trustworthiness because their purpose is to explain the reasons for a prediction.
+
+The scope of the explanations will also have an impact on the potential targets of explainability methods. Generally speaking, a target expert in machine learning, or a target with responsibility in the event of system failure, will rather aim at global explanations that will seek to explain the behaviour of the model as a whole. On the other hand, consumers of the model will rather look for local explanations that will explain the specific predictions that interest them.
+
+First, we will present some applications of XAI methods providing trustworthiness for different types of targets. Then, we will show that some XAI methods are also able to increase the confidence in the model.
+
+## A. Providing trustworthiness through explanations for every audience
+
+In this section, we will present some applications of XAI methods applied on time series providing trustworthiness for three different type of targets: the developer, the decision maker, and the user. Some of the most interesting applications are in the medical field [27]. Some other methods have interesting insights for model debugging [28], [32].
+
+1) Explanations for developers: The developer is the one that makes the model. Most reviewed methods [26], [40], [95], [39], [1], [33], [87] are not applied to any particular domain, but rather focus on an algorithm or a family of algorithms. As a consequence, the targets of these methods are mostly developers, as the insights provided by these methods are quite technical and hard to interpret for a non expert.
+
+However, Oviedo et al. [28] conduct their experiments on a specific domain but might be used by developers. The goal is to perform classification from a small x-ray diffraction time series dataset. They use explanations provided by CAM to identify the causes of correct and incorrect classifications. This outcome might only be interesting for developers .
+
+Generally, developers seek for technical insights that can explain the whole model rather than explanations of a prediction. That is why developers are generally more interested in global explanations (Section IV-B) than local explanations (Section IV-A).
+
+2) Explanations for end-users: A user is a person that consumes the output of the model. Let us take the example of the system that evaluates the surgical skills of young surgeons [27]. The users here are the young surgeons that improve themselves by looking at discriminative behaviors specific to skill level. By identifying the gestures that made the model classify them as novices, they can identify their weaknesses and see how to improve themselves without the human intervention of an expert surgeon.
+
+Still in the medical field, clinicians can use the method that perform myocardial infarction detection [32]. The interpretability is provided here to build confidence and trust in the model outcomes. Indeed, in a such critical fields, users cannot rely on the model if they do not know why the model takes the decisions. Thanks to the explanations provided, clinicians can check whether the model considers relevant certain patterns when making a decision.
+
+Generally, users seek for the explanations of a prediction or a group of predictions that can affect them [27], [32]. Most of the time, they cannot take advantage of explanations of the
+
+TABLE I: Summary of XAI methods applied to time series. Abbreviations: SAX: Symbolic Aggregate Approximation; DM: Decision Maker;
+
+| Model                                 | Ante-hoc/ Post-hoc   | Methodology           | Model Specific/ Model Agnostic   | Scope        | Target audience   | Explanation evaluation   |
+|---------------------------------------|----------------------|-----------------------|----------------------------------|--------------|-------------------|--------------------------|
+| FCN , Wang et al. [26]                | Post-hoc             | Backpropagation-based | Specific                         | Local        | Developer         | No                       |
+| ESS-CNN , Fawaz et al. [27]           | Post-hoc             | Backpropagation-based | Specific                         | Local        | User/DM           | Yes/Qualitative          |
+| XrayD-DNN , Oviedo et al. [28]        | Post-hoc             | Backpropagation-based | Specific                         | Local/Global | Developer         | Yes/Qualitative          |
+| CY-EDL , Wolanin et al. [85]          | Post-hoc             | Backpropagation-based | Specific                         | Local/Global | User/DM           | Yes/Qualitative          |
+| Convtimenet , Kashiparekh et al. [40] | Post-hoc             | Perturbation-based    | Agnostic                         | Local        | Developer         | No                       |
+| FFC , Tonekaboni et al. [39]          | Post-hoc             | Perturbation-based    | Agnostic                         | Local/Global | Developer         | Yes/Quantitative         |
+| MI-FCNN , Strodthoff et al. [32]      | Post-hoc             | Backpropagation-based | Specific                         | Local        | User/DM           | No                       |
+| Tsviz , Siddiqui et al. [1]           | Post-hoc             | Backpropagation-based | Specific                         | Local/Global | Developer         | Yes/Qualitative          |
+| CHAP , Cho et al. [33]                | Post-hoc             | Backpropagation-based | Specific                         | Local/Global | Developer         | Yes/Quantitative         |
+| CA-SFCN , Hao et al. [86]             | Ante-hoc             | Attention Mechanism   | Specific                         | Local        | Developer         | No                       |
+| ALSTM-FCN , Karim et al. [43]         | Ante-hoc             | Attention Mechanism   | Specific                         | Local        | Developer         | No                       |
+| AM-LSTM , Schockaert et al. [44]      | Ante-hoc             | Attention Mechanism   | Specific                         | Local/Global | Developer         | No                       |
+| TFT , Lim et al. [50]                 | Ante-hoc             | Attention Mechanism   | Specific                         | Local/Global | Developer         | No                       |
+| Tsinsight , Siddiqui et al. [87]      | Ante-hoc             | Attention Mechanism   | Specific                         | Local/Global | Developer         | No                       |
+| Sax-vsm , Senin et al. [56]           | Ante-hoc             | SAX                   | Specific                         | Global       | Developer         | No                       |
+| SAX-SFA-SEQL , Le Nguyen et al. [57]  | Ante-hoc             | SAX                   | Specific                         | Global       | Developer         | No                       |
+| AI-PR-CNN , Wang et al. [81]          | Ante-hoc             | Sapelets              | Specific                         | Global       | Developer         | No                       |
+| BSPCOVER , Li et al. [83]             | Ante-hoc             | Shapelets             | Specific                         | Global       | Developer         | No                       |
+| GST , Kidger et al. [80]              | Ante-hoc             | Shapelets             | Specific                         | Global       | Developer         | No                       |
+| eUA-CRNN , Tan et al. [88]            | Ante-hoc             | Attention Mechanism   | Specific                         | Local        | Developer         | No                       |
+| IDH-DSC-ERNN , Choi et al. [45]       | Ante-hoc             | Attention Mechanism   | Specific                         | Local        | Developer         | No                       |
+| ETNODE , Gao et al. [89]              | Ante-hoc             | Attention Mechanism   | Specific                         | Local/Global | Developer         | No                       |
+| Tsxplain , Munir et al. [90]          | Post-hoc             | Backpropagation-based | Agnostic                         | Local        | Developer         | Yes/Quantitative         |
+| TCL , Vinayavekhin et al. [46]        | Ante-hoc             | Attention Mechanism   | Specific                         | Local        | Developer         | Yes/Quantitative         |
+| ICU-LSTM , Ge et al. [47]             | Ante-hoc             | Attention Mechanism   | Specific                         | Global       | Developer         | No                       |
+| Series saliency , Pan et al. [91]     | Post-hoc             | Perturbation-based    | Agnostic                         | Local        | Developer         | Yes/Qualitative          |
+| Mtex-cnn , Assaf et al. [92]          | Post-hoc             | Backpropagation-based | Specific                         | Local        | Developer         | Yes/Quantitative         |
+| RATIO , Augustin et al. [93]          | Post-hoc             | Counterfactuals       | Agnostic                         | Local        | Developer         | No                       |
+| PDL , Gee et al. [94]                 | Ante-hoc             | Prototypes            | Specific                         | Global       | Developer         | Yes/Qualitative          |
+| FAHP , El-Sappagh et al. [68]         | Ante-hoc             | Fuzy logic            | Specific                         | Global       | User              | No                       |
+| Deep-FCM , Wang et al. [69]           | Ante-hoc             | Fuzzy logic           | Specific                         | Global       | Developer         | Yes/Qualitative          |
+
+whole model that may be hard to interpret and not necessarily fit to their situation. That is why users are generally more interested in local explanations (Section IV-A) than global explanations (Section IV-B).
+
+3) Explanations for decision makers: The decision maker is characterized by a non-expertise, added to a liability in case of a problem with the AI system. For the method that evaluates the surgical skills of young surgeons [27], and for the method that performs myocardial infarction detection [32], the decision makers are the people in charge of the clinic. They are not experts in machine learning, but need guarantees that the system will work properly. They may not need an explanation of how the system works, but perhaps a measure of confidence (Section II-A) in its decisions. In this way, they might know whether it is reasonable or too risky to use the system.
+
+## B. Confidence
+
+The first purpose of explainable methods is to get insights on how the models work, how predictions are made. However, understanding how the model works is not enough. Particularly for critical tasks, we also need to be confident in the decisions taken by the model. We introduced in the Section II-A the notion of confidence, and the potential link it can have with XAI. It is interesting to think that explainable methods might be useful to help models to be more robust and stable when facing samples out of the input distribution or adversarial attacks. We will present in this section some examples of XAI
+
+methods providing epistemic confidence in a model outcomes. Most of these methods are applied on time series data.
+
+Hartl et al. [96] and Siddiqui et al. [1] use the raw features contribution to study adversarial attacks. Tsviz [1] introduce a perturbation on the most salient part of the input subsequence, leading to a huge drop in classification, which confirms the sensitivity of the model to noises. Hartl et al. [96] develop a method named feature sensitivity that can quantify the potential of a feature to cause missclassification. Surprisingly, they found that the most salient features are the same than the features with highest potential to cause missclassification, and thus easily targetable by adversarial attacks. Therefore, Hartl et al. [96] propose a defense method in which they leave out the most manipulable features which does not lead to a huge drop of the accuracy.
+
+Gee et al. [94] introduce a diversity penalty to learn more diverse prototypes, which helps focusing on areas of the latent space where class separation is the most difficult. This helps the model to be more stable when classifying samples far from the input distribution.
+
+Cho et al. [33] compare different attribution methods by perturbing the less salient input parts. The idea is that the neurons activations are more stable when we perturb the less salient input parts for the corresponding prediction. It is interesting to note that this is the opposite approach of Tsviz [1] which applies perturbations on the most salient parts of the input. However, both approaches [33], [1] are based on the same idea. Indeed, when perturbations are applied on the most salient parts of the input, we expect strong disturbances in the latent representations of the models [1]. Thus, when perturbations are applied on the less salient parts of the input, we expect small disturbances in the latent representations of the models [33].
+
+The overlapping interpretable Sax words (Section III-C ) [56] have individually very small contributions to the final prediction, which makes the methods less sensible to noises.
+
+Ates et al. [97] combine two adversarial training procedures, Adversarial Training (AT) [98] and Adversarial confidence enhanced training (ACET) [99]. Adversarial Training (AT) is better at making the model robust against adversarial attacks, while Adversarial confidence enhanced training (ACET) is better at tackling out of distribution samples. Ates et al. [97] develop RATIO, a method that generates counterfactual [100] visual explanations. These counterfactual explanations visually show the changes in the input sample to reach the targeted AT and ACET confidence score.
+
+Although this is only the beginning, these are to the best of our knowledge the first attempts to provide epistemic confidence in the models using the insights provided by XAI methods.
+
+## VI. EVALUATING EXPLANATIONS
+
+After presenting the scope and the targets of explainability methods, we now tackle the evaluation of these XAI methods. There is not a metric globally recognized that can assess the quality of explanations (Table II). This might be due to the different nature of the explanations generated and the different input data types. However, some quantitative evaluation approaches exist to objectively assess the quality of the explanations generated in several fields, including the time series domain. Qualitative evaluations can also be made by experts to assess the relevancy of the explanations generated.
+
+## A. Qualitative evaluations
+
+While some methods [58], [27], [28], [43], [44], [85] do not perform any evaluation of the generated explanations, these methods could be evaluated using domain expert assessments. Global explanations provided by, for instance, average CAM in Oviedo et al. [28] could be assessed by experts by just analysing the global attribution maps computed by averaging every class activation map representing each class, and not all the local attribution maps one by one. Methods providing explanations for specific users [27], [85] can also easily benefit from experts feedback. For example, the surgeons experimenting the model that performs evaluation of surgical skills [27] can give some feedback, whether they found the explanations provided relevant or not.
+
+The backpropagation-based approach Tsviz [1] assesses the quality of generated explanations by analyzing its explicitness. The explicitness is provided by the clustering of hidden representations and showing the influence of these hidden representations on the output.
+
+However, unlike in computer vision, qualitative evaluations might have a limited potential in the time series field [101]. Indeed, the unintuitive nature of time series (see Section I) make it difficult even for domain experts to qualitatively assess the quality of the explanations generated. Therefore, according to Arnout et al. [101], we should prioritize quantitative evaluations for the time series field.
+
+## B. Quantitative evaluations
+
+Arnout et al. [101] presents a way to evaluate explanations providing the most contributing regions of the input time series to the model. They propose to conduct perturbation on the data, with the idea that if relevant features get changed, the performance of an accurate model should decrease massively. Tonekaboni et al. [39] takes another approach by comparing its explanations with several state of the art feature attribution methods, sensitivity analysis [102] [103], feature occlusion [104], augmented feature occlusion [104], and Local Interpretable Model-agnostic Explanations (LIME) [2]. Cho et al. [33] also assess their explanations by providing some comparisons with another attribution method, Layer-wise Relevance Propagation (LRP) [105], thanks to some perturbation analysis: they gradually alter subsequences that have been identified by the attribution methods as important for a given prediction. They compare both methods through the absolute difference of activations of neurons depending on the perturbation magnitude of their identified explanations (Fig. 9). The perturbation-based method proposed by Tonekaboni et al. [39] performs sanity checks by doing data and model randomization: they evaluate the faithfulness in Tsviz [1] by removing the filters that have the highest importance and check if the prediction changes.
+
+Fig. 9: This graph illustrates the results of perturbations on the input while preserving the regions selected by each method. We apply three kinds of perturbations: Gaussian perturbation, Inverse perturbation and zero perturbation. The x-axis means the ratio of perturbed regions except preserved regions. The y-axis means the sum of changes of activations in the channel 55. Figure reproduced with authorization from Cho et al. [33].
+
+<!-- image -->
+
+.
+
+Finally, Arnout et al. [101] propose two new quantitative evaluation methods to overcome the limitations of the perturbation approach, which has a lack of evaluation of trends or patterns in the time series [101]. They propose two new sequence evaluation approaches, Swap Time Points and Mean Time Points, that take the inter-dependency of points into account. Swap Time Points invert the order of the points in the most salient sub-sequences, and compare the results with another sequence where the values of the corresponding subsequences have been put to 0. Mean Time Points has a similar approach, but instead of swapping the time points, it assigns the mean of all values of the salient sub-sequence to all points in the corresponding sub-sequence. These two approaches are complementary with the perturbation approach in the sense that they offer a new way to evaluate time series salient explanations, as they can evaluate trends or patterns of the time series.
+
+To summarize, we can reflect on the fact that depending on what we want to accomplish with the explanations, qualitative or quantitative evaluations may be more or less appropriate. Qualitative assessments may be better suited to explanations that target users or decision makers [27], while quantitative assessments may be better suited to explanations that attempt to discern new predictive knowledge in the data [33]. Then, at this level, a question comes to mind. Are these explanations that teach experts how the models work sufficient to develop the confidence to put the models into practice to accomplish critical tasks? We will attempt to answer this question in the next section (Section VII).
+
+## VII. DISCUSSION
+
+Some of the methods presented in this survey are originally applied to other areas than time series. The back-propagation based (Section III-A1) and perturbation-based approaches (Section III-A2) were first designed for the computer vision field and then applied to the time series field. To the best of our knowledge, there is a lack of explainable methods applied on CNNs specifically designed for time series tasks. There must be specificities in time series data that can be exploited to design explainable approaches specific to CNNs that are uniquely adapted to the time series field.
+
+Most methods presented in this survey indicate which specific regions of the input data get attention from the model while classification is performed. They do not provide any confidence in the model, neither mitigates its vulnerabilities. However, it can be one way to provide some explanations and increase the trust in the system. Indeed, a user or a developer can rely more on the system if he knows that the model gives its attention to the relevant parts of the input for a specific prediction. However, the trust brought by these methods can be questioned by the unintuitive aspect of time series. For instance, saliency maps on images are directly interpretable as we usually understand the content. It is different for time series because expert knowledge might be needed to understand its outcomes. Some data mining methods might be useful to automatically extract the underlying content of time series.
+
+As highlighted in this survey, it is possible to use the insights provided by some explainable methods to increase the epistemic confidence in the model. Obviously, the purpose of XAI is to get some information and understanding of the model, and therefore to provide trust. However, the XAI field has more potential than just facilitating trustworthiness. Explainability has the potential to lead to new metrics and training practices ensuring the confidence and robustness of the most complex and abstract models, thanks to the insights explainable methods can provide.
+
+We are also far from getting an end-to-end XAI system, as methods only focus on the technical parts. XAI techniques do not consider interactions with the user or developer that are necessary for the AI system to be trusted and used. There is a lack of objective tools to demonstrate the robustness of AI systems. This is why interactive systems providing explanations and feedback might be a leading way to empirically and subjectively show the user and decision maker that the AI system can be trusted.
+
+## ACKNOWLEDGEMENTS
+
+We acknowledge the authors of [26], [44], [40], [1] and [83] for letting us use their original figures for illustrative purposes. T. Rojat would also like to thank ANRT and Renault for the funding support. J. Del Ser would like to thank the Basque Government for its funding support through the EMAITEK and ELKARTEK programs (3KIA project, KK-2020/00049), as well as the consolidated research group MATHMODE (ref. T1294-19).
+
+## REFERENCES
+
+- [1] S. A. Siddiqui, D. Mercier, M. Munir, A. Dengel, and S. Ahmed, 'Tsviz: Demystification of deep learning models for time-series analysis,' IEEE Access , vol. 7, pp. 67 027-67 040, 2019.
+- [2] M. T. Ribeiro, S. Singh, and C. Guestrin, '' why should i trust you?' explaining the predictions of any classifier,' in Proceedings of the 22nd ACM SIGKDD international conference on knowledge discovery and data mining , 2016, pp. 1135-1144.
+- [3] R. R. Selvaraju, M. Cogswell, A. Das, R. Vedantam, D. Parikh, and D. Batra, 'Grad-cam: Visual explanations from deep networks via gradient-based localization,' International Journal of Computer Vision , vol. 128, no. 2, p. 336-359, Oct 2019. [Online]. Available: http://dx.doi.org/10.1007/s11263-019-01228-7
+- [4] E. Tjoa and C. Guan, 'A survey on explainable artificial intelligence (xai): Toward medical xai,' IEEE Transactions on Neural Networks and Learning Systems , p. 1-21, 2020. [Online]. Available: http: //dx.doi.org/10.1109/TNNLS.2020.3027314
+
+TABLE II: Summary of evaluation approaches for XAI methods applied to time series.
+
+| Model                                                   | Quantitative/Qualitative Evaluation   | Evaluation Approach                                |
+|---------------------------------------------------------|---------------------------------------|----------------------------------------------------|
+| REXAITS , Arnout et al. [101]                           | Quantitative                          | Perturbation approach/Sequence evaluation approach |
+| DADNN , Oviedo et al. [28]                              | Qualitative                           | Expert assessment                                  |
+| ESSCNN , Fawaz et al. [27]                              | Qualitative                           | Expert assessment                                  |
+| EUEDL , Wolanin et al. [85]                             | Qualitative                           | Expert assessment                                  |
+| ETSC , Tonekaboni et al. [39]                           | Quantitative                          | Perturbation approach/Sanity check                 |
+| Tsviz , Siddiqui et al. [1]                             | Qualitative/Quantitative              | Expert Assessment/Sanity check                     |
+| SVIAN , Cho et al. [33]                                 | Quantitative                          | Perturbation approach                              |
+| Tsxplain , Munir et al. [90]                            | Quantitative                          | Sanity check                                       |
+| Focusing on what is relevant , Vinayavekhin et al. [46] | Qualitative                           | Expert assessment                                  |
+| Series saliency , Pan et al. [91]                       | Qualitative                           | Sanity check                                       |
+| Mtex-cnn , Assaf et al. [92]                            | Quantitative                          | Perturbation approach                              |
+| WKCED , Gee et al. [94]                                 | Qualitative                           | Expert assessment                                  |
+
+- [5] A. B. Arrieta, N. D´ ıaz-Rodr´ ıguez, J. Del Ser, A. Bennetot, S. Tabik, A. Barbado, S. Garc´ ıa, S. Gil-L´ opez, D. Molina, R. Benjamins et al. , 'Explainable artificial intelligence (xai): Concepts, taxonomies, opportunities and challenges toward responsible ai,' Information Fusion , vol. 58, pp. 82-115, 2020.
+- [6] D. Doran, S. Schulz, and T. R. Besold, 'What does explainable ai really mean? a new conceptualization of perspectives,' 2017.
+- [7] Z. C. Lipton, 'The mythos of model interpretability: In machine learning, the concept of interpretability is both important and slippery.' Queue , vol. 16, no. 3, pp. 31-57, 2018.
+- [8] B. Kailkhura, B. Gallagher, S. Kim, A. Hiszpanski, and T. Y.-J. Han, 'Reliable and explainable machine-learning methods for accelerated material discovery,' npj Computational Materials , vol. 5, no. 1, pp. 1-9, 2019.
+- [9] J. Wanner, L.-V. Herm, K. Heinrich, C. Janiesch, and P. Zschech. (2020) White, grey, black: Effects of xai augmentation on the confidence in ai-based decision support systems. [Online]. Available: https://aisel.aisnet.org/icis2020/hci artintel/hci artintel/14/
+- [10] R. Hamon, H. Junklewitz, and I. Sanchez, 'Robustness and explainability of artificial intelligence,' Publications Office of the European Union , 2020.
+- [11] K. Eykholt, I. Evtimov, E. Fernandes, B. Li, A. Rahmati, C. Xiao, A. Prakash, T. Kohno, and D. Song, 'Robust physical-world attacks on deep learning visual classification,' in Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition , 2018, pp. 1625-1634.
+- [12] N. Morgulis, A. Kreines, S. Mendelowitz, and Y. Weisglass, 'Fooling a real car with adversarial traffic signs,' arXiv preprint arXiv:1907.00374 , 2019.
+- [13] C. Molnar, Interpretable machine learning . Lulu. com, 2020.
+- [14] K. Xu, D. H. Park, C. Yi, and C. Sutton, 'Interpreting deep classifier by visual distillation of dark knowledge,' arXiv preprint arXiv:1803.04042 , 2018.
+- [15] J. Haspiel, N. Du, J. Meyerson, L. P. Robert Jr, D. Tilbury, X. J. Yang, and A. K. Pradhan, 'Explanations and expectations: Trust building in automated vehicles,' in Companion of the 2018 ACM/IEEE International Conference on Human-Robot Interaction , 2018, pp. 119120.
+- [16] L. Petersen, D. Tilbury, X. J. Yang, and L. Robert. (2017) Effects of augmented situational awareness on driver trust in semi-autonomous vehicle operation. [Online]. Available: https://deepblue.lib.umich.edu/ handle/2027.42/137707
+- [17] J. Koo, J. Kwac, W. Ju, M. Steinert, L. Leifer, and C. Nass, 'Why did my car just do that? explaining semi-autonomous driving actions to improve driver understanding, trust, and performance,' International Journal on Interactive Design and Manufacturing (IJIDeM) , vol. 9, no. 4, pp. 269-275, 2015.
+- [18] J. Koo, D. Shin, M. Steinert, and L. Leifer, 'Understanding driver responses to voice alerts of autonomous car operations,' International journal of vehicle design , vol. 70, no. 4, pp. 377-392, 2016.
+- [19] L. P. Robert, A. R. Denis, and Y.-T. C. Hung, 'Individual swift trust and knowledge-based trust in face-to-face and virtual team members,' Journal of Management Information Systems , vol. 26, no. 2, pp. 241279, 2009.
+- [20] A. Chander, R. Srinivasan, S. Chelian, J. Wang, and K. Uchino, 'Working with beliefs: Ai transparency in the enterprise.' in IUI Workshops , 2018.
+- [21] D. A. Norman, Living with complexity . MIT press, 2016.
+- [22] N. D´ ıaz-Rodr´ ıguez and G. Pisoni, 'Accessible cultural heritage through explainable artificial intelligence,' in Adjunct Publication of the 28th ACM Conference on User Modeling, Adaptation and Personalization , 2020, pp. 317-324.
+- [23] G. Pisoni, N. D´ ıaz-Rodr´ ıguez, H. Gijlers, and L. Tonolli, 'Humancentred artificial intelligence for designing accessible cultural heritage,' Applied Sciences , vol. 11, no. 2, p. 870, 2021.
+- [24] T. Lesort, V. Lomonaco, A. Stoian, D. Maltoni, D. Filliat, and N. D´ ıazRodr´ ıguez, 'Continual learning for robotics: Definition, framework, learning strategies, opportunities and challenges,' Information fusion , vol. 58, pp. 52-68, 2020.
+- [25] M. Moradi and M. Samwald, 'Post-hoc explanation of blackbox classifiers using confident itemsets,' Expert Systems with Applications , vol. 165, p. 113941, Mar 2021. [Online]. Available: http://dx.doi.org/10.1016/j.eswa.2020.113941
+- [26] Z. Wang, W. Yan, and T. Oates, 'Time series classification from scratch with deep neural networks: A strong baseline,' in 2017 International joint conference on neural networks (IJCNN) . IEEE, 2017, pp. 15781585.
+- [27] H. Ismail Fawaz, G. Forestier, J. Weber, L. Idoumghar, and P.-A. Muller, 'Accurate and interpretable evaluation of surgical skills from kinematic data using fully convolutional neural networks,' International Journal of Computer Assisted Radiology and Surgery , vol. 14, no. 9, p. 1611-1617, Jul 2019. [Online]. Available: http://dx.doi.org/10.1007/s11548-019-02039-4
+- [28] F. Oviedo, Z. Ren, S. Sun, C. Settens, Z. Liu, N. T. P. Hartono, S. Ramasamy, B. L. DeCost, S. I. Tian, G. Romano et al. , 'Fast and interpretable classification of small x-ray diffraction datasets using data augmentation and deep neural networks,' npj Computational Materials , vol. 5, no. 1, pp. 1-9, 2019.
+- [29] B. Zhou, A. Khosla, A. Lapedriza, A. Oliva, and A. Torralba, 'Learning deep features for discriminative localization,' in Proceedings of the IEEE conference on computer vision and pattern recognition , 2016, pp. 2921-2929.
+- [30] Y. Chen, E. Keogh, B. Hu, N. Begum, A. Bagnall, A. Mueen, and G. Batista, 'The ucr time series classification archive,' July 2015, www. cs.ucr.edu/ ∼ eamonn/time series data/.
+- [31] Y. Gao, S. S. Vedula, C. E. Reiley, N. Ahmidi, B. Varadarajan, H. C. Lin, L. Tao, L. Zappella, B. B´ ejar, D. D. Yuh et al. , 'Jhu-isi gesture and skill assessment working set (jigsaws): A surgical activity dataset for human motion modeling,' in MICCAI workshop: M2cai , vol. 3, 2014, p. 3.
+- [32] N. Strodthoff and C. Strodthoff, 'Detecting and interpreting myocardial infarction using fully convolutional neural networks,' Physiological Measurement , vol. 40, no. 1, p. 015001, Jan 2019. [Online]. Available: http://dx.doi.org/10.1088/1361-6579/aaf34d
+- [33] S. Cho, G. Lee, and J. Choi, 'Interpretation of deep temporal representations by selective visualization of internally activated units,' arXiv preprint arXiv:2004.12538 , 2020.
+- [34] R. Bousseljot, D. Kreiseler, and A. Schnabel, 'Nutzung der ekgsignaldatenbank cardiodat der ptb ¨ uber das internet,' Biomedical Engineering/Biomedizinische Technik , vol. 40, no. s1, pp. 317-318, 1995.
+- [35] A. L. Goldberger, L. A. Amaral, L. Glass, J. M. Hausdorff, P. C. Ivanov, R. G. Mark, J. E. Mietus, G. B. Moody, C.-K. Peng, and H. E. Stanley, 'Physiobank, physiotoolkit, and physionet: components of a
+
+- new research resource for complex physiologic signals,' circulation , vol. 101, no. 23, pp. e215-e220, 2000.
+- [36] J. Liu, L. Zhong, J. Wickramasuriya, and V. Vasudevan, 'uwave: Accelerometer-based personalized gesture recognition and its applications,' Pervasive and Mobile Computing , vol. 5, no. 6, pp. 657-675, 2009.
+- [37] A. Asuncion and D. Newman, 'Uci machine learning repository,' 2007.
+- [38] M. Ancona, E. Ceolini, C. ¨ Oztireli, and M. Gross, 'Towards better understanding of gradient-based attribution methods for deep neural networks,' arXiv preprint arXiv:1711.06104 , 2017.
+- [39] S. Tonekaboni, S. Joshi, D. Duvenaud, and A. Goldenberg. (2019) Explaining time series by counterfactuals. [Online]. Available: https://openreview.net/pdf?id=HygDF1rYDB
+- [40] K. Kashiparekh, J. Narwariya, P. Malhotra, L. Vig, and G. Shroff, 'Convtimenet: A pre-trained deep convolutional neural network for time series classification,' in 2019 International Joint Conference on Neural Networks (IJCNN) , 2019, pp. 1-8.
+- [41] M. D. Zeiler and R. Fergus, 'Visualizing and understanding convolutional networks,' in European conference on computer vision . Springer, 2014, pp. 818-833.
+- [42] A. E. Johnson, T. J. Pollard, L. Shen, H. L. Li-Wei, M. Feng, M. Ghassemi, B. Moody, P. Szolovits, L. A. Celi, and R. G. Mark, 'Mimic-iii, a freely accessible critical care database,' Scientific data , vol. 3, no. 1, pp. 1-9, 2016.
+- [43] F. Karim, S. Majumdar, H. Darabi, and S. Chen, 'Lstm fully convolutional networks for time series classification,' IEEE Access , vol. 6, pp. 1662-1669, 2018.
+- [44] C. Schockaert, R. Leperlier, and A. Moawad, 'Attention mechanism for multivariate time series recurrent model interpretability applied to the ironmaking industry,' arXiv preprint arXiv:2007.12617 , 2020.
+- [45] K. S. Choi, S. H. Choi, and B. Jeong, 'Prediction of IDH genotype in gliomas with dynamic susceptibility contrast perfusion MR imaging using an explainable recurrent neural network,' Neuro-Oncology , vol. 21, no. 9, pp. 1197-1209, 06 2019. [Online]. Available: https://doi.org/10.1093/neuonc/noz095
+- [46] P. Vinayavekhin, S. Chaudhury, A. Munawar, D. J. Agravante, G. De Magistris, D. Kimura, and R. Tachibana, 'Focusing on what is relevant: Time-series learning and understanding using attention,' in 2018 24th International Conference on Pattern Recognition (ICPR) . IEEE, 2018, pp. 2624-2629.
+- [47] W. Ge, J.-W. Huh, Y. R. Park, J.-H. Lee, Y.-H. Kim, and A. Turchin, 'An interpretable icu mortality prediction model based on logistic regression and recurrent neural networks with lstm units.' in AMIA Annual Symposium Proceedings , vol. 2018. American Medical Informatics Association, 2018, p. 460.
+- [48] C. Ionescu, D. Papava, V. Olaru, and C. Sminchisescu, 'Human3. 6m: Large scale datasets and predictive methods for 3d human sensing in natural environments,' IEEE transactions on pattern analysis and machine intelligence , vol. 36, no. 7, pp. 1325-1339, 2013.
+- [49] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, 'Attention is all you need,' Advances in neural information processing systems , vol. 30, pp. 59986008, 2017.
+- [50] B. Lim, S. O. Arik, N. Loeff, and T. Pfister, 'Temporal fusion transformers for interpretable multi-horizon time series forecasting,' arXiv preprint arXiv:1912.09363 , 2019.
+- [51] J.-Y. Kim and S.-B. Cho, 'Electric energy consumption prediction by deep learning with state explainable autoencoder,' Energies , vol. 12, p. 739, 02 2019.
+- [52] S. M. Lundberg and S.-I. Lee, 'A unified approach to interpreting model predictions,' in Advances in Neural Information Processing Systems , 2017, pp. 4765-4774.
+- [53] J. Lin, E. Keogh, L. Wei, and S. Lonardi, 'Experiencing sax: A novel symbolic representation of time series,' Data Min. Knowl. Discov. , vol. 15, pp. 107-144, 08 2007.
+- [54] J. Lin, E. Keogh, S. Lonardi, and B. Chiu, 'A symbolic representation of time series, with implications for streaming algorithms,' 01 2003, pp. 2-11.
+- [55] E. Keogh, K. Chakrabarti, M. Pazzani, and S. Mehrotra, 'Dimensionality reduction for fast similarity search in large time series databases,' Knowledge and Information Systems , vol. 3, 01 2002.
+- [56] P. Senin and S. Malinchik, 'Sax-vsm: Interpretable time series classification using sax and vector space model,' in 2013 IEEE 13th International Conference on Data Mining , 2013, pp. 1175-1180.
+- [57] T. L. Nguyen, S. Gsponer, I. Ilie, and G. Ifrim, 'Interpretable time series classification using all-subsequence learning and sym-
+- bolic representations in time and frequency domains,' arXiv preprint arXiv:1808.04022 , 2018.
+- [58] T. Le Nguyen, S. Gsponer, I. Ilie, M. O'Reilly, and G. Ifrim, 'Interpretable time series classification using linear models and multiresolution multi-domain symbolic representations,' Data mining and knowledge discovery , vol. 33, no. 4, pp. 1183-1222, 2019.
+- [59] L. A. Zadeh, 'Fuzzy logic,' Computer , vol. 21, no. 4, pp. 83-93, 1988.
+- [60] F. Herrera, E. Herrera-Viedma, and L. Martınez, 'A fusion approach for managing multi-granularity linguistic term sets in decision making,' Fuzzy sets and systems , vol. 114, no. 1, pp. 43-58, 2000.
+- [61] F. Herrera, S. Alonso, F. Chiclana, and E. Herrera-Viedma, 'Computing with words in decision making: foundations, trends and prospects,' Fuzzy optimization and decision making , vol. 8, no. 4, pp. 337-364, 2009.
+- [62] C. Mencar and J. M. Alonso, 'Paving the way to explainable artificial intelligence with fuzzy modeling,' in International Workshop on Fuzzy Logic and Applications . Springer, 2018, pp. 215-227.
+- [63] P. C. Nayak, K. Sudheer, D. Rangan, and K. Ramasastri, 'A neuro fuzzy computing technique for modeling hydrological time series,' Journal of Hydrology , vol. 291, pp. 52-66, 05 2004.
+- [64] S.-M. Chen, C.-C. Hsu et al. , 'A new method to forecast enrollments using fuzzy time series,' International Journal of Applied Science and Engineering , vol. 2, no. 3, pp. 234-244, 2004.
+- [65] S.-M. Chen and J.-R. Hwang, 'Temperature prediction using fuzzy time series,' IEEE Transactions on Systems, Man, and Cybernetics, Part B (Cybernetics) , vol. 30, no. 2, pp. 263-275, 2000.
+- [66] I. Aydin, M. Karakose, and E. Akin, 'The prediction algorithm based on fuzzy logic using time series data mining method,' World Academy of Science, Engineering and Technology , vol. 51, no. 27, pp. 91-98, 2009.
+- [67] N. K. Kasabov and Qun Song, 'Denfis: dynamic evolving neural-fuzzy inference system and its application for time-series prediction,' IEEE Transactions on Fuzzy Systems , vol. 10, no. 2, pp. 144-154, 2002.
+- [68] S. El-Sappagh, J. M. Alonso, F. Ali, A. Ali, J.-H. Jang, and K.-S. Kwak, 'An ontology-based interpretable fuzzy decision support system for diabetes diagnosis,' IEEE Access , vol. 6, pp. 37 371-37 394, 2018.
+- [69] J. Wang, X. Wang, C. Li, J. Wu et al. , 'Deep fuzzy cognitive maps for interpretable multivariate time series prediction,' IEEE Transactions on Fuzzy Systems , 2020.
+- [70] R. P. Paiva and A. Dourado, 'Interpretability and learning in neurofuzzy systems,' Fuzzy sets and systems , vol. 147, no. 1, pp. 17-38, 2004.
+- [71] M. C. Mackey and L. Glass, 'Oscillation and chaos in physiological control systems,' Science , vol. 197, no. 4300, pp. 287-289, 1977.
+- [72] G. E. Box, G. M. Jenkins, G. C. Reinsel, and G. M. Ljung, Time series analysis: forecasting and control . John Wiley &amp; Sons, 2015.
+- [73] Y.-H. Lee, C.-P. Wei, T.-H. Cheng, and C.-T. Yang, 'Nearest-neighborbased approach to time-series classification,' Decision Support Systems , vol. 53, no. 1, pp. 207-217, 2012.
+- [74] Z. Geler, V. Kurbalija, M. Ivanovi´ c, and M. Radovanovi´ c, 'Weighted knn and constrained elastic distances for time-series classification,' Expert Systems with Applications , vol. 162, p. 113829, 2020.
+- [75] S. Xu, Q. Luo, H. Li, and L. Zhang, 'Time series classification based on attributes weighted sample reducing knn,' in 2009 Second International Symposium on Electronic Commerce and Security , vol. 2. IEEE, 2009, pp. 194-199.
+- [76] L. Ye and E. Keogh, 'Time series shapelets: a new primitive for data mining,' in Proceedings of the 15th ACM SIGKDD international conference on Knowledge discovery and data mining , 2009, pp. 947956.
+- [77] --, 'Time series shapelets: A novel technique that allows accurate, interpretable and fast classification,' Data Min. Knowl. Discov. , vol. 22, pp. 149-182, 01 2011.
+- [78] T. Cover and P. Hart, 'Nearest neighbor pattern classification,' IEEE Transactions on Information Theory , vol. 13, no. 1, pp. 21-27, 1967.
+- [79] Y.-H. Lee, C.-P. Wei, T.-H. Cheng, and C.-T. Yang, 'Nearest-neighborbased approach to time-series classification,' Decision Support Systems , vol. 53, no. 1, pp. 207 -217, 2012. [Online]. Available: http://www.sciencedirect.com/science/article/pii/S0167923612000097
+- [80] P. Kidger, J. Morrill, and T. Lyons, 'Generalised interpretable shapelets for irregular time series,' arXiv preprint arXiv:2005.13948 , 2020.
+- [81] Y. Wang, R. Emonet, E. Fromont, S. Malinowski, E. Menager, L. Mosser, and R. Tavenard, 'Learning interpretable shapelets for time series classification through adversarial regularization,' arXiv preprint arXiv:1906.00917 , 2019.
+
+- [82] Z. Fang, P. Wang, and W. Wang, 'Efficient learning interpretable shapelets for accurate time series classification,' in 2018 IEEE 34th International Conference on Data Engineering (ICDE) , 2018, pp. 497508.
+- [83] G. Li, B. K. K. Choi, J. Xu, S. S. Bhowmick, K. Chun, and G. L. Wong, 'Efficient shapelet discovery for time series classification,' IEEE Transactions on Knowledge and Data Engineering , pp. 1-1, 2020.
+- [84] A. Bagnall, H. A. Dau, J. Lines, M. Flynn, J. Large, A. Bostrom, P. Southam, and E. Keogh, 'The uea multivariate time series classification archive, 2018,' arXiv preprint arXiv:1811.00075 , 2018.
+- [85] A. Wolanin, G. Mateo-Garc´ ıa, G. Camps-Valls, L. G´ omez-Chova, M. Meroni, G. Duveiller, L. You, and L. Guanter, 'Estimating and understanding crop yields with explainable deep learning in the indian wheat belt,' Environmental Research Letters , vol. 15, 01 2020.
+- [86] Y. Hao and H. Cao, 'A new attention mechanism to classify multivariate time series,' in Proceedings of the Twenty-Ninth International Joint Conference on Artificial Intelligence, IJCAI-20 , C. Bessiere, Ed. International Joint Conferences on Artificial Intelligence Organization, 7 2020, pp. 1999-2005, main track. [Online]. Available: https://doi.org/10.24963/ijcai.2020/277
+- [87] S. A. Siddiqui, D. Mercier, A. Dengel, and S. Ahmed, 'Tsinsight: A local-global attribution framework for interpretability in time-series data,' arXiv preprint arXiv:2004.02958 , 2020.
+- [88] Q. Tan, M. Ye, A. J. Ma, B. Yang, T. C. F. Yip, G. L. H. Wong, and P. C. Yuen, 'Explainable uncertainty-aware convolutional recurrent neural network for irregular medical time series,' IEEE Transactions on Neural Networks and Learning Systems , pp. 1-15, 2020.
+- [89] P. Gao, X. Yang, R. Zhang, and K. Huang, 'Explainable tensorized neural ordinary differential equations forarbitrary-step time series prediction,' arXiv preprint arXiv:2011.13174 , 2020.
+- [90] M. Munir, S. A. Siddiqui, F. K¨ usters, D. Mercier, A. Dengel, and S. Ahmed, 'Tsxplain: Demystification of dnn decisions for time-series using natural language and statistical features,' Lecture Notes in Computer Science , p. 426-439, 2019. [Online]. Available: http://dx.doi.org/10.1007/978-3-030-30493-5 43
+- [91] Q. Pan, W. Hu, and J. Zhu, 'Series saliency: Temporal interpretation for multivariate time series forecasting,' arXiv preprint arXiv:2012.09324 , 2020.
+- [92] R. Assaf, I. Giurgiu, F. Bagehorn, and A. Schumann, 'Mtex-cnn: Multivariate time series explanations for predictions with convolutional neural networks,' in 2019 IEEE International Conference on Data Mining (ICDM) , 2019, pp. 952-957.
+- [93] M. Augustin, A. Meinke, and M. Hein, 'Adversarial robustness on inand out-distribution improves explainability,' in European Conference on Computer Vision . Springer, 2020, pp. 228-245.
+- [94] A. H. Gee, D. Garcia-Olano, J. Ghosh, and D. Paydarfar, 'Explaining deep classification of time-series data with learned prototypes,' arXiv preprint arXiv:1904.08935 , 2019.
+- [95] A. Kacem, Z. Hammal, M. Daoudi, and J. Cohn, 'Detecting depression severity by interpretable representations of motion dynamics,' in 2018 13th IEEE International Conference on Automatic Face Gesture Recognition (FG 2018) , 2018, pp. 739-745.
+- [96] A. Hartl, M. Bachl, J. Fabini, and T. Zseby, 'Explainability and adversarial robustness for rnns,' 2020 IEEE Sixth International Conference on Big Data Computing Service and Applications (BigDataService) , Aug 2020. [Online]. Available: http://dx.doi.org/10. 1109/BigDataService49289.2020.00030
+- [97] E. Ates, B. Aksar, V. J. Leung, and A. K. Coskun, 'Counterfactual explanations for machine learning on multivariate time series data,' arXiv preprint arXiv:2008.10781 , 2020.
+- [98] A. Madry, A. Makelov, L. Schmidt, D. Tsipras, and A. Vladu, 'Towards deep learning models resistant to adversarial attacks,' arXiv preprint arXiv:1706.06083 , 2017.
+- [99] M. Hein, M. Andriushchenko, and J. Bitterwolf, 'Why relu networks yield high-confidence predictions far away from the training data and how to mitigate the problem,' in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , 2019, pp. 41-50.
+- [100] I. Stepin, J. Alonso, A. Catala, and M. Pereira-Farina, 'A survey of contrastive and counterfactual explanation generation methods for explainable artificial intelligence,' IEEE Access , vol. 9, pp. 11 97412 001, 01 2021.
+- [101] H. Arnout, M. El-Assady, D. Oelke, and D. A. Keim, 'Towards a rigorous evaluation of xai methods on time series,' in 2019 IEEE/CVF International Conference on Computer Vision Workshop (ICCVW) . IEEE, 2019, pp. 4197-4201.
+- [102] S. Bach, A. Binder, G. Montavon, F. Klauschen, K.-R. M¨ uller, and W. Samek, 'On pixel-wise explanations for non-linear classifier decisions by layer-wise relevance propagation,' PloS one , vol. 10, no. 7, p. e0130140, 2015.
+- [103] Y. Yang, V. Tresp, M. Wunderle, and P. A. Fasching, 'Explaining therapy predictions with layer-wise relevance propagation in neural networks,' in 2018 IEEE International Conference on Healthcare Informatics (ICHI) , 2018, pp. 152-162.
+- [104] H. Suresh, N. Hunt, A. Johnson, L. A. Celi, P. Szolovits, and M. Ghassemi, 'Clinical intervention prediction and understanding using deep networks,' arXiv preprint arXiv:1705.08498 , 2017.
+- [105] A. Binder, G. Montavon, S. Lapuschkin, K.-R. M¨ uller, and W. Samek, 'Layer-wise relevance propagation for neural networks with local renormalization layers,' in International Conference on Artificial Neural Networks . Springer, 2016, pp. 63-71.

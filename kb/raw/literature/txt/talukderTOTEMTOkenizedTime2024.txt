@@ -1,0 +1,592 @@
+## TOTEM: TOkenized Time Series EMbeddings for General Time Series Analysis
+
+Sabera Talukder 1 Yisong Yue 1 Georgia Gkioxari 1
+
+## Abstract
+
+The field of general time series analysis has recently begun to explore unified modeling, where a common architectural backbone can be retrained on a specific task for a specific dataset. In this work, we approach unification from a complementary vantage point: unification across tasks and domains. To this end, we explore the impact of discrete, learnt, time series data representations that enable generalist, cross-domain training. Our method, TOTEM, or TOkenized Time Series EMbeddings, proposes a simple tokenizer architecture that embeds time series data from varying domains using a discrete vectorized representation learned in a self-supervised manner. TOTEM works across multiple tasks and domains with minimal to no tuning. We study the efficacy of TOTEM with an extensive evaluation on 17 real world time series datasets across 3 tasks. We evaluate both the specialist (i.e., training a model on each domain) and generalist (i.e., training a single model on many domains) settings, and show that TOTEM matches or outperforms previous best methods on several popular benchmarks. The code can be found at: https://github.com/SaberaTalukder/TOTEM.
+
+## 1. Introduction
+
+Time series analysis encompasses a wide range of tasks, datasets, and applications in the real world. When considering training paradigms, time series analysis has historically been conducted via specialist-training , meaning that models are trained on a single time series domain (Zhou et al., 2023; Wu et al., 2022a; Nie et al., 2022; Zhang &amp; Yan, 2022). Generalist-training , where models are simultaneously trained on multiple time series domains, contrasts the specialist paradigm. Both specialist and generalist models can be tested under various regimes. Within in-domaintesting , a model is tested on the same domain(s) it was trained on. In zero-shot-testing , a model is tested on different domains(s) than it was trained on. Some methods have begun to explore the idea of zero-shot forecasting where (1) a forecaster trains on one dataset then predicts on a separate dataset (Zhou et al., 2023), or (2) a forecaster trains on a subset of channels (which we call sensors ) from one dataset then zero-shot forecasts on the remaining sensors in the same dataset (Liu et al., 2023). Both of these models would be considered specialists, as they were trained on only one (or a subset of one) dataset.
+
+1 California Institute of Technology, Pasadena, CA. Correspondence to: Sabera Talukder &lt; sabera@caltech.edu &gt; .
+
+Further, time series analysis has typically been restricted by task, where methods study only forecasting (Wu et al., 2021; Woo et al., 2022), anomaly detection (Xu et al., 2021; He &amp; Zhao, 2019), or imputation (Luo et al., 2018; 2019; Talukder et al., 2022), among others. Recently, the field has become increasingly unified with respect to model architecture, with methods (Zhou et al., 2023; Wu et al., 2022a) exploring language and vision backbones on various time series tasks. These backbones, like previous methods, utilize specialist training (e.g., training separate imputers on each dataset).
+
+Similarly, the field has also become increasingly unified with respect to data representation, with growing emphasis on learning performant data representations. For instance, Franceschi et al. (2019) utilize an exponentially dilated causal convolutional encoder to discover in-domain embeddings, Tonekaboni et al. (2021) leverage temporal neighborhood coding, Yang &amp; Hong (2022) utilize temporal-spectral fusion, and Yue et al. (2022) employs hierarchical contrasting across the time and batch dimensions.
+
+At a technical level, our approach bears closest affinity to methods that use vector quantized variational autoencoders (VQVAEs) (Van Den Oord et al., 2017; Duan et al., 2023; Rasul et al., 2022b;a). As we discuss further in Section 3, our goal is to develop a streamlined framework for learning a tokenized data representation (using VQVAEs) in a way that permits easy applicability and holistic empirical evaluation on a broad range of time series modeling tasks and data domains (including zero-shot generalization to new test domains) with minimal to no tuning. 2
+
+Motivated by the trend of time series analysis unification, we explore the value of a VQVAE-based tokenizer for time series imputation, anomaly detection, and forecasting. Unlike previous methods, we utilize self-supervised, discrete tokens, and extensively explore their utility in varied training and testing regimes. Our contributions are as follows:
+
+2 As an aside, our approach to studying what is a performant general time series data representation shares a philosophical alignment with the development of large generalist models in natural language processing, which are also based on having a common tokenized representation (Gage, 1994; Radford et al., 2018).
+
+Figure 1. TOTEM &amp; Evaluation Regimes. An overview of TOTEM, the training schemas, and inference regimes. (a) The TOTEM VQVAE architecture consists of an 1D strided CNN encoder E , quantizer, latent codebook, and 1D strided transpose CNN decoder D . TOTEM's VQVAE enables generalist training, i.e., on all datasets jointly, and specialist training, i.e., on one dataset at a time. (b) TOTEM's discrete, self-supervised codebook can be leveraged for both in domain and zero shot testing.
+
+<!-- image -->
+
+1. We present TOTEM, a simple tokenizer architecture for time series analysis that works across domains and tasks with minimal to no tuning.
+2. Despite its simplicity, TOTEM matches or outperforms the state-of-the-art on several popular benchmark datasets and tasks.
+3. With an extensive evaluation in the generalist setting (training a single model on multiple domains), we show that TOTEM outperforms the leading state-of-the-art model in both in-domain and zero-shot testing regimes.
+
+## 2. Related Work
+
+Time series modeling methods utilize many techniques, ranging from statistical methods (Winters, 1960; Holt, 1957; Anderson, 1976; Hyndman &amp; Athanasopoulos, 2018; Taylor &amp;Letham, 2018) to multilayer perceptrons (MLPs) (Zeng et al., 2023; Li et al., 2023; Das et al., 2023; Challu et al., 2023; Chen et al., 2023; Zhang et al., 2022; Oreshkin et al., 2019) to convolutional neural networks (CNNs) (Wu et al., 2022a; Liu et al., 2022a; He &amp; Zhao, 2019; Franceschi et al., 2019; Bai et al., 2018) to recurrent neural networks (RNNs) (Salinas et al., 2020; Shen et al., 2020; Hochreiter &amp; Schmidhuber, 1997) to transformers (Zhou et al., 2023; Liu et al., 2023; Nie et al., 2022; Zhang &amp; Yan, 2022; Woo et al., 2022;
+
+Zhou et al., 2022; Liu et al., 2022b; Wu et al., 2022b; Xu et al., 2021; Wu et al., 2021; Liu et al., 2021; Zhou et al., 2021; Kitaev et al., 2020; Li et al., 2019). Many models are hybrid solutions that blend aforementioned approaches.
+
+Most of these methods intake time and then perform various combinations of normalization (Kim et al., 2021), frequency transformations (Wu et al., 2022a; Zhou et al., 2022), and patchification either along the time dimension (Liu et al., 2023; Zhang &amp; Yan, 2022; Nie et al., 2022), or sensor dimension (Li et al., 2019; Zhou et al., 2021; Wu et al., 2021; Liu et al., 2021). 3 Patch lengths range from a single timestep / sensor, also known as point-wise, to the length of the entire time series / all sensors. Time and sensor patch dependencies are then learned, via an attention mechanism, convolution, recurrence, or linear layer, across the temporal dimension, sensor dimension, or both the temporal and sensor dimensions (Zhang &amp; Yan, 2022). For multisensor modeling, one can model all sensors jointly or independently (i.e., forecast each sensor independently) (Nie et al., 2022). These methods learn the underlying data representations end-to-end with the downstream task (e.g., forecasting).
+
+Specialist-training, where models are only trained on a single time series domain, is the most common regime amongst prior work (Zhou et al., 2023; Wu et al., 2022a; Nie et al., 2022; Zhang &amp; Yan, 2022). These specialist models are primarily evaluated via in-domain-testing, where the test set is from the same domain as the train set. Recently, some methods (Zhou et al., 2023; Liu et al., 2023) have begun to explore specialist zero-shot forecasting capabilities.
+
+3 In time series analysis, sensors, channels, and variates are synonymous terms; in this paper we adopt the sensor terminology.
+
+The time series analysis field is undergoing unification along both the modeling axis (Zhou et al., 2023; Wu et al., 2022a) and data representation axis (Franceschi et al., 2019; Tonekaboni et al., 2021; Yang &amp; Hong, 2022; Barnum et al., 2020; Yue et al., 2022). Unified data representations, both statistical and learnt, have been more extensively studied in language and vision modeling (Gage, 1994; Van Den Oord et al., 2017; Esser et al., 2021; Rombach et al., 2022). The vision modeling field distinguishes between discrete, learnt, tokens (Van Den Oord et al., 2017; Esser et al., 2021; Rombach et al., 2022) and patches (Dosovitskiy et al., 2020). Patches have been studied in time series modeling (Zhou et al., 2023; Nie et al., 2022; Zhang &amp; Yan, 2022). In this work, we propose to use discrete, learnt tokenized representations, which we show lead to strong performance in both specialist and generalist settings, as well as in-domain and zero-shot testing regimes.
+
+## 3. Method
+
+Our proposed discrete time series tokenization enables the design of general models across a variety of time series domains, tasks, and evaluation schemas, Figure 1. We design a single tokenizer architecture that is generally applicable without extensive data engineering while being suitable for varying data dimensionalities across different tasks. There are many possibilities for how to introduce a discrete time series tokenizer, we extensively study one such methodology that satisfies the aforementioned design criteria.
+
+Data Engineering. Prior work in time series analysis leverages data engineering such as the use of auxiliary features (e.g. day of the month, or minute in the hour, etc.) (Chen et al., 2023; Salinas et al., 2020), or frequency transformations (Wu et al., 2022a; Zhou et al., 2022). We forego any data engineering and operate directly on time steps. This enables generalist-training as differing data domains have widely varying sampling rates leading to distinct auxiliary features and frequency profiles.
+
+Varying Dimensionality. A time series dataset consists of E examples (i.e. number of distinct recordings), S sensor channels, and T time steps, and can be formally expressed as { x j } E j =1 ⊂ R S × T . Even within a single task and single data domain where S does not change, E and T take on a wide range of values. As an example, canonical forecasting predictions lengths range from 96 to 720 time steps. When moving to generalist-training, datasets additionally have wide ranging sensor dimensionalities S . Our tokenizer handles varying dimensionality across E , S , and T by creating non-overlapping tokens along the time-dimension that are smaller than the dimension T .
+
+Differing Tasks. There are numerous tasks to tackle in time series analysis. Three significant ones are imputation, anomaly detection, and forecasting. In imputation , models intake a masked time series x m ∈ R S × T in , and then reconstruct and impute x ∈ R S × T in . In anomaly detection , models intake a corrupted time series x corr ∈ R S × T in and reconstruct the data x ∈ R S × T in . The amount of corruption is considered known, at A%. In forecasting , models intake a time series x ∈ R S × T in and predict future readings y ∈ R S × T out , where S is the number of sensors and T in , T out signify the durations of the preceding and succeeding time series, respectively. Our tokenizer is performant across all tasks despite their distinct representational requirements.
+
+TOTEM Implementation. To realize a single tokenizer architecture that enables generalist modeling across differing domains and tasks we take inspiration from the VQVAE (Van Den Oord et al., 2017). The original VQVAE leverages a dilated convolutional architecture with a stride of 2 and window-size of 4, similar to the WaveNet (Oord et al., 2016) dilated, causal, convolutional decoder. A dilated convolution skips inputs allowing a filter to operate on a larger input area / coarser scale. Utilizing dilated convolutions is an architectural decision rooted in the high sampling rates of raw audio waveforms (Oord et al., 2016; Van Den Oord et al., 2017). High sampling rates are not a trait shared by many time series domains.
+
+When adapting the VQVAE for general time series analysis, the TOTEM VQVAE:
+
+1. Operates directly on time steps; no data engineering.
+2. Creates discrete, non-overlapping tokens along the time dimension of length F , where F &lt; T , thereby promoting training and testing on variable length examples, E , sensors, S , and time steps T .
+3. Maintains the same architecture and objective regardless of the downstream task.
+4. Aims to capture maximal information within a large receptive field by: (1) using a strided non-causal convolutional architecture with no dilation, (2) training on long time series inputs, (3) pre-striding the data by a stride of 1 so the tokenizer learns from maximal inputs.
+
+The TOTEM VQVAE consists of an encoder, quantizer, latent codebook, and decoder. It takes in a univariate time series { x i ∈ R T } E · S i =1 obtained by flattening the sensor channel of the multivariate data. This makes TOTEM's VQVAE sensor-agnostic, enabling TOTEM's generalist-training and zero-shot-testing. The encoder E consists of strided 1D convolutions compressing the time series by a cumulative stride of F . E maps a univariate time series x ∈ R T to a latent representation z = E ( x ) ∈ R T / F × D , where D is the the hidden dimension. The latent codebook C = { c i } K i =1 consists of K D -dim codewords c i ∈ R D . During quantization, the codebook is used to replace z with ˆ z ∈ R T / F × D such that ˆ z j = c k , where k = arg min i || z j -c i || 2 . The decoder D follows the reverse architecture of the encoder E , consisting of 1D transpose convolutions with a cumulative stride of 1 / F mapping the quantized ˆ z to a reconstructed time series ˆ x = D (ˆ z ) ∈ R T . We learn E , D , and C by optimizing the objective L = L rec + L cmt consisting of a reconstruction loss L rec = 1 E · S ∑ i || x i -ˆ x i || 2 2 and a commitment loss L cmt, which allows the codebook to update despite the the nondifferentiable arg min operation during quantization. The final objective is L = L rec + α · L cmt, where α is a scalar that weights the two losses. This objective does not change even when the underlying task, time series length, data masking, normalization schema, or data domain changes.
+
+Notably imputation and anomaly detection can be directly solved with just TOTEM's VQVAE, as they are fundamentally data representation tasks, whereas in forecasting further modeling is required, see Figure 2. In forecasting, the trained, frozen, codebook representation converts a sensor's observed measurements x s ∈ R T in to a sequence of T in / F discrete tokens. The forecaster transformer encoder processes these tokenized time series independently for each sensor, adding time-based positional encodings to each token along the time dimension. Using a series of multi-head attention layers, the model predicts the forecasted measurements ¯ y s ∈ R T out for s = 1 , ..., S , applying the attention mechanism along the time dimension T . In parallel, the forecaster takes in x s and predicts the future's mean, µ s , and standard deviation, σ s , for each sensor s = 1 , ..., S to unnormalize the data. The final forecasted prediction is y s = σ s · ¯ y s + µ s . The forecaster is trained in a supervised fashion by minimizing three smooth L1 losses between predictions { ¯ y s , µ s , σ s } and their ground truth respectively.
+
+## 4. Experimental Setup
+
+Through experiments in imputation (§5), anomaly detection (§6), and forecasting (§7), our goal is to explore the efficacy of TOTEM on standard benchmark datasets and tasks, and domain general settings. To briefly refresh: specialist refers to training on a single domain (Tables 1, 3, 5). Generalist refers to training on multiple domains (Tables 2, 4, 6). Finally, in-domain refers to testing on the training domain, and zero-shot to testing on a separate domain from training.
+
+For all experiments &amp; models, we run three seeds and report the mean; standard deviations are reported in the Appendix A. Following the field standard, we bold the best metric in all tables. Evaluation metrics differ across tasks. We report mean squared error MSE ( ↓ ), mean absolute error MAE ( ↓ ), precision P ( ↑ ), recall R ( ↑ ), and F1 score ( ↑ ); ( ↓ ) means lower is better, ( ↑ ) means higher performance is better. Given the varied metrics we calculate the average number of best results, or AvgWins , for each method and highlight the best , second best, and third best methods.
+
+Figure 2. Forecaster Modeling. The forecasting task requires modeling beyond the VQVAE. We leverage TOTEM's pretrained, learnt, discrete codes as a the input data representation and train a transformer encoder. We add positional embeddings along the time dimension, and use linear layers before the final output as well as to un-normalize the resulting forecast.
+
+<!-- image -->
+
+Baselines. Wecompare to two families of approaches: methods designed for multiple tasks ( multitask ) - TOTEM belongs in this category - and methods designed for a specific task ( singletask ), and are adapted to other tasks.
+
+We compare against two recent multitask models, the transformer based GPT2 (Zhou et al., 2023) and the convolutional TimesNet [TiNet] (Wu et al., 2022a). For singletask models we compare against PatchTST [Patch] (Nie et al., 2022), ETSFormer [ETS] (Woo et al., 2022), Fedformer [FED] (Zhou et al., 2022), Non-stationary trans. [Stat] (Liu et al., 2022b), Autoformer [Auto] (Wu et al., 2021), Informer [Inf] (Zhou et al., 2021), Reformer [Re] (Kitaev et al., 2020), LightTS [LiTS] (Zhang et al., 2022), DLinear [DLin] (Zeng et al., 2023), Anomaly trans. [ATran](Xu et al., 2021), Pyraformer [Pyra] (Liu et al., 2021), LogTrans. [LogTr] (Li et al., 2019), Trans. [Trans] (Vaswani et al., 2017), Crossformer [Cross] (Zhang &amp; Yan, 2022), TiDE (Das et al., 2023), RLinear [RLin] (Li et al., 2023), SciNet [SCi] (Liu et al., 2022a), &amp; iTrans. [iTrans] (Liu et al., 2023).
+
+Datasets. We leverage 12 benchmark datasets: weather [W], electricity [E], traffic [T], ETTm1 [m1], ETTm2 [m2], ETTh1 [h1], ETTh2 [h2], SMD, MSL, SMAP, SWAT, PSM that are commonly used for imputation, anomaly detection and forecasting (Zhou et al., 2023; Wu et al., 2022a; Xu et al., 2021; Zhang &amp; Yan, 2022; Nie et al., 2022). For the zero shot settings, we leverage 5 benchmark datasets: neuro2 [N2], neuro5 [N5] (Peterson et al., 2022), and saugeen river flow [R], U.S. births [B], and sunspot [S] (Godahewa et al., 2021). 17 datasets in total.
+
+Table 1. Specialist Imputation ( ↓ ) . Across all datasets, metrics, and masking percentages, TOTEM has the highest AvgWins ( 52.1% ), followed by GPT2 ( 35.4% ). TOTEM values are means from 3 seeds; baseline values are from (Zhou et al., 2023; Wu et al., 2022a).
+
+<!-- image -->
+
+Table 2. Generalist Imputation ( ↓ ) . TOTEM &amp; GPT2 simultaneously train on all in domain datasets, 3 seeds each. A. In-Domain Performance. TOTEM has the highest AvgWins at 58.3% . B. Zero-Shot Performance. We test on unseen datasets zero-shot. TOTEM again has the highest AvgWins at 80.0% .
+
+A. In-Domain Performance
+
+| Model Metric        | Model Metric                                                                                                        | B. Zero-Shot Performance                                                                                               |
+|---------------------|---------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| W                   | 12.5% 0.029 0.060 0.029 0.045 25% 0.030 0.060 0.033 0.048 37.5% 0.032 0.062 0.037 0.054 50% 0.036 0.067 0.043 0.061 | Model TOTEM GPT2 Metric MSE MAE MSE MAE                                                                                |
+| E                   | 12.5% 0.065 0.171 0.080 0.186 25% 0.071 0.179 0.091 0.197 37.5% 0.080 0.189 0.108 0.213 50% 0.095 0.205 0.132 0.236 | N2 12.5% 0.029 0.120 0.047 0.145 25% 0.033 0.127 0.064 0.164 37.5% 0.041 0.139 0.090 0.191 50% 0.056 0.160 0.131 0.228 |
+| m1                  | 12.5% 0.041 0.132 0.052 0.141 25% 0.044 0.135 0.065 0.154 37.5% 0.048 0.139 0.085 0.171 50% 0.058 0.152 0.117 0.196 | N5 12.5% 0.017 0.085 0.021 0.095 25% 0.019 0.090 0.028 0.107 37.5% 0.022 0.098 0.039 0.123 50% 0.029 0.110 0.055 0.145 |
+| m2                  | 12.5% 0.040 0.125 0.029 0.095 25% 0.041 0.126 0.033 0.101 37.5% 0.043 0.129 0.038 0.110 50% 0.048 0.136 0.045 0.121 | R 12.5% 0.071 0.109 0.093 0.119 25% 0.087 0.117 0.125 0.134 37.5% 0.112 0.129 0.167 0.154 50% 0.148 0.147 0.220 0.182  |
+| h1                  | 12.5% 0.100 0.201 0.113 0.217 25% 0.108 0.209 0.131 0.231 37.5% 0.122 0.220 0.153 0.247 50% 0.144 0.237 0.182 0.266 | B 12.5% 0.632 0.642 0.392 0.496 25% 0.693 0.665 0.444 0.523 37.5% 0.761 0.692 0.498 0.553 50% 0.827 0.718 0.591 0.599  |
+| h2                  | 12.5% 0.075 0.175 0.067 0.155 25% 0.076 0.177 0.071 0.160 37.5% 0.093 0.195 0.077 0.167 50% 0.089 0.192 0.086 0.179 | S 12.5% 0.057 0.160 0.070 0.173 25% 0.061 0.168 0.084 0.189 37.5% 0.069 0.178 0.103 0.209 50% 0.082 0.193 0.128 0.234  |
+| AvgWins 58.3% 43.8% | AvgWins 58.3% 43.8%                                                                                                 | AvgWins 80.0% 20.0%                                                                                                    |
+
+## 5. Imputation
+
+In imputation, models intake a masked time series x m ∈ R S × T in , and then reconstruct and impute x ∈ R S × T in We experiment with four canonical masking percentages at 12 . 5% , 25% , 37 . 5% , 50% , and report MSE and MAE .
+
+Specialist. In Table 1 we compare TOTEM to baselines. All models are trained and evaluated on the same dataset (indomain). TOTEM has the highest AvgWins with 52.1%, followed by GPT2 at 35.4%, and TiNet at 18.8%. TOTEM performance for m1 and h1 is lower; notably these datasets are the minute and hour resampling of the same raw data respectively. We investigate and discuss TOTEM's success across different domains in Table 9.
+
+Generalist. In Table 2 we compare TOTEM to GPT2 (best performing models above), when both models are trained on the aggregate of W, E, m1, m2, h1, h2. We test them on the in-domain and zero-shot test sets. TOTEM outperforms GPT2 in-domain, 58.3% vs. 43.8% , and by a much larger margin in zero-shot, 80% vs. 20%.
+
+TOTEM's performance across all experiments demonstrate that tokens are a performant representation for imputation.
+
+## 6. Anomaly Detection
+
+In anomaly detection, models intake a corrupted time series x corr ∈ R S × T in and reconstruct the data x ∈ R S × T in , where the amount of corruption is considered known, at A%. We report % Precision P ( ↑ ), Recall R ( ↑ ), and F1 Score ( ↑ ).
+
+The standard practice in machine learning, which we adopt, is to have a held out test set that is not used for tuning the model or learning algorithm. One aspect that makes comparing with several prior works challenging is that they use the test set as a validation set for early stopping of the learning algorithm, which can often inflate their performance. Despite this inconsistency, we compare our performance against these reported performances, whenever available.
+
+Specialist. In Table 3 we evaluate TOTEM against numerous specialist baselines. TOTEM has the highest AvgWins at 33.3% followed by a five-way tie between GPT2, TiNet, ATrans, ETS, and LogTr at 13.3%.
+
+Generalist. In Table 4 we compare generalist-trained TOTEM and GPT2. On the in-domain test sets TOTEM outperforms GPT2: 80% vs. 20%. In the zero-shot test sets TOTEM outperforms GPT2: 73.3% vs. 26.7%.
+
+TOTEM's AvgWins across the specialist and generalist A. In-Domain Performance B. Zero-Shot Performance settings demonstrate that tokens are a performant representation for anomaly detection.
+
+Table 3. Specialist Anomaly Detection ( ↑ ) . TOTEM has the highest AvgWins at 33.3% followed by a five-way tie between GPT2, TiNet, ATrans, ETS, and LogTr at 13.3% . Some prior methods use the test set as a validation set for early stopping of the learning algorithm, which can inflate performance. We do not adopt this practice and train TOTEM for a set number of iterations.
+
+|    | Model TOTEM                                         | GPT2                          | TiNet                         | ATran                         | Patch                         | ETS                           | FED Stat                                                       | Auto Pyra                                                                                    | Inf                           | Re LogTr                      | Trans LiTS DLin                                                                           |
+|----|-----------------------------------------------------|-------------------------------|-------------------------------|-------------------------------|-------------------------------|-------------------------------|----------------------------------------------------------------|----------------------------------------------------------------------------------------------|-------------------------------|-------------------------------|-------------------------------------------------------------------------------------------|
+| F1 | SMD 79.62 MSL 82.58 SMAP 94.02 SWAT 94.27 PSM 95.87 | 86.89 82.45 72.88 94.23 97.13 | 84.61 81.84 69.39 93.02 97.34 | 85.49 83.31 71.18 83.10 79.40 | 84.62 78.70 68.82 85.72 96.08 | 83.13 85.03 69.50 84.91 91.76 | 85.08 84.62 78.57 77.50 70.76 71.09 93.19 79.88 97.23 97.29    | 85.11 83.04 81.65 79.05 84.86 84.06 71.12 71.09 69.92 92.74 91.78 81.43 93.29 82.08 77.10    | 75.32 84.40 70.40 82.80 73.61 | 76.21 79.57 69.97 80.52 76.74 | 79.56 82.53 77.10 78.68 78.95 84.88 69.70 69.21 69.26 80.37 93.33 87.52 76.07 97.15 93.55 |
+| R  | SMD 76.06 MSL 82.85 SMAP 94.04 SWAT 95.91 PSM 94.21 | 84.98 82.91 60.95 96.34 95.68 | 81.54 75.36 56.40 95.40 96.20 | 82.23 87.37 58.11 97.32 94.72 | 82.14 70.96 55.46 80.94 93.47 | 79.23 84.93 55.75 80.36 85.28 | 82.39 81.21 80.07 89.14 58.10 59.02 96.42 96.75 97.16 96.76    | 82.35 80.61 77.23 80.92 85.93 86.48 58.62 57.71 57.13 95.81 96.00 96.75 88.15 96.02 96.33    | 69.24 83.31 57.44 96.53 95.38 | 70.13 87.37 57.59 97.32 98.00 | 76.13 78.42 71.52 87.37 75.78 85.42 57.12 55.27 55.41 96.53 94.72 95.30 96.56 95.97 89.26 |
+| P  | SMD 83.54 MSL 82.32 SMAP 94.00 SWAT 92.68 PSM 97.58 | 88.89 82.00 90.60 92.20 98.62 | 87.91 89.54 90.14 90.75 98.51 | 88.91 79.61 91.85 72.51 68.35 | 87.26 88.34 90.64 91.10 98.84 | 87.44 85.13 92.25 90.02 99.31 | 87.95 88.33 77.14 68.55 90.47 89.37 90.17 68.03 97.31 97.82 0% | 88.06 85.61 86.60 77.27 83.81 81.77 90.40 92.54 90.11 89.85 87.92 70.29 99.08 71.67 64.27 0% | 82.58 85.51 90.91 72.50 59.93 | 83.46 73.05 89.15 68.67 63.06 | 83.58 87.10 83.62 71.57 82.40 84.34 89.37 92.58 92.32 68.84 91.98 80.91 62.75 98.37 98.28 |
+|    | AvgWins 33.3%                                       | 13.3%                         | 13.3%                         | 13.3%                         | 0%                            | 13.3%                         | 6.7%                                                           | 0%                                                                                           | 0%                            | 0% 13.3%                      | 0% 0% 0%                                                                                  |
+
+Table 4. Generalist Anomaly Detection ( ↑ ) . We train TOTEM &amp; GPT2 on all datasets and then perform in-domain and zero-shot evaluations. A. In-Domain Performance. TOTEM outperforms GPT2: 80.0% vs. 20.0%. B. Zero-Shot Performance. TOTEM again outperforms GPT2: 73.3% vs. 26.7%.
+
+| Model TOTEM GPT2   | Model TOTEM GPT2              | Model TOTEM GPT2              | Model TOTEM GPT2   | Model TOTEM GPT2              | Model TOTEM GPT2              |
+|--------------------|-------------------------------|-------------------------------|--------------------|-------------------------------|-------------------------------|
+| F1                 | 78.64 83.29 92.51 94.37 95.78 | 79.73 80.17 67.05 89.62 90.47 | F1 N2 N5 R B S     | 51.29 51.28 49.39 49.15 52.17 | 39.02 42.19 36.14 20.81 38.12 |
+| R                  | 72.07 82.96 91.48 96.13 93.90 | 73.42 78.48 53.42 87.53 87.76 | R N2 N5 R B S      | 76.88 76.84 70.49 73.71 77.36 | 33.69 36.77 29.66 17.67 31.83 |
+| P                  | 86.66 83.64 93.56 92.68 97.74 | 87.44 81.95 90.01 91.83 93.39 | P N2 N5 R B S      | 38.49 38.48 38.02 36.86 39.35 | 46.43 49.58 46.30 25.33 47.72 |
+| AvgWins 80.0%      | AvgWins 80.0%                 | 20.0%                         | AvgWins            | 73.3%                         | 26.7%                         |
+
+## 7. Forecasting
+
+In forecasting, models intake a time series x ∈ R S × T in and predict future readings y ∈ R S × T out , where S is the number of sensors and T in , T out signify the durations of the preceding and succeeding time series, respectively. The pairs ( x , y ) are generated by striding the original time series data.
+
+All models have a lookback of T in = 96 , with prediction lengths T out = { 96 , 192 , 336 , 720 } . Numbers for other methods are from (Liu et al., 2023). We run GPT2 with T in = 96 as they originally report varying, dataset-specific, lookback lengths. We report MSE ( ↓ ) and MAE ( ↓ ).
+
+Specialist. From Table 5 we find that TOTEM achieves the highest AvgWins at 28.6% followed by iTrans at 26.8%. TOTEM has first finishes in five datasets while iTrans' first finishes are concentrated in only electricity and traffic.
+
+Generalist. In Table 6 we compare generalist TOTEM
+
+and GPT2. TOTEM outperforms GPT2 for both in-domain (67.9% vs. 33.9%) and zero-shot (90.0% vs. 12.5%).
+
+TOTEM's AvgWins forecasting performance across the training and testing regimes demonstrates that tokens are a performant representation for forecasting.
+
+## 8. Ablations
+
+Tokens vs. Time. To evaluate if tokens enable TOTEM's performance, we implement TimeTOTEM. TimeTOTEM has the identical architecture to TOTEM, except we replace the VQVAE with an MLP trained end-to-end with the downstream forecaster. We compare Totem vs. TimeTOTEM in the specialist in-domain, and generalist in-domain and zeroshot regimes (Table 7). In all cases TOTEM outperforms TimeTOTEM - specialist: 67.9% vs. 39.3%, generalist indomain: 78.6% vs. 23.2%, generalist zero-shot: 67.5% vs. 35.0%. TOTEM's performance demonstrates that tokens, when compared to time, lead to better performance.
+
+Codebook Size. In Table 7 we explore the affect of the codebook size, K , on the VQVAE's MSE and MAE reconstruction performance. As expected, we find that as K increases from 32 to 256 to 512 the reconstruction performance improves.
+
+## 9. Exploratory Studies in Generalist Modeling
+
+Generalist Codebooks. To further explore the capabilities of a generalist codebook data representation we train models that utilize a general codebook but dataset-specific transformer forecasters, e.g. a TOTEM VQVAE trained on multiple domains with a forecaster trained only on electricity, Table 8. We compare these mixed models to generalist and specialist models trained on the same domains. All models use the same the codebook hyperparameters (number of codewords K = 256 , compression factor F = 4 , code dimensionality D = 64 ) as well as the forecaster transformer architecture to ensure a fair comparison.
+
+Table 5. Specialist Forecasting ( ↓ ) . TOTEM has the best AvgWins ( 28.6% ), followed by iTrans ( 26.8% ). Notably, TOTEM has first place finishes in 5 datasets, while iTrans' first places are concentrated in only electricity and traffic. All models have lookback T in = 96 .
+
+<!-- image -->
+
+Table 6. Generalist Forecasting ( ↓ ) . Here we evaluate the generalist TOTEM and GPT2 models. A. In-Domain Performance. TOTEM outperforms GPT2: 67.9% to 33.9%. B. Zero-Shot Performance. TOTEM outperforms GPT2: 90.0% to 12.5%.
+
+## A. In-Domain Performance
+
+| Model Metric   | Model Metric   | TOTEM GPT2 MSE MAE MSE MAE                                                                      |                           |                                                                                                 |
+|----------------|----------------|-------------------------------------------------------------------------------------------------|---------------------------|-------------------------------------------------------------------------------------------------|
+| W              | 96 192 336 720 | 0.172 0.216 0.201 0.237 0.217 0.256 0.247 0.275 0.266 0.295 0.298 0.311 0.334 0.342 0.372 0.360 |                           |                                                                                                 |
+| E              | 96 192 336 720 | 0.179 0.264 0.194 0.278 0.181 0.267 0.199 0.284 0.196 0.283 0.214 0.300 0.230 0.314 0.255 0.331 | B. Zero-Shot Model Metric | Performance TOTEM GPT2 MSE MAE MSE MAE                                                          |
+| T              | 96 192 336 720 | 0.507 0.284 0.484 0.320 0.511 0.282 0.488 0.320 0.535 0.292 0.502 0.326 0.580 0.309 0.534 0.343 | N2 96 192 336 720         | 1.138 0.777 1.332 0.830 1.149 0.785 1.416 0.863 1.092 0.770 1.358 0.851 1.045 0.754 1.308 0.840 |
+| m1             | 96 192 336 720 | 0.374 0.384 0.487 0.468 0.400 0.399 0.516 0.480 0.432 0.424 0.548 0.499 0.487 0.460 0.581 0.511 | N5 96 192 336 720         | 0.483 0.484 0.528 0.499 0.495 0.491 0.578 0.524 0.468 0.483 0.548 0.515 0.451 0.477 0.537 0.511 |
+| m2             | 96 192 336 720 | 0.198 0.275 0.243 0.315 0.266 0.319 0.297 0.346 0.365 0.377 0.349 0.376 0.588 0.511 0.439 0.423 | R 96 192 336 720          | 1.120 0.582 1.465 0.725 1.242 0.635 1.638 0.785 1.237 0.626 1.601 0.769 1.182 0.604 1.552 0.760 |
+| h1             | 96 192 336 720 | 0.382 0.404 0.421 0.408 0.463 0.435 0.480 0.436 0.507 0.463 0.518 0.453 0.517 0.500 0.517 0.467 | B 96 192 336 720          | 0.805 0.739 0.838 0.762 0.836 0.752 0.837 0.752 0.809 0.748 0.792 0.738 0.896 0.794 0.927 0.806 |
+| h2             | 96 192 336 720 | 0.307 0.345 0.298 0.343 0.406 0.403 0.381 0.392 0.505 0.460 0.406 0.419 0.661 0.557 0.423 0.438 | S 96 192 336 720          | 0.446 0.482 0.443 0.478 0.462 0.491 0.481 0.499 0.521 0.525 0.541 0.533 0.717 0.625 0.773 0.643 |
+| AvgWins        | AvgWins        | 67.9% 33.9%                                                                                     | AvgWins                   | 90.0% 12.5%                                                                                     |
+
+Since we are evaluating the specialists, mixed-models, and generalist on in-domain test data one might expect that the TOTEM specialists will significantly outperform all models. Surprisingly this intuition is not correct. When comparing models trained using specialist codebooks to models trained using a single generalist codebook we find that generalist codebook models outperform specialist codebook models: 66.1% vs. 57.1%. Upon further inspection we find that the fully-generalist model (far right column Table 8) significantly outperforms the mixed-models (middle column Table 8) in traffic (T) and electricity (E). This dominant performance is puzzling until considering the training sizes.
+
+The largest training set across domains belongs to traffic (T) at 10 . 2 M training examples. In dataset T, the fully generalist models achieves 100% AvgWins . The second largest training set belongs to electricity (E) at 5 . 8 M training examples, with 75% AvgWins for the fully-generalist model. Unfortunately there is a sharp drop off in training set sizes, with the rest of the data domains collectively comprising 1 . 6 M training examples. These results evoke questions. For instance: does training on the smaller datasets act like form of regularization? Or: how does in-domain generalist performance scale with dataset size? We leave these exciting directions for future work. The generalist codebook's performance across datasets highlights the potential of unified, discrete, token representations for in-domain evaluations.
+
+Zero Shot Vignette: Training Size &amp; Data Diversity. Here we further explore generalist and specialist zero-shot testing capabilites, Table 9. We take the two largest TOTEM specialist, traffic at 10 . 2 M and electricity at 5 . 8 M training examples, and test their zero-shot capabilities compared to the TOTEM generalist. We expect that the generalist will perform best as it was trained on the most data at 17 . 6 M training examples as well as the most domains. We predict the generalist will be followed by TOTEM-traffic then TOTEMelectricity as they are both trained on only one domain but traffic has 4 . 4 M more training examples than electricity. As expected the generalist outperforms both TOTEM-traffic and TOTEM-electricity with 85.0% AvgWins . However, curiously TOTEM-electricity outperforms TOTEM-traffic: 12.5% vs. 2.5% despite having 4 . 4 M fewer training examples. Why is the smaller training set outperforming the larger training set? One possible explanation is that the electricity domain is more similar than the traffic domain to neuro, river, births, and sunspot. Another possible explanation comes from the raw time series dimensionality. Despite having fewer training examples, electricity has a higher number of raw time steps 4 compared to traffic: 26304 vs. 17544. However, traffic has a larger number of sensors: 862 vs. 321. This limited analysis suggests that a higher number of raw time steps is more valuable than more sensor readings. Untangling these possibilities and beginning to answer the questions: what is a unit of data in time series? And how does this unit scale as the time steps, sensors, and examples scale? are valuable future directions. The zero shot vignette has demonstrated the power of the token-enabled generalist over the traffic and electricity specialists, and has opened up exciting training size and data diversity questions.
+
+Table 7. Ablations ( ↓ ) . Across the Tokens vs. Time (TvT) experiments tokens out perform time. (A) specialist: 67.9% to 39.3%, (B) in-domain generalist: 78.6% to 23.2% , and (C) zero-shot generalist: 67.5% to 35%. (D) As the codebook size K increases the VQVAE reconstruction performance improves.
+
+| A. TvT Specialist                                                                       | A. TvT Specialist                                                                                                                               | B. TvT In-Domain Generalist                                                                                       |
+|-----------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| Model Metric                                                                            | TOTEM TimeTOTEM MSE MAE MSE MAE                                                                                                                 | Model TOTEM TimeTOTEM Metric MSE MAE MSE MAE                                                                      |
+| W 96 192 336 720                                                                        | 0.165 0.208 0.164 0.209 0.207 0.250 0.209 0.251 0.257 0.291 0.261 0.293 0.326 0.340 0.332 0.340                                                 | W 96 0.172 0.216 0.173 0.218 192 0.217 0.256 0.218 0.261 336 0.266 0.295 0.267 0.299 720 0.334 0.342 0.337 0.347  |
+| E 96 192 336 720                                                                        | 0.178 0.263 0.179 0.262 0.187 0.272 0.185 0.269 0.199 0.285 0.204 0.289 0.236 0.318 0.244 0.325                                                 | E 96 0.179 0.264 0.183 0.267 192 0.181 0.267 0.189 0.275 336 0.196 0.283 0.204 0.291 720 0.230 0.314 0.242 0.325  |
+| T 96 192 336 720                                                                        | 0.523 0.303 0.528 0.310 0.530 0.303 0.500 0.349 0.549 0.311 0.531 0.365 0.598 0.331 0.578 0.398                                                 | T 96 0.507 0.284 0.517 0.293 192 0.511 0.282 0.526 0.296 336 0.535 0.292 0.552 0.304 720 0.580 0.309 0.602 0.326  |
+| m1 96 192 336 720                                                                       | 0.320 0.347 0.326 0.355 0.379 0.382 0.377 0.386 0.406 0.402 0.409 0.409 0.471 0.438 0.469 0.441                                                 | m1 96 0.374 0.384 0.428 0.420 192 0.400 0.399 0.438 0.427 336 0.432 0.424 0.469 0.447 720 0.487 0.460 0.546 0.493 |
+| m2 96 192 336 720                                                                       | 0.176 0.253 0.176 0.254 0.247 0.302 0.247 0.303 0.317 0.348 0.318 0.350 0.426 0.410 0.419 0.411                                                 | m2 96 0.198 0.275 0.207 0.286 192 0.266 0.319 0.269 0.325 336 0.365 0.377 0.358 0.377 720 0.588 0.511 0.521 0.482 |
+| h1 96 192 336 720                                                                       | 0.380 0.394 0.377 0.395 0.434 0.427 0.428 0.428 0.490 0.459 0.480 0.462 0.539 0.513 0.530 0.522                                                 | h1 96 0.382 0.404 0.401 0.410 192 0.463 0.435 0.453 0.441 336 0.507 0.463 0.496 0.468 720 0.517 0.500 0.518 0.510 |
+| h2 96 192 336 720                                                                       | 0.293 0.338 0.294 0.338 0.375 0.390 0.373 0.389 0.422 0.431 0.423 0.433 0.610 0.567 0.591 0.556                                                 | h2 96 0.307 0.345 0.305 0.346 192 0.406 0.403 0.396 0.402 336 0.505 0.460 0.492 0.458 720 0.661 0.557 0.599 0.531 |
+| AvgWins 67.9% 39.3%                                                                     | AvgWins 67.9% 39.3%                                                                                                                             | AvgWins 78.6% 23.2%                                                                                               |
+| C. TvT Zero-Shot Generalist Model TOTEM TimeTOTEM Metric MSE MAE MSE MAE N5 192 336 720 | 0.468 0.483 0.481 0.491 0.451 0.477 0.467 0.488                                                                                                 | D. Codebook Size Ablations Codebook Size K 32 256 512 MSE                                                         |
+| N2 96 192 336 720 96                                                                    | 1.138 0.777 1.127 0.773 1.149 0.785 1.169 0.793 1.092 0.770 1.115 0.780 1.045 0.754 1.070 0.766 0.483 0.484 0.481 0.483 0.495 0.491 0.508 0.500 |                                                                                                                   |
+| R 96 192 336 720                                                                        | 1.120 0.582 1.102 0.578 1.242 0.635 1.207 0.628 1.237 0.626 1.190 0.613 1.182 0.604 1.149 0.596                                                 | All 0.0451 0.0192 0.0184 T 0.0312 0.0120 0.0101 E 0.0463 0.0209 0.0152                                            |
+| B 96 192 336 720                                                                        | 0.805 0.739 0.825 0.751 0.836 0.752 0.847 0.761 0.809 0.748 0.831 0.764 0.896 0.794 0.928 0.813                                                 | W 0.0393 0.0161 0.0128 MAE All 0.1460 0.0937 0.0913                                                               |
+| S 96 192 336 720                                                                        | 0.446 0.482 0.446 0.481 0.462 0.491 0.478 0.499 0.521 0.525 0.535 0.532 0.717 0.625 0.736 0.631                                                 | T 0.1204 0.0749 0.0685 E 0.1520 0.1027 0.0878 W 0.1122 0.0673 0.0607                                              |
+| AvgWins 67.5% 35.0%                                                                     | AvgWins 67.5% 35.0%                                                                                                                             | AvgWins 0% 0% 100%                                                                                                |
+
+4 Raw time steps for all data. The train:val:test ratio is 7:1:2.
+
+Table 8. Generalist codes beat specialist codes: 66.1% vs 57.1%.
+
+| Codebook Forecaster Metric   | Codebook Forecaster Metric   | Specialist Specialist MSE MAE                                                                                                                   | Generalist Specialist MSE MAE                                                                                                                   | Generalist Generalist MSE MAE                                                                                                                   |
+|------------------------------|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| W                            | 96 192 336 720               | 0.165 0.208 0.164 0.208 0.172 0.216 0.207 0.250 0.208 0.251 0.217 0.256 0.257 0.291 0.258 0.290 0.266 0.295 0.326 0.340 0.329 0.338 0.334 0.342 | 0.165 0.208 0.164 0.208 0.172 0.216 0.207 0.250 0.208 0.251 0.217 0.256 0.257 0.291 0.258 0.290 0.266 0.295 0.326 0.340 0.329 0.338 0.334 0.342 | 0.165 0.208 0.164 0.208 0.172 0.216 0.207 0.250 0.208 0.251 0.217 0.256 0.257 0.291 0.258 0.290 0.266 0.295 0.326 0.340 0.329 0.338 0.334 0.342 |
+| E                            | 96 192 336 720               | 0.178 0.263 0.178 0.263 0.179 0.264 0.187 0.272 0.187 0.273 0.181 0.267 0.199 0.285 0.199 0.285 0.196 0.283 0.236 0.318 0.238 0.320 0.230 0.314 | 0.178 0.263 0.178 0.263 0.179 0.264 0.187 0.272 0.187 0.273 0.181 0.267 0.199 0.285 0.199 0.285 0.196 0.283 0.236 0.318 0.238 0.320 0.230 0.314 | 0.178 0.263 0.178 0.263 0.179 0.264 0.187 0.272 0.187 0.273 0.181 0.267 0.199 0.285 0.199 0.285 0.196 0.283 0.236 0.318 0.238 0.320 0.230 0.314 |
+| T                            | 96 192 336 720               | 0.523 0.303 0.521 0.301 0.507 0.284 0.530 0.303 0.530 0.303 0.511 0.282 0.549 0.311 0.555 0.313 0.535 0.292 0.598 0.331 0.605 0.337 0.580 0.309 | 0.523 0.303 0.521 0.301 0.507 0.284 0.530 0.303 0.530 0.303 0.511 0.282 0.549 0.311 0.555 0.313 0.535 0.292 0.598 0.331 0.605 0.337 0.580 0.309 | 0.523 0.303 0.521 0.301 0.507 0.284 0.530 0.303 0.530 0.303 0.511 0.282 0.549 0.311 0.555 0.313 0.535 0.292 0.598 0.331 0.605 0.337 0.580 0.309 |
+| m1                           | 96 192 336 720               | 0.320 0.347 0.328 0.352 0.374 0.384 0.379 0.382 0.377 0.383 0.400 0.399 0.406 0.402 0.408 0.404 0.432 0.424 0.471 0.438 0.470 0.440 0.487 0.460 | 0.320 0.347 0.328 0.352 0.374 0.384 0.379 0.382 0.377 0.383 0.400 0.399 0.406 0.402 0.408 0.404 0.432 0.424 0.471 0.438 0.470 0.440 0.487 0.460 | 0.320 0.347 0.328 0.352 0.374 0.384 0.379 0.382 0.377 0.383 0.400 0.399 0.406 0.402 0.408 0.404 0.432 0.424 0.471 0.438 0.470 0.440 0.487 0.460 |
+| m2                           | 96 192 336 720               | 0.176 0.253 0.175 0.253 0.198 0.275 0.247 0.302 0.247 0.302 0.266 0.319 0.317 0.348 0.318 0.348 0.365 0.377 0.426 0.410 0.427 0.410 0.588 0.511 | 0.176 0.253 0.175 0.253 0.198 0.275 0.247 0.302 0.247 0.302 0.266 0.319 0.317 0.348 0.318 0.348 0.365 0.377 0.426 0.410 0.427 0.410 0.588 0.511 | 0.176 0.253 0.175 0.253 0.198 0.275 0.247 0.302 0.247 0.302 0.266 0.319 0.317 0.348 0.318 0.348 0.365 0.377 0.426 0.410 0.427 0.410 0.588 0.511 |
+| h1                           | 96 192 336 720               | 0.380 0.394 0.382 0.395 0.382 0.404 0.434 0.427 0.437 0.427 0.463 0.435 0.490 0.459 0.490 0.460 0.507 0.463 0.539 0.513 0.536 0.512 0.517 0.500 | 0.380 0.394 0.382 0.395 0.382 0.404 0.434 0.427 0.437 0.427 0.463 0.435 0.490 0.459 0.490 0.460 0.507 0.463 0.539 0.513 0.536 0.512 0.517 0.500 | 0.380 0.394 0.382 0.395 0.382 0.404 0.434 0.427 0.437 0.427 0.463 0.435 0.490 0.459 0.490 0.460 0.507 0.463 0.539 0.513 0.536 0.512 0.517 0.500 |
+| h2                           | 96 192 336 720               | 0.293 0.338 0.294 0.339 0.307 0.345 0.375 0.390 0.375 0.391 0.406 0.403 0.422 0.431 0.421 0.431 0.505 0.460 0.610 0.567 0.610 0.567 0.661 0.557 | 0.293 0.338 0.294 0.339 0.307 0.345 0.375 0.390 0.375 0.391 0.406 0.403 0.422 0.431 0.421 0.431 0.505 0.460 0.610 0.567 0.610 0.567 0.661 0.557 | 0.293 0.338 0.294 0.339 0.307 0.345 0.375 0.390 0.375 0.391 0.406 0.403 0.422 0.431 0.421 0.431 0.505 0.460 0.610 0.567 0.610 0.567 0.661 0.557 |
+| AvgWins                      | AvgWins                      | 57.1%                                                                                                                                           |                                                                                                                                                 | 66.1%                                                                                                                                           |
+
+Table 9. Zero Shot Vignette: Training Size &amp; Diversity
+
+| Model Train Domain Sensor Num ( S ) Raw Length ( T ) Train Size Metric   | Model Train Domain Sensor Num ( S ) Raw Length ( T ) Train Size Metric   | TOTEM Generalist ALL - - 17.6M MSE MAE          | TOTEM Specialist Traffic 862 17544 10.2M MSE MAE      | TOTEM Specialist Electricity 321 26304 5.8M MSE MAE   |
+|--------------------------------------------------------------------------|--------------------------------------------------------------------------|-------------------------------------------------|-------------------------------------------------------|-------------------------------------------------------|
+| N2                                                                       | 96 192 336 720                                                           | 1.138 0.777 1.149 0.785 1.092 0.770 1.045 0.754 | 1.194 0.798 1.218 0.808 1.190 0.804 1.117 0.784 1.234 | 1.193 0.802 1.300 0.845 1.260 0.837 0.832             |
+| N5                                                                       | 96 192 336 720                                                           | 0.483 0.484 0.495 0.491 0.468 0.483 0.451 0.477 | 0.515 0.505 0.535 0.514 0.524 0.513 0.500 0.507       | 0.489 0.490 0.555 0.527 0.538 0.525 0.533 0.527       |
+| R                                                                        | 96 192 336 720                                                           | 1.120 0.582 1.242 0.635 1.237 0.626 1.182 0.604 | 1.171 0.635 1.273 0.673 1.232 0.653 1.198 0.642       | 1.141 0.579 1.297 0.652 1.247 0.628 1.236 0.633       |
+| B                                                                        | 96 192 336 720                                                           | 0.805 0.739 0.836 0.752 0.809 0.748 0.896 0.794 | 0.812 0.749 0.858 0.767 0.826 0.759 0.919 0.803       | 0.820 0.756 0.843 0.759 0.791 0.741 0.886 0.790       |
+| S                                                                        | 96 192 336 720                                                           | 0.446 0.482 0.462 0.491 0.521 0.525 0.717 0.625 | 0.476 0.508 0.511 0.528 0.576 0.568 0.795 0.685       | 0.460 0.487 0.505 0.511 0.569 0.545 0.764 0.641       |
+| AvgWins                                                                  |                                                                          | 85.0%                                           | 2.5%                                                  | 12.5%                                                 |
+
+## 10. Conclusions, Limitations &amp; Future Work
+
+We present TOTEM: a simple, performant tokenizer that works across domains and tasks thereby enabling generalist modeling. TOTEM demonstrates strong in-domain and zero-shot capabilities that match or outperform existing state-of-the-art approaches. Moving forward, an interesting limitation is that TOTEM does not support variable token lengths. Dynamic token lengths could potentially enhance unified data representations and further improve task performance. Other interesting directions include further investigating the relationship between generalist data representations, token length, data size, and domain diversity.
+
+## 11. Impact Statement
+
+There are no immediate ethical concerns that arise from our work. However, as with all data driven methods, certain societal consequences are important to be discussed, in this case surrounding time series modeling. A few are reported below:
+
+Privacy Concerns. Time series data, especially when sourced from personal devices or applications, can contain sensitive information about individuals, e.g. for health domains. In this work, no time series were sourced from personal devices.
+
+Misuse. Time series forecast models can be misused. For instance, if a model forecasts stock prices or market movements, it could be exploited for insider trading or other illegal financial activities. In this work, we are focused on domains pertinent to scientific disciplines.
+
+Economic Impacts. Automated forecasts and decisions based on time series models can significantly impact industries and labor markets both positively and negatively. For instance, if a model can accurately predict weather patterns, it might affect farmers and their crop decisions, or if it can forecast energy consumption, it could impact the energy sector.
+
+## References
+
+Anderson, O. D. Time-series. 2nd edn., 1976.
+
+- Bai, S., Kolter, J. Z., and Koltun, V . An empirical evaluation of generic convolutional and recurrent networks for sequence modeling. arXiv preprint arXiv:1803.01271 , 2018.
+- Barnum, G., Talukder, S., and Yue, Y. On the benefits of early fusion in multimodal representation learning. arXiv preprint arXiv:2011.07191 , 2020.
+- Challu, C., Olivares, K. G., Oreshkin, B. N., Ramirez, F. G., Canseco, M. M., and Dubrawski, A. Nhits: Neural hierarchical interpolation for time series forecasting. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, pp. 6989-6997, 2023.
+- Chen, S.-A., Li, C.-L., Yoder, N., Arik, S. O., and Pfister, T. Tsmixer: An all-mlp architecture for time series forecasting. arXiv preprint arXiv:2303.06053 , 2023.
+- Das, A., Kong, W., Leach, A., Sen, R., and Yu, R. Longterm forecasting with tide: Time-series dense encoder. arXiv preprint arXiv:2304.08424 , 2023.
+- Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., et al. An image is worth 16x16
+
+words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929 , 2020.
+
+- Duan, Y., Zhou, J., Wang, Z., Wang, Y.-K., and Lin, C.-T. Dewave: Discrete eeg waves encoding for brain dynamics to text translation. arXiv preprint arXiv:2309.14030 , 2023.
+- Esser, P., Rombach, R., and Ommer, B. Taming transformers for high-resolution image synthesis. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 12873-12883, 2021.
+- Franceschi, J.-Y., Dieuleveut, A., and Jaggi, M. Unsupervised scalable representation learning for multivariate time series. Advances in neural information processing systems , 32, 2019.
+- Gage, P. A new algorithm for data compression. C Users Journal , 12(2):23-38, 1994.
+- Godahewa, R., Bergmeir, C., Webb, G. I., Hyndman, R. J., and Montero-Manso, P. Monash time series forecasting archive. In Neural Information Processing Systems Track on Datasets and Benchmarks , 2021.
+- He, Y. and Zhao, J. Temporal convolutional networks for anomaly detection in time series. In Journal of Physics: Conference Series , volume 1213, pp. 042050. IOP Publishing, 2019.
+- Hochreiter, S. and Schmidhuber, J. Long short-term memory. Neural computation , 9(8):1735-1780, 1997.
+- Holt, C. C. Forecasting trends and seasonals by exponentially weighted moving averages. ONR Memorandum , 52 (52):5-10, 1957.
+- Hyndman, R. J. and Athanasopoulos, G. Forecasting: principles and practice . OTexts, 2018.
+- Kim, T., Kim, J., Tae, Y., Park, C., Choi, J.-H., and Choo, J. Reversible instance normalization for accurate time-series forecasting against distribution shift. In International Conference on Learning Representations , 2021.
+- Kitaev, N., Kaiser, Ł., and Levskaya, A. Reformer: The efficient transformer. arXiv preprint arXiv:2001.04451 , 2020.
+- Li, S., Jin, X., Xuan, Y., Zhou, X., Chen, W., Wang, Y.X., and Yan, X. Enhancing the locality and breaking the memory bottleneck of transformer on time series forecasting. Advances in neural information processing systems , 32, 2019.
+- Li, Z., Qi, S., Li, Y ., and Xu, Z. Revisiting long-term time series forecasting: An investigation on linear mapping. arXiv preprint arXiv:2305.10721 , 2023.
+
+- Liu, M., Zeng, A., Chen, M., Xu, Z., Lai, Q., Ma, L., and Xu, Q. Scinet: Time series modeling and forecasting with sample convolution and interaction. Advances in Neural Information Processing Systems , 35:5816-5828, 2022a.
+- Liu, S., Yu, H., Liao, C., Li, J., Lin, W., Liu, A. X., and Dustdar, S. Pyraformer: Low-complexity pyramidal attention for long-range time series modeling and forecasting. In International conference on learning representations , 2021.
+- Liu, Y., Wu, H., Wang, J., and Long, M. Non-stationary transformers: Exploring the stationarity in time series forecasting. Advances in Neural Information Processing Systems , 35:9881-9893, 2022b.
+- Liu, Y., Hu, T., Zhang, H., Wu, H., Wang, S., Ma, L., and Long, M. itransformer: Inverted transformers are effective for time series forecasting. arXiv preprint arXiv:2310.06625 , 2023.
+- Luo, Y., Cai, X., Zhang, Y., Xu, J., et al. Multivariate time series imputation with generative adversarial networks. Advances in neural information processing systems , 31, 2018.
+- Luo, Y., Zhang, Y., Cai, X., and Yuan, X. E2gan: End-to-end generative adversarial network for multivariate time series imputation. In Proceedings of the 28th international joint conference on artificial intelligence , pp. 3094-3100. AAAI Press Palo Alto, CA, USA, 2019.
+- Nie, Y., Nguyen, N. H., Sinthong, P., and Kalagnanam, J. A time series is worth 64 words: Long-term forecasting with transformers. arXiv preprint arXiv:2211.14730 , 2022.
+- Oord, A. v. d., Dieleman, S., Zen, H., Simonyan, K., Vinyals, O., Graves, A., Kalchbrenner, N., Senior, A., and Kavukcuoglu, K. Wavenet: A generative model for raw audio. arXiv preprint arXiv:1609.03499 , 2016.
+- Oreshkin, B. N., Carpov, D., Chapados, N., and Bengio, Y. N-beats: Neural basis expansion analysis for interpretable time series forecasting. arXiv preprint arXiv:1905.10437 , 2019.
+- Peterson, S. M., Singh, S. H., Dichter, B., Scheid, M., Rao, R. P., and Brunton, B. W. Ajile12: Long-term naturalistic human intracranial neural recordings and pose. Scientific data , 9(1):184, 2022.
+- Radford, A., Narasimhan, K., Salimans, T., Sutskever, I., et al. Improving language understanding by generative pre-training. 2018.
+- Rasul, K., Gupta, U., Ghonia, H., and Nevmyvaka, Y. Vqtr: Vector quantized attention for time series forecasting. 2022a.
+- Rasul, K., Park, Y.-J., Ramstr¨ om, M. N., and Kim, K.M. Vq-ar: Vector quantized autoregressive probabilistic time series forecasting. arXiv preprint arXiv:2205.15894 , 2022b.
+- Rombach, R., Blattmann, A., Lorenz, D., Esser, P., and Ommer, B. High-resolution image synthesis with latent diffusion models. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition , pp. 10684-10695, 2022.
+- Salinas, D., Flunkert, V., Gasthaus, J., and Januschowski, T. Deepar: Probabilistic forecasting with autoregressive recurrent networks. International Journal of Forecasting , 36(3):1181-1191, 2020.
+- Shen, L., Li, Z., and Kwok, J. Timeseries anomaly detection using temporal hierarchical one-class network. Advances in Neural Information Processing Systems , 33:1301613026, 2020.
+- Talukder, S., Sun, J. J., Leonard, M., Brunton, B. W., and Yue, Y. Deep neural imputation: A framework for recovering incomplete brain recordings. arXiv preprint arXiv:2206.08094 , 2022.
+- Taylor, S. J. and Letham, B. Forecasting at scale. The American Statistician , 72(1):37-45, 2018.
+- Tonekaboni, S., Eytan, D., and Goldenberg, A. Unsupervised representation learning for time series with temporal neighborhood coding. arXiv preprint arXiv:2106.00750 , 2021.
+- Van Den Oord, A., Vinyals, O., et al. Neural discrete representation learning. Advances in neural information processing systems , 30, 2017.
+- Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Attention is all you need. Advances in neural information processing systems , 30, 2017.
+- Winters, P. R. Forecasting sales by exponentially weighted moving averages. Management science , 6(3):324-342, 1960.
+- Woo, G., Liu, C., Sahoo, D., Kumar, A., and Hoi, S. Etsformer: Exponential smoothing transformers for timeseries forecasting. arXiv preprint arXiv:2202.01381 , 2022.
+- Wu, H., Xu, J., Wang, J., and Long, M. Autoformer: Decomposition transformers with auto-correlation for long-term series forecasting. Advances in Neural Information Processing Systems , 34:22419-22430, 2021.
+
+- Wu, H., Hu, T., Liu, Y., Zhou, H., Wang, J., and Long, M. Timesnet: Temporal 2d-variation modeling for general time series analysis. arXiv preprint arXiv:2210.02186 , 2022a.
+- Wu, H., Wu, J., Xu, J., Wang, J., and Long, M. Flowformer: Linearizing transformers with conservation flows. arXiv preprint arXiv:2202.06258 , 2022b.
+- Xu, J., Wu, H., Wang, J., and Long, M. Anomaly transformer: Time series anomaly detection with association discrepancy. arXiv preprint arXiv:2110.02642 , 2021.
+- Yang, L. and Hong, S. Unsupervised time-series representation learning with iterative bilinear temporal-spectral fusion. In International Conference on Machine Learning , pp. 25038-25054. PMLR, 2022.
+- Yue, Z., Wang, Y., Duan, J., Yang, T., Huang, C., Tong, Y., and Xu, B. Ts2vec: Towards universal representation of time series. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 36, pp. 8980-8987, 2022.
+- Zeng, A., Chen, M., Zhang, L., and Xu, Q. Are transformers effective for time series forecasting? In Proceedings of the AAAI conference on artificial intelligence , volume 37, pp. 11121-11128, 2023.
+- Zhang, T., Zhang, Y., Cao, W., Bian, J., Yi, X., Zheng, S., and Li, J. Less is more: Fast multivariate time series forecasting with light sampling-oriented mlp structures. arXiv preprint arXiv:2207.01186 , 2022.
+- Zhang, Y. and Yan, J. Crossformer: Transformer utilizing cross-dimension dependency for multivariate time series forecasting. In The Eleventh International Conference on Learning Representations , 2022.
+- Zhou, H., Zhang, S., Peng, J., Zhang, S., Li, J., Xiong, H., and Zhang, W. Informer: Beyond efficient transformer for long sequence time-series forecasting. In Proceedings of the AAAI conference on artificial intelligence , volume 35, pp. 11106-11115, 2021.
+- Zhou, T., Ma, Z., Wen, Q., Wang, X., Sun, L., and Jin, R. Fedformer: Frequency enhanced decomposed transformer for long-term series forecasting. In International Conference on Machine Learning , pp. 27268-27286. PMLR, 2022.
+- Zhou, T., Niu, P., Wang, X., Sun, L., and Jin, R. One fits all: Power general time series analysis by pretrained lm. arXiv preprint arXiv:2302.11939 , 2023.
+
+## A. Appendix
+
+## A.1. Codebook Visualizations.
+
+Figure 3. TOTEM Codebooks. We visualize all 256 codes for the generalist (All), and three specialists (Traffic, Electricity, and Weather). The top row visualizes codes in the latent space, the bottom row visualizes codes in the decoded time space. We additionally highlight codeword pairs matched via low MSE between All-Traffic, All-Electricity, and All-Weather in the bottom row.
+
+<!-- image -->
+
+## A.2. TOTEM Examples.
+
+Figure 4. TOTEM Examples. In the top row we visualize four weather forecasts for Tin=96 and Tout=96. In the bottom row we visualize four ETTm2 imputations. In all cases the model input is in grey, the predictions are in blue, and the ground truth is in green.
+
+<!-- image -->
+
+## A.3. Architecture Details.
+
+VQVAE. For imputation, anomaly detection, and forecasting the VQVAE's number of residual layers = 2, residual hidden size = 64, and block hidden size = 128 for all datasets. Each residual block has 2 non-causal, non-dilated 1D convolutional layers. The residual blocks are paired with additional non-causal, non-dilated 1D convolutional layers, where the number of additional layers is determined by the desired compression factor. See Table 10 for more hyperparameter details.
+
+Table 10. VQVAE Hyperparameters (A) Imputation generalist (All) and specialists. (B) Anomaly detection generalist (All) and specialists. The anomaly %s for all of the zero shot datasets are 2%. (C) Forecasting generalist (All) and specialists.
+
+A.
+
+Imputation
+
+.
+
+|                                                                                                                                                                                        |                                                                                                                               | B. Anomaly Detection .                                                                                                                          | B. Anomaly Detection .                                                                                                        | B. Anomaly Detection .                                                                                                        | B. Anomaly Detection .                                                                                                        |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| Dataset LR Iter. BS # CWCWDim.CF 64 4                                                                                                                                                  | Dataset LR Iter. BS # CWCWDim.CF 64 4                                                                                         | Dataset LR Iter.                                                                                                                                | BS # CWCWDim.CF                                                                                                               |                                                                                                                               | Anomaly%                                                                                                                      |
+| All 1e-3 120000 8192 512 Elec. 1e-3 15000 8192 512 Weather 1e-3 15000 8192 512 ETTm1 1e-3 15000 8192 512 ETTm2 1e-3 15000 8192 512 ETTh1 1e-3 15000 8192 512 ETTh2 1e-3 15000 8192 512 |                                                                                                                               | All 1e-31200004096 SMD 1e-3 60000 4096 1024 MSL 1e-3 15000 4096 1024 PSM 1e-3 60000 4096 1024 SMAP1e-3 15000 4096 1024 SWAT1e-3 15000 4096 1024 | 1024 64 64 64 64 64 64                                                                                                        | 4 4 4 4 4 4                                                                                                                   | Varies by test set. 0.5 2 1 1 1                                                                                               |
+|                                                                                                                                                                                        | C. Forecasting .                                                                                                              | C. Forecasting .                                                                                                                                | C. Forecasting .                                                                                                              | C. Forecasting .                                                                                                              | C. Forecasting .                                                                                                              |
+|                                                                                                                                                                                        | Dataset LR Iter. BS # CWCWDim.CF All 1e-3 15000 4096 256 64 4 Elec. 1e-3 15000 4096 256 64 4 Weather 1e-3 15000 4096 256 64 4 | Dataset LR Iter. BS # CWCWDim.CF All 1e-3 15000 4096 256 64 4 Elec. 1e-3 15000 4096 256 64 4 Weather 1e-3 15000 4096 256 64 4                   | Dataset LR Iter. BS # CWCWDim.CF All 1e-3 15000 4096 256 64 4 Elec. 1e-3 15000 4096 256 64 4 Weather 1e-3 15000 4096 256 64 4 | Dataset LR Iter. BS # CWCWDim.CF All 1e-3 15000 4096 256 64 4 Elec. 1e-3 15000 4096 256 64 4 Weather 1e-3 15000 4096 256 64 4 | Dataset LR Iter. BS # CWCWDim.CF All 1e-3 15000 4096 256 64 4 Elec. 1e-3 15000 4096 256 64 4 Weather 1e-3 15000 4096 256 64 4 |
+
+Downstream Forecaster. The downstream forecaster has two components the transformer encoder that intakes codes and outputs a normalized time forecast, and the feedforward neural network that takes in time and outputs predictions for the forecast's mean and standard deviation. The downstream forecaster is a transformer encoder with a model dimension = 64, hidden dimension = 256, number of heads = 4, number of layers = 4. The transformer encoder applies a sin / cos positional embedding along the time dimension and applies its attention mechanism to each sensor independently. There is a single linear layer applied after the transformer encoder output. The feedforward neural network takes in the input time steps, and predicts the future's mean and standard deviation.
+
+## A.4. Training Details.
+
+In imputation, anomaly detection, and forecasting the VQVAE is trained with a learning rate of 0 . 001 using the Adam optimizer, embedding dimension of 64, commitment cost of 0.25, and compression factor of 4; see Table 10 for more hyperparameters. In all tasks there is a global normalization, and local normalization (Kim et al., 2021); both are standard throughout prior work. In imputation we only leverage global normalization, in anomaly detection and forecasting we utilize both global and local normalization. In anomaly detection we evaluate the models we run, TOTEM and GPT2, with both local normalized data and non-local normalized data for each method and report whichever schema leads to the best performance. In forecasting the downstream model is a transformer encoder with 4 layers and 4 attention heads and a feed-forward hidden dimension of 256. We train using Adam with a base learning rate of 0 . 0001 and a one cycle learning rate scheduler in accordance with (Nie et al., 2022) on A100s.
+
+## A.5. Imputation Results - Means and Std. Devs.
+
+Table 11. TOTEM - Specialist Imputation ( ↓ )
+
+| Metric MSE MAE W 12.5% 0 . 028 ± 0 . 0000 0 . 046 ± 0 . 0006 37.5% 0 . 029 ± 0 . 0000 0 . 047 ± 0 . 0010 50% 0 . 031 ± 0 . 0006 0 . 048 ± 0 . 0015 25% 0 . 033 ± 0 . 0000 0 . 052 ± 0 . 0006   |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| E 12.5% 0 . 054 ± 0 . 0006 0 . 154 ± 0 . 0015 25% 0 . 059 ± 0 . 0006 0 . 160 ± 0 . 0010 37.5% 0 . 067 ± 0 . 0006 0 . 169 ± 0 . 0012 50% 0 . 079 ± 0 . 0012 0 . 183 ± 0 . 0012                  |
+| m1 12.5% 0 . 049 ± 0 . 0000 0 . 125 ± 0 . 0006 25% 0 . 052 ± 0 . 0006 0 . 128 ± 0 . 0006 37.5% 0 . 055 ± 0 . 0000 0 . 132 ± 0 . 0006 50% 0 . 061 ± 0 . 0006 0 . 139 ± 0 . 0006                 |
+| m2 12.5% 0 . 016 ± 0 . 0006 0 . 078 ± 0 . 0010 25% 0 . 017 ± 0 . 0006 0 . 081 ± 0 . 0006 37.5% 0 . 018 ± 0 . 0000 0 . 084 ± 0 . 0006 50% 0 . 020 ± 0 . 0000 0 . 088 ± 0 . 0000                 |
+| h1 12.5% 0 . 119 ± 0 . 0010 0 . 212 ± 0 . 0006 25% 0 . 127 ± 0 . 0015 0 . 220 ± 0 . 0006 37.5% 0 . 138 ± 0 . 0012 0 . 230 ± 0 . 0006 50% 0 . 157 ± 0 . 0006 0 . 247 ± 0 . 0010                 |
+| h2 12.5% 0 . 040 ± 0 . 0006 0 . 129 ± 0 . 0017 25% 0 . 041 ± 0 . 0010 0 . 131 ± 0 . 0012 37.5% 0 . 043 ± 0 . 0006 0 . 136 ± 0 . 0006 50% 0 . 047 ± 0 . 0006 0 . 142 ± 0 . 0012                 |
+| Metric MSE MAE                                                                                                                                                                                 |
+| W 12.5% 0 . 029 ± 0 . 0012 0 . 060 ± 0 . 0047 25% 0 . 030 ± 0 . 0006 0 . 060 ± 0 . 0047 37.5% 0 . 032 ± 0 . 0006 0 . 062 ± 0 . 0030 50% 0 . 036 ± 0 . 0006 0 . 067 ± 0 . 0036                  |
+| E 12.5% 0 . 065 ± 0 . 0020 0 . 171 ± 0 . 0032 25% 0 . 071 ± 0 . 0015 0 . 179 ± 0 . 0031 37.5% 0 . 080 ± 0 . 0025 0 . 189 ± 0 . 0032 50% 0 . 095 ± 0 . 0026 0 . 205 ± 0 . 0032                  |
+| m1 12.5% 0 . 041 ± 0 . 0006 0 . 132 ± 0 . 0015 25% 0 . 044 ± 0 . 0000 0 . 135 ± 0 . 0010 37.5% 0 . 048 ± 0 . 0006 0 . 139 ± 0 . 0040 50% 0 . 058 ± 0 . 0010 0 . 152 ± 0 . 0000                 |
+| m2 12.5% 0 . 040 ± 0 . 0020 0 . 125 ± 0 . 0067 25% 0 . 041 ± 0 . 0015 0 . 126 ± 0 . 0058 37.5% 0 . 043 ± 0 . 0015 0 . 129 ± 0 . 0049 50% 0 . 048 ± 0 . 0010 0 . 136 ± 0 . 0038                 |
+| h1 12.5% 0 . 100 ± 0 . 0049 0 . 201 ± 0 . 0049 25% 0 . 108 ± 0 . 0049 0 . 209 ± 0 . 0038 37.5% 0 . 122 ± 0 . 0064 0 . 220 ± 0 . 0044 50% 0 . 144 ± 0 . 0078 0 . 237 ± 0 . 0049                 |
+| h2 12.5% 0 . 075 ± 0 . 0012 0 . 175 ± 0 . 0053 25% 0 . 076 ± 0 . 0006 0 . 177 ± 0 . 0036 37.5% 0 . 093 ± 0 . 0222 0 . 195 ± 0 . 0200 50% 0 . 089 ± 0 . 0010 0 . 192 ± 0 . 0035 Zero-Shot       |
+| N2 12.5% 0 . 029 ± 0 . 0015 0 . 120 ± 0 . 0045 25% 0 . 033 ± 0 . 0010 0 . 127 ± 0 . 0035 37.5% 0 . 041 ± 0 . 0006 0 . 139 ± 0 . 0025 50% 0 . 056 ± 0 . 0006 0 . 160 ± 0 . 0012                 |
+| N5 12.5% 0 . 017 ± 0 . 0010 0 . 085 ± 0 . 0030 25% 0 . 019 ± 0 . 0010 0 . 090 ± 0 . 0030 37.5% 0 . 022 ± 0 . 0006 0 . 098 ± 0 . 0025 50% 0 . 029 ± 0 . 0006 0 . 110 ± 0 . 0025                 |
+| R 12.5% 0 . 071 ± 0 . 0070 0 . 109 ± 0 . 0040 25% 0 . 087 ± 0 . 0064 0 . 117 ± 0 . 0031 37.5% 0 . 112 ± 0 . 0050 0 . 129 ± 0 . 0035                                                            |
+| B 12.5% 0 . 632 ± 0 . 0087 0 . 642 ± 0 . 0068 25% 0 . 693 ± 0 . 0070 0 . 665 ± 0 . 0047 37.5% 0 . 761 ± 0 . 0055 0 . 692 ± 0 . 0023 50% 0 . 827 ± 0 . 0044 0 . 718 ± 0 . 0000                  |
+| S 12.5% 0 . 057 ± 0 . 0012 0 . 160 ± 0 . 0023 25% 0 . 061 ± 0 . 0006 0 . 168 ± 0 . 0021 37.5% 0 . 069 ± 0 . 0006 0 . 178 ± 0 . 0021                                                            |
+| 50% 0 . 082 ± 0 . 0010 0 . 193 ± 0 . 0015                                                                                                                                                      |
+
+| Table 13. GPT2 - Generalist Imputation ( ↓                                                                                                                                     |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Metric MSE MAE                                                                                                                                                                 |
+| W 12.5% 0 . 029 ± 0 . 0000 0 . 045 ± 0 . 0006 25% 0 . 033 ± 0 . 0006 0 . 048 ± 0 . 0006 37.5% 0 . 037 ± 0 . 0006 0 . 054 ± 0 . 0012 50% 0 . 043 ± 0 . 0012 0 . 061 ± 0 . 0017  |
+| E 12.5% 0 . 008 ± 0 . 0020 0 . 186 ± 0 . 0035 25% 0 . 091 ± 0 . 0020 0 . 197 ± 0 . 0025 37.5% 0 . 108 ± 0 . 0021 0 . 213 ± 0 . 0026 50% 0 . 132 ± 0 . 0026 0 . 236 ± 0 . 0026  |
+| m1 12.5% 0 . 052 ± 0 . 0012 0 . 141 ± 0 . 0016 25% 0 . 065 ± 0 . 0021 0 . 154 ± 0 . 0021 37.5% 0 . 085 ± 0 . 0038 0 . 171 ± 0 . 0026 50% 0 . 117 ± 0 . 0052 0 . 196 ± 0 . 0026 |
+| m2 12.5% 0 . 029 ± 0 . 0000 0 . 095 ± 0 . 0006 25% 0 . 033 ± 0 . 0006 0 . 101 ± 0 . 0006 37.5% 0 . 038 ± 0 . 0006 0 . 110 ± 0 . 0012 50% 0 . 045 ± 0 . 0006 0 . 121 ± 0 . 0012 |
+| h1 12.5% 0 . 113 ± 0 . 0012 0 . 217 ± 0 . 0021 25% 0 . 131 ± 0 . 0010 0 . 231 ± 0 . 0015 37.5% 0 . 153 ± 0 . 0012 0 . 247 ± 0 . 0017 50% 0 . 182 ± 0 . 0006 0 . 266 ± 0 . 0012 |
+| h2 12.5% 0 . 067 ± 0 . 0010 0 . 155 ± 0 . 0015 25% 0 . 071 ± 0 . 0006 0 . 160 ± 0 . 0015 37.5% 0 . 077 ± 0 . 0010 0 . 167 ± 0 . 0015 50% 0 . 086 ± 0 . 0032 0 . 179 ± 0 . 0038 |
+| N2 12.5% 0 . 047 ± 0 . 0006 0 . 145 ± 0 . 0015 25% 0 . 064 ± 0 . 0017 0 . 164 ± 0 . 0015 37.5% 0 . 090 ± 0 . 0036 0 . 191 ± 0 . 0032 50% 0 . 131 ± 0 . 0051 0 . 228 ± 0 . 0044 |
+| N5 12.5% 0 . 021 ± 0 . 0006 0 . 095 ± 0 . 0012 25% 0 . 028 ± 0 . 0006 0 . 107 ± 0 . 0010 37.5% 0 . 039 ± 0 . 0015 0 . 123 ± 0 . 0015 50% 0 . 055 ± 0 . 0015 0 . 145 ± 0 . 0023 |
+| R 12.5% 0 . 093 ± 0 . 0010 0 . 119 ± 0 . 0015 25% 0 . 125 ± 0 . 0006 0 . 134 ± 0 . 0026 37.5% 0 . 167 ± 0 . 0021 0 . 154 ± 0 . 0042 50% 0 . 220 ± 0 . 0045 0 . 182 ± 0 . 0057  |
+| B 12.5% 0 . 392 ± 0 . 0064 0 . 496 ± 0 . 0023 25% 0 . 444 ± 0 . 0071 0 . 523 ± 0 . 0029 37.5% 0 . 498 ± 0 . 0080 0 . 553 ± 0 . 0023 50% 0 . 591 ± 0 . 0700 0 . 599 ± 0 . 0275  |
+| s 12.5% 0 . 070 ± 0 . 0012 0 . 173 ± 0 . 0017 25% 0 . 084 ± 0 . 0010 0 . 189 ± 0 . 0015 37.5% 0 . 103 ± 0 . 0010 0 . 209 ± 0 . 0021 50% 0 . 128 ± 0 . 0015 0 . 234 ± 0 . 0021  |
+
+## A.6. Anomaly Detection Results - Means and Std Devs.
+
+## Table 14. TOTEM - Specialist Anomaly Detection ( ↑ )
+
+|                      | Mean ± Std                                                                                          |
+|----------------------|-----------------------------------------------------------------------------------------------------|
+| F1 SMD MSL SMAP SWAT | 0 . 7962 ± 0 . 0137 0 . 8258 ± 0 . 0052 0 . 9402 ± 0 . 0008 0 . 9427 ± 0 . 0006 0 . 9587 ± 0 . 0008 |
+| SMAP SWAT PSM        | 0 . 8285 ± 0 . 0071 0 . 9404 ± 0 . 0013 0 . 9591 ± 0 . 0012 0 . 9421 ± 0 . 0004                     |
+| SMD MSL              |                                                                                                     |
+| PSM                  |                                                                                                     |
+| SMD                  | 0 . 7606 ± 0 . 0207                                                                                 |
+| MSL                  |                                                                                                     |
+| R                    |                                                                                                     |
+|                      | 0 . 8354 ± 0 . 0054 0 . 8232 ± 0 . 0033                                                             |
+| P SMAP               | 0 . 9400 ± 0 . 0004                                                                                 |
+| SWAT                 | 0 . 9268 ± 0 . 0003                                                                                 |
+| PSM                  | 0 . 9758 ± 0 . 0012                                                                                 |
+
+Table 15. TOTEM - Generalist Anomaly Detection ( ↑ )
+
+|                                   | Mean ± Std                                                                                                                                                                          |
+|-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| F1 SMD MSL SMAP SWAT PSM N2 N5 R  | 0 . 7864 ± 0 . 0386 0 . 8329 ± 0 . 0020 0 . 9251 ± 0 . 0014 0 . 9437 ± 0 . 0005 0 . 9578 ± 0 . 0002 0 . 5129 ± 0 . 0397 0 . 5128 ± 0 . 0390 0 . 4939 ± 0 . 0625                     |
+| R SMD MSL SMAP SWAT PSM           | 0 . 7207 ± 0 . 0565 0 . 8296 ± 0 . 0046 0 . 9148 ± 0 . 0020 0 . 9613 ± 0 . 0010 0 . 9390 ± 0 . 0004                                                                                 |
+| P SMD MSL SMAP SWAT PSM N2 N5 R B | 0 . 8666 ± 0 . 0114 0 . 8364 ± 0 . 0014 0 . 9356 ± 0 . 0009 0 . 9268 ± 0 . 0001 0 . 9774 ± 0 . 0002 0 . 3849 ± 0 . 0299 0 . 3848 ± 0 . 0294 0 . 3802 ± 0 . 0502 0 . 3686 ± 0 . 0172 |
+
+Table 16. GPT2 - Generalist Anomaly Detection ( ↑ )
+
+|         | Mean                       | ± Std                            |
+|---------|----------------------------|----------------------------------|
+| SMD MSL | 0 . 7973 0 . 8017 0 . 6705 | ± 0 . 0326 ± 0 . 0205 ± 0 . 0041 |
+| SMAP    |                            |                                  |
+| SWAT    | 0 . 8962                   | ± 0 . 0016                       |
+| PSM     | 0 . 9047                   | ± 0 . 0759                       |
+| N2      | 0 . 3902                   | ± 0 . 0596                       |
+| N5      | 0 . 4219                   | ± 0 . 0047                       |
+| R       | 0 . 3614                   | ± 0 . 0204                       |
+| B       | 0 . 2081                   | ± 0 . 0462                       |
+| S       | 0 . 3812                   | 0 .                              |
+| SMD     |                            | ± 0621                           |
+| MSL     | 0 . 7342 0 . 7848          | ± 0 . 0559 ± 0 . 0277            |
+| SMAP    | 0 . 5342                   | ± 0 . 0051                       |
+| SWAT    | 0 . 8753                   | ± 0 . 0033                       |
+| PSM     | 0 . 8776                   | ± 0 . 0624                       |
+| N2      | 0 . 3369                   | ± 0 . 0592                       |
+| N5      | 0 . 3677                   | ± 0 . 0498                       |
+| R       | 0 . 2966                   | ± 0 . 0218                       |
+| B       | 0 . 1767                   | ± 0 .                            |
+|         |                            | 0426                             |
+| S SMD   | 0 . 3183 0 . 8744          | ± 0 . 0648 ± 0 . 0029            |
+| MSL     | 0 . 8195                   | ± 0 . 0130                       |
+| SMAP    | 0 . 9001                   | ± 0 . 0007                       |
+| SWAT    | 0 . 9183                   | ± 0 . 0006                       |
+| PSM     | 0 . 9339                   | ± 0 . 0925                       |
+|         |                            | 0561                             |
+| N2      | 0 . 4643                   | ± 0 .                            |
+| N5      | 0 . 4958                   | ± 0 . 0396                       |
+| R       | 0 . 4630                   | ± 0 . 0139                       |
+| B       | 0 . 2533                   | ± 0 . 0498                       |
+| S       | 0 . 4772                   | ± 0 . 5000                       |
+
+TOTEM: TOkenized Time Series EMbeddings for General Time Series Analysis
+
+## A.7. Forecasting Results - Means and Std Devs. Table 17. TOTEM - Specialist Forecasting ( ↓ )
+
+| Table 17.       | Table 17.       | TOTEM - Specialist Forecasting ( ↓                                                                                                                      |
+|-----------------|-----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Metric W 96 192 | Metric W 96 192 | Mean ± Std MSE MAE                                                                                                                                      |
+|                 | 336 720         | 0 . 165 ± 0 . 0015 0 . 208 ± 0 . 0012 0 . 207 ± 0 . 0006 0 . 250 ± 0 . 0012 0 . 257 ± 0 . 0002 0 . 291 ± 0 . 0006 0 . 326 ± 0 . 0035 0 . 340 ± 0 . 0023 |
+| E               | 96 192 336 720  | 0 . 178 ± 0 . 0015 0 . 263 ± 0 . 0010 0 . 187 ± 0 . 0015 0 . 272 ± 0 . 0015 0 . 199 ± 0 . 0012 0 . 285 ± 0 . 0012 0 . 236 ± 0 . 0035 0 . 318 ± 0 . 0031 |
+| T               | 96 192 336 720  | 0 . 523 ± 0 . 0010 0 . 303 ± 0 . 0006 0 . 530 ± 0 . 0030 0 . 303 ± 0 . 0017 0 . 549 ± 0 . 0017 0 . 311 ± 0 . 0021 0 . 598 ± 0 . 0095 0 . 331 ± 0 . 0062 |
+| m1              | 96 192 336 720  | 0 . 320 ± 0 . 0006 0 . 347 ± 0 . 0006 0 . 379 ± 0 . 0017 0 . 382 ± 0 . 0012 0 . 406 ± 0 . 0040 0 . 402 ± 0 . 0026 0 . 471 ± 0 . 0006 0 . 438 ± 0 . 0010 |
+| m2              | 96 192 336 720  | 0 . 176 ± 0 . 0006 0 . 253 ± 0 . 0010 0 . 247 ± 0 . 0012 0 . 302 ± 0 . 0015 0 . 317 ± 0 . 0046 0 . 348 ± 0 . 0031 0 . 426 ± 0 . 0085 0 . 410 ± 0 . 0062 |
+| h1              | 96 192 336 720  | 0 . 380 ± 0 . 0006 0 . 394 ± 0 . 0000 0 . 434 ± 0 . 0010 0 . 427 ± 0 . 0006 0 . 490 ± 0 . 0023 0 . 459 ± 0 . 0015 0 . 539 ± 0 . 0031 0 . 513 ± 0 . 0020 |
+| h2              | 96 192 336 720  | 0 . 293 ± 0 . 0015 0 . 338 ± 0 . 0006 0 . 375 ± 0 . 0031 0 . 390 ± 0 . 0026 0 . 422 ± 0 . 0046 0 . 431 ± 0 . 0031 0 . 610 ± 0 . 0095 0 . 567 ± 0 . 0081 |
+
+Table 18. GPT2 - Specialist Forecasting, Lookback of 96 ( ↓ )
+
+|    |                       | Mean ± Std MSE MAE                                                                                                                                      |
+|----|-----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W  | Metric 96 192 336 720 | 0 . 184 ± 0 . 0013 0 . 224 ± 0 . 0014 0 . 231 ± 0 . 0012 0 . 263 ± 0 . 0009 0 . 285 ± 0 . 0015 0 . 302 ± 0 . 0013 0 . 362 ± 0 . 0016 0 . 351 ± 0 . 0008 |
+| E  | 96 192 336 720        | 0 . 186 ± 0 . 0004 0 . 272 ± 0 . 0005 0 . 190 ± 0 . 0007 0 . 278 ± 0 . 0008 0 . 204 ± 0 . 0003 0 . 291 ± 0 . 0005 0 . 245 ± 0 . 0012 0 . 324 ± 0 . 0014 |
+| T  | 96 192 336 720        | 0 . 471 ± 0 . 0016 0 . 311 ± 0 . 0016 0 . 479 ± 0 . 0017 0 . 312 ± 0 . 0010 0 . 490 ± 0 . 0009 0 . 317 ± 0 . 0010 0 . 524 ± 0 . 0019 0 . 336 ± 0 . 0018 |
+| m1 | 96 192 336 720        | 0 . 328 ± 0 . 0022 0 . 363 ± 0 . 0014 0 . 368 ± 0 . 0006 0 . 382 ± 0 . 0004 0 . 400 ± 0 . 0013 0 . 404 ± 0 . 0011 0 . 462 ± 0 . 0010 0 . 440 ± 0 . 0009 |
+| m2 | 96 192 336 720        | 0 . 178 ± 0 . 0000 0 . 263 ± 0 . 0000 0 . 245 ± 0 . 0000 0 . 307 ± 0 . 0000 0 . 307 ± 0 . 0000 0 . 346 ± 0 . 0000 0 . 410 ± 0 . 0000 0 . 409 ± 0 . 0000 |
+| h1 | 96 192 336 720        | 0 . 379 ± 0 . 0032 0 . 397 ± 0 . 0007 0 . 438 ± 0 . 0037 0 . 427 ± 0 . 0004 0 . 474 ± 0 . 0045 0 . 448 ± 0 . 0004 0 . 496 ± 0 . 0066 0 . 475 ± 0 . 0033 |
+| h2 | 96 192 336 720        | 0 . 295 ± 0 . 0000 0 . 348 ± 0 . 0000 0 . 384 ± 0 . 0000 0 . 402 ± 0 . 0000 0 . 418 ± 0 . 0000 0 . 432 ± 0 . 0000 0 . 423 ± 0 . 0000 0 . 446 ± 0 . 0000 |
+
+## Table 19. TOTEM - Generalist and Zero-Shot Forecasting ( ↓ )
+
+|           | Metric         | Mean ± Std MSE MAE                                                                                                                                      |
+|-----------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W         | 96 192 336 720 | 0 . 172 ± 0 . 0010 0 . 216 ± 0 . 0006 0 . 217 ± 0 . 0006 0 . 256 ± 0 . 0006 0 . 266 ± 0 . 0015 0 . 295 ± 0 . 0015 0 . 334 ± 0 . 0010 0 . 342 ± 0 . 0012 |
+| E         | 96 192 336 720 | 0 . 179 ± 0 . 0006 0 . 264 ± 0 . 0012 0 . 181 ± 0 . 0006 0 . 267 ± 0 . 0000 0 . 196 ± 0 . 0020 0 . 283 ± 0 . 0015 0 . 230 ± 0 . 0035 0 . 314 ± 0 . 0029 |
+| T         | 96 192 336 720 | 0 . 507 ± 0 . 0020 0 . 284 ± 0 . 0006 0 . 511 ± 0 . 0030 0 . 282 ± 0 . 0006 0 . 535 ± 0 . 0076 0 . 292 ± 0 . 0012 0 . 580 ± 0 . 0046 0 . 309 ± 0 . 0006 |
+| m1        | 96 192 336 720 | 0 . 374 ± 0 . 0000 0 . 384 ± 0 . 0006 0 . 400 ± 0 . 0015 0 . 399 ± 0 . 0023 0 . 432 ± 0 . 0040 0 . 424 ± 0 . 0015 0 . 487 ± 0 . 0081 0 . 460 ± 0 . 0017 |
+| m2        | 96 192 336 720 | 0 . 198 ± 0 . 0006 0 . 275 ± 0 . 0012 0 . 266 ± 0 . 0035 0 . 319 ± 0 . 0021 0 . 365 ± 0 . 0115 0 . 377 ± 0 . 0038 0 . 588 ± 0 . 0699 0 . 511 ± 0 . 0281 |
+| h1        | 96 192 336 720 | 0 . 382 ± 0 . 0364 0 . 404 ± 0 . 0012 0 . 463 ± 0 . 0025 0 . 435 ± 0 . 0006 0 . 507 ± 0 . 0025 0 . 463 ± 0 . 0010 0 . 517 ± 0 . 0010 0 . 500 ± 0 . 0017 |
+| h2        | 96 192 336 720 | 0 . 307 ± 0 . 0012 0 . 345 ± 0 . 0015 0 . 406 ± 0 . 0038 0 . 403 ± 0 . 0023 0 . 505 ± 0 . 0114 0 . 460 ± 0 . 0035 0 . 661 ± 0 . 0514 0 . 557 ± 0 . 0215 |
+| Zero-Shot | Zero-Shot      | Zero-Shot                                                                                                                                               |
+| N2        | 96 192 336 720 | 1 . 138 ± 0 . 0032 0 . 777 ± 0 . 0012 1 . 149 ± 0 . 0026 0 . 785 ± 0 . 0012 1 . 092 ± 0 . 0062 0 . 770 ± 0 . 0026 1 . 045 ± 0 . 0040 0 . 754 ± 0 . 0023 |
+| N5        | 96 192 336 720 | 0 . 483 ± 0 . 0012 0 . 484 ± 0 . 0012 0 . 495 ± 0 . 0021 0 . 491 ± 0 . 0015 0 . 468 ± 0 . 0035 0 . 483 ± 0 . 0029 0 . 451 ± 0 . 0023 0 . 477 ± 0 . 0023 |
+| R         | 96 192 336 720 | 1 . 120 ± 0 . 0081 0 . 582 ± 0 . 0036 1 . 242 ± 0 . 0151 0 . 635 ± 0 . 0074 1 . 237 ± 0 . 0153 0 . 626 ± 0 . 0076 1 . 182 ± 0 . 0151 0 . 604 ± 0 . 0050 |
+| B         | 96 192 336 720 | 0 . 805 ± 0 . 0070 0 . 739 ± 0 . 0035 0 . 836 ± 0 . 0040 0 . 752 ± 0 . 0021 0 . 809 ± 0 . 0038 0 . 748 ± 0 . 0021 0 . 896 ± 0 . 0137 0 . 794 ± 0 . 0085 |
+| S         | 96 192 336 720 | 0 . 446 ± 0 . 0032 0 . 482 ± 0 . 0017 0 . 462 ± 0 . 0015 0 . 491 ± 0 . 0010 0 . 521 ± 0 . 0122 0 . 525 ± 0 . 0068 0 . 717 ± 0 . 0096 0 . 625 ± 0 . 0040 |
+
+Table 20. GPT2 - Generalist and Zero-Shot Forecasting ( ↓ )
+
+|           | Metric         | Mean ± Std MSE MAE                                                                                                                                      |
+|-----------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W         | 96 192 336 720 | 0 . 201 ± 0 . 0017 0 . 237 ± 0 . 0012 0 . 247 ± 0 . 0020 0 . 275 ± 0 . 0015 0 . 298 ± 0 . 0006 0 . 311 ± 0 . 0006 0 . 372 ± 0 . 0010 0 . 360 ± 0 . 0006 |
+| E         | 96 192 336 720 | 0 . 194 ± 0 . 0012 0 . 278 ± 0 . 0021 0 . 199 ± 0 . 0006 0 . 284 ± 0 . 0006 0 . 214 ± 0 . 0012 0 . 300 ± 0 . 0015 0 . 255 ± 0 . 0006 0 . 331 ± 0 . 0012 |
+| T         | 96 192 336 720 | 0 . 484 ± 0 . 0046 0 . 320 ± 0 . 0042 0 . 488 ± 0 . 0006 0 . 320 ± 0 . 0006 0 . 502 ± 0 . 0020 0 . 326 ± 0 . 0021 0 . 534 ± 0 . 0021 0 . 343 ± 0 . 0021 |
+| m1        | 96 192 336 720 | 0 . 487 ± 0 . 0106 0 . 468 ± 0 . 0035 0 . 516 ± 0 . 0071 0 . 480 ± 0 . 0021 0 . 548 ± 0 . 0015 0 . 499 ± 0 . 0015 0 . 581 ± 0 . 0031 0 . 511 ± 0 . 0012 |
+| m2        | 96 192 336 720 | 0 . 243 ± 0 . 0021 0 . 315 ± 0 . 0021 0 . 297 ± 0 . 0012 0 . 346 ± 0 . 0010 0 . 349 ± 0 . 0025 0 . 376 ± 0 . 0020 0 . 439 ± 0 . 0010 0 . 423 ± 0 . 0010 |
+| h1        | 96 192 336 720 | 0 . 421 ± 0 . 0058 0 . 408 ± 0 . 0010 0 . 480 ± 0 . 0026 0 . 436 ± 0 . 0020 0 . 518 ± 0 . 0161 0 . 453 ± 0 . 0070 0 . 517 ± 0 . 0036 0 . 467 ± 0 . 0035 |
+| h2        | 96 192 336 720 | 0 . 298 ± 0 . 0090 0 . 343 ± 0 . 0049 0 . 381 ± 0 . 0153 0 . 392 ± 0 . 0072 0 . 406 ± 0 . 0271 0 . 419 ± 0 . 0144 0 . 423 ± 0 . 0078 0 . 438 ± 0 . 0051 |
+| Zero-Shot | Zero-Shot      | Zero-Shot                                                                                                                                               |
+| N2        | 96 192 336 720 | 1 . 332 ± 0 . 0012 0 . 830 ± 0 . 0010 1 . 416 ± 0 . 0080 0 . 863 ± 0 . 0025 1 . 358 ± 0 . 0123 0 . 851 ± 0 . 0042 1 . 308 ± 0 . 0026 0 . 840 ± 0 . 0010 |
+| N5        | 96 192 336 720 | 0 . 528 ± 0 . 0006 0 . 499 ± 0 . 0010 0 . 578 ± 0 . 0015 0 . 524 ± 0 . 0006 0 . 548 ± 0 . 0040 0 . 515 ± 0 . 0015 0 . 537 ± 0 . 0006 0 . 511 ± 0 . 0006 |
+| R         | 96 192 336 720 | 1 . 465 ± 0 . 0185 0 . 725 ± 0 . 0031 1 . 638 ± 0 . 0280 0 . 785 ± 0 . 0078 1 . 601 ± 0 . 0244 0 . 769 ± 0 . 0060 1 . 552 ± 0 . 0110 0 . 760 ± 0 . 0035 |
+| B         | 96 192 336 720 | 0 . 838 ± 0 . 0149 0 . 762 ± 0 . 0071 0 . 837 ± 0 . 0095 0 . 752 ± 0 . 0040 0 . 792 ± 0 . 0104 0 . 738 ± 0 . 0050 0 . 927 ± 0 . 0066 0 . 806 ± 0 . 0038 |
+| S         | 96 192 336 720 | 0 . 443 ± 0 . 0010 0 . 478 ± 0 . 0006 0 . 481 ± 0 . 0006 0 . 499 ± 0 . 0006 0 . 541 ± 0 . 0010 0 . 533 ± 0 . 0006 0 . 773 ± 0 . 0020 0 . 643 ± 0 . 0010 |
+
+## A.8. Additional Ablations
+
+Table 21. TimeTOTEM Ablation - Specialist Forecasting
+
+| Mean ± Std MSE MAE                                                                                                                                                        |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W 96 0 . 164 ± 0 . 0006 0 . 209 ± 0 . 0006 192 0 . 209 ± 0 . 0017 0 . 251 ± 0 . 0023 336 0 . 261 ± 0 . 0012 0 . 293 ± 0 . 0017 720 0 . 332 ± 0 . 0023 0 . 340 ± 0 . 0006  |
+| E 96 0 . 179 ± 0 . 0015 0 . 262 ± 0 . 0015 192 0 . 185 ± 0 . 0006 0 . 269 ± 0 . 0000 336 0 . 204 ± 0 . 0055 0 . 289 ± 0 . 0061 720 0 . 244 ± 0 . 0040 0 . 325 ± 0 . 0036  |
+| T 96 0 . 528 ± 0 . 0081 0 . 310 ± 0 . 0092 192 0 . 500 ± 0 . 0606 0 . 349 ± 0 . 0699 336 0 . 531 ± 0 . 0424 0 . 365 ± 0 . 0852 720 0 . 578 ± 0 . 0361 0 . 398 ± 0 . 1103  |
+| m1 96 0 . 326 ± 0 . 0006 0 . 355 ± 0 . 0006 192 0 . 377 ± 0 . 0023 0 . 386 ± 0 . 0012 336 0 . 409 ± 0 . 0006 0 . 409 ± 0 . 0006 720 0 . 469 ± 0 . 0015 0 . 441 ± 0 . 0000 |
+| m2 96 0 . 176 ± 0 . 0010 0 . 254 ± 0 . 0006 192 0 . 247 ± 0 . 0031 0 . 303 ± 0 . 0026 336 0 . 318 ± 0 . 0006 0 . 350 ± 0 . 0021 720 0 . 419 ± 0 . 0067 0 . 411 ± 0 . 0044 |
+| h1 96 0 . 377 ± 0 . 0010 0 . 395 ± 0 . 0006 192 0 . 428 ± 0 . 0015 0 . 428 ± 0 . 0015 336 0 . 480 ± 0 . 0021 0 . 462 ± 0 . 0012 720 0 . 530 ± 0 . 0110 0 . 522 ± 0 . 0108 |
+| h2 96 0 . 294 ± 0 . 0021 0 . 338 ± 0 . 0010 192 0 . 373 ± 0 . 0023 0 . 389 ± 0 . 0032 336 0 . 423 ± 0 . 0031 0 . 433 ± 0 . 0025 720 0 . 591 ± 0 . 0145 0 . 556 ± 0 . 0051 |
+
+Table 22. TimeTOTEM Ablation - Generalist and Zero-Shot Forecasting
+
+| Metric   | Metric         | Mean ± Std MSE MAE                                                                                                                                      |
+|----------|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W        | 96 192 336 720 | 0 . 173 ± 0 . 0012 0 . 218 ± 0 . 0006 0 . 218 ± 0 . 0006 0 . 261 ± 0 . 0006 0 . 267 ± 0 . 0006 0 . 299 ± 0 . 0006 0 . 337 ± 0 . 0010 0 . 347 ± 0 . 0006 |
+| E        | 96 192 336 720 | 0 . 183 ± 0 . 0012 0 . 267 ± 0 . 0012 0 . 189 ± 0 . 0006 0 . 275 ± 0 . 0000 0 . 204 ± 0 . 0010 0 . 291 ± 0 . 0010 0 . 242 ± 0 . 0006 0 . 325 ± 0 . 0006 |
+| T        | 96 192 336 720 | 0 . 517 ± 0 . 0000 0 . 293 ± 0 . 0029 0 . 526 ± 0 . 0030 0 . 296 ± 0 . 0006 0 . 552 ± 0 . 0015 0 . 304 ± 0 . 0015 0 . 602 ± 0 . 0046 0 . 326 ± 0 . 0015 |
+| m1       | 96 192 336 720 | 0 . 428 ± 0 . 0090 0 . 420 ± 0 . 0040 0 . 438 ± 0 . 0015 0 . 427 ± 0 . 0010 0 . 469 ± 0 . 0062 0 . 447 ± 0 . 0042 0 . 546 ± 0 . 0081 0 . 493 ± 0 . 0017 |
+| m2       | 96 192 336 720 | 0 . 207 ± 0 . 0015 0 . 286 ± 0 . 0020 0 . 269 ± 0 . 0015 0 . 325 ± 0 . 0010 0 . 358 ± 0 . 0199 0 . 377 ± 0 . 0091 0 . 521 ± 0 . 0165 0 . 482 ± 0 . 0026 |
+| h1       | 96 192 336 720 | 0 . 401 ± 0 . 0006 0 . 410 ± 0 . 0006 0 . 453 ± 0 . 0010 0 . 441 ± 0 . 0010 0 . 496 ± 0 . 0017 0 . 468 ± 0 . 0006 0 . 518 ± 0 . 0020 0 . 510 ± 0 . 0017 |
+| h2       | 96 192 336 720 | 0 . 305 ± 0 . 0006 0 . 346 ± 0 . 0006 0 . 396 ± 0 . 0015 0 . 402 ± 0 . 0001 0 . 492 ± 0 . 0310 0 . 458 ± 0 . 0131 0 . 599 ± 0 . 0105 0 . 531 ± 0 . 0026 |
+| N2       | 96 192 336 720 | 1 . 127 ± 0 . 0017 0 . 773 ± 0 . 0006 1 . 169 ± 0 . 0032 0 . 793 ± 0 . 0010 1 . 115 ± 0 . 0010 0 . 780 ± 0 . 0006 1 . 070 ± 0 . 0035 0 . 766 ± 0 . 0010 |
+| N5       | 96 192 336 720 | 0 . 481 ± 0 . 0015 0 . 483 ± 0 . 0006 0 . 508 ± 0 . 0012 0 . 500 ± 0 . 0000 0 . 481 ± 0 . 0006 0 . 491 ± 0 . 0006 0 . 467 ± 0 . 0010 0 . 488 ± 0 . 0010 |
+| R        | 96 192 336 720 | 1 . 102 ± 0 . 0031 0 . 578 ± 0 . 0021 1 . 207 ± 0 . 0036 0 . 628 ± 0 . 0017 1 . 190 ± 0 . 0021 0 . 613 ± 0 . 0010 1 . 149 ± 0 . 0017 0 . 596 ± 0 . 0020 |
+| B        | 96 192 336 720 | 0 . 825 ± 0 . 0079 0 . 751 ± 0 . 0076 0 . 847 ± 0 . 0021 0 . 761 ± 0 . 0012 0 . 831 ± 0 . 0066 0 . 764 ± 0 . 0042 0 . 928 ± 0 . 0131 0 . 813 ± 0 . 0050 |
+| S        | 96 192 336 720 | 0 . 446 ± 0 . 0015 0 . 481 ± 0 . 0010 0 . 478 ± 0 . 0015 0 . 499 ± 0 . 0000 0 . 535 ± 0 . 0012 0 . 532 ± 0 . 0006 0 . 736 ± 0 . 0025 0 . 631 ± 0 . 0006 |
+
+Table 23. Detailed Codebook Ablation ( ↓ )
+
+| Mean ± Std MSE MAE                                                                                                                       |
+|------------------------------------------------------------------------------------------------------------------------------------------|
+| K All 32 0 . 0451 ± 0 . 0014 0 . 1460 ± 0 . 0030 256 0 . 0192 ± 0 . 0003 0 . 0937 ± 0 . 0007 512 0 . 0184 ± 0 . 0025 0 . 0913 ± 0 . 0062 |
+| W 32 0 . 0393 ± 0 . 0005 0 . 1122 ± 0 . 0064 256 0 . 0161 ± 0 . 0004 0 . 0673 ± 0 . 0011 512 0 . 0128 ± 0 . 0011 0 . 0607 ± 0 . 0032     |
+| E 32 0 . 0463 ± 0 . 0007 0 . 1520 ± 0 . 0016 256 0 . 0209 ± 0 . 0012 0 . 1027 ± 0 . 0029 512 0 . 0152 ± 0 . 0005 0 . 0878 ± 0 . 0014     |
+| T 32 0 . 0312 ± 0 . 0007 0 . 1204 ± 0 . 0008 256 0 . 0120 ± 0 . 0003 0 . 0749 ± 0 . 0007 512 0 . 0101 ± 0 . 0012 0 . 0685 ± 0 . 0044     |
+
+## A.9. Exploratory Results
+
+Table 24. Mixed Models - Forecasting ( ↓ )
+
+|    | Mean ± Std MSE MAE                                                                                                                                                            |
+|----|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| W  | Metric 96 0 . 164 ± 0 . 0010 0 . 208 ± 0 . 0012 192 0 . 208 ± 0 . 0010 0 . 251 ± 0 . 0015 336 0 . 258 ± 0 . 0012 0 . 290 ± 0 . 0015 720 0 . 329 ± 0 . 0021 0 . 338 ± 0 . 0015 |
+| E  | 96 0 . 178 ± 0 . 0006 0 . 263 ± 0 . 0010 192 0 . 187 ± 0 . 0021 0 . 273 ± 0 . 0017 336 0 . 199 ± 0 . 0012 0 . 285 ± 0 . 0017 720 0 . 238 ± 0 . 0012 0 . 320 ± 0 . 0012        |
+| T  | 96 0 . 521 ± 0 . 0010 0 . 301 ± 0 . 0010 192 0 . 530 ± 0 . 0023 0 . 303 ± 0 . 0012 336 0 . 555 ± 0 . 0080 0 . 313 ± 0 . 0072 720 0 . 605 ± 0 . 0097 0 . 337 ± 0 . 0075        |
+| m1 | 96 0 . 328 ± 0 . 0036 0 . 352 ± 0 . 0006 192 0 . 377 ± 0 . 0021 0 . 383 ± 0 . 0012 336 0 . 408 ± 0 . 0035 0 . 404 ± 0 . 0021 720 0 . 470 ± 0 . 0035 0 . 440 ± 0 . 0021        |
+| m2 | 96 0 . 175 ± 0 . 0006 0 . 253 ± 0 . 0010 192 0 . 247 ± 0 . 0006 0 . 302 ± 0 . 0010 336 0 . 318 ± 0 . 0006 0 . 348 ± 0 . 0031 720 0 . 427 ± 0 . 0012 0 . 410 ± 0 . 0067        |
+| h1 | 96 0 . 382 ± 0 . 0025 0 . 395 ± 0 . 0015 192 0 . 437 ± 0 . 0012 0 . 427 ± 0 . 0006 336 0 . 490 ± 0 . 0015 0 . 460 ± 0 . 0021 720 0 . 536 ± 0 . 0031 0 . 512 ± 0 . 0032        |
+| h2 | 96 0 . 294 ± 0 . 0010 0 . 339 ± 0 . 0012 192 0 . 375 ± 0 . 0025 0 . 391 ± 0 . 0023 336 0 . 421 ± 0 . 0050 0 . 431 ± 0 . 0031 720 0 . 610 ± 0 . 0089 0 . 567 ± 0 . 0075        |
+
+Table 25. Traffic Only - Specialist Zero-Shot Performance ( ↓ )
+
+|    |                       | Mean ± Std MSE MAE                                                                                                                  | Mean ± Std MSE MAE                  |
+|----|-----------------------|-------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| N2 | Metric 96 192 336 720 | 1 . 194 ± 0 . 0062 0 . 798 ± 0 . 1 . 218 ± 0 . 0074 0 . 808 ± 0 . 1 . 190 ± 0 . 0153 0 . 804 ± 0 . 1 . 117 ± 0 . 0137 0 . 784 ± 0 . | 0020 0023 0052 0056                 |
+| N5 | 96 192 336 720        | 0 . 515 ± 0 . 0026 0 . 505 ± 0 . 535 ± 0 . 0051 0 . 514 ± 0 . 524 ± 0 . 0071 0 . 513 ± 0 . 500 ± 0 . 0064 0 . 507 ±                 | 0 . 0012 0 . 0028 0 . 0030 0 . 0032 |
+| R  | 96 192 336 720        | 1 . 171 ± 0 . 0023 0 . 635 ± 1 . 273 ± 0 . 0090 0 . 673 ± 1 . 232 ± 0 . 0055 0 . 653 ± 1 . 198 ± 0 . 0057 0 . 642 ±                 | 0 . 0019 0 . 0042 0 . 0022 0 . 0041 |
+| B  | 96 192 336 720        | 0 . 812 ± 0 . 0037 0 . 749 ± 0 . 858 ± 0 . 0025 0 . 767 ± 0 . 826 ± 0 . 0041 0 . 759 ± 0 . 919 ± 0 . 0063 0 . 803 ±                 | 0 . 0025 0 . 0015 0 . 0030 0 . 0037 |
+| S  | 96 192 336 720        | 0 . 476 ± 0 . 0012 0 . 508 ± 0 . 511 ± 0 . 0005 0 . 528 ± 0 . 576 ± 0 . 0024 0 . 568 ± 0 . 795 ± 0 . 0017 0 . 685 ±                 | 0 . 0012 0 . 0005 0 . 0009 0 . 0012 |
+
+Table 26. Electricity Only - Specialist Zero-Shot Performance ( ↓ )
+
+| Metric   | Metric         | Mean ± Std MSE MAE                                                                                                                  | Mean ± Std MSE MAE                  |
+|----------|----------------|-------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| N2       | 96 192 336 720 | 1 . 193 ± 0 . 0059 0 . 802 ± 0 . 1 . 300 ± 0 . 0016 0 . 845 ± 0 . 1 . 260 ± 0 . 0162 0 . 837 ± 0 . 1 . 234 ± 0 . 0054 0 . 832 ± 0 . | 0020 0003 0055 0016                 |
+| N5       | 96 192 336 720 | 0 . 489 ± 0 . 0024 0 . 490 ± 0 . 555 ± 0 . 0012 0 . 527 ± 0 . 538 ± 0 . 0064 0 . 525 ± 0 . 533 ± 0 . 0010 0 . 527 ±                 | 0 . 0011 0 . 0007 0 . 0033 0 . 0006 |
+| R        | 96 192 336 720 | 1 . 141 ± 0 . 0056 0 . 579 ± 1 . 297 ± 0 . 0162 0 . 652 ± 1 . 247 ± 0 . 0108 0 . 628 ± 1 . 236 ± 0 . 0053 0 . 633 ±                 | 0 . 0028 0 . 0079 0 . 0059 0 . 0070 |
+| B        | 96 192 336 720 | 0 . 820 ± 0 . 0065 0 . 756 ± 0 . 843 ± 0 . 0042 0 . 759 ± 0 . 791 ± 0 . 0023 0 . 741 ± 0 . 886 ± 0 . 0059 0 . 790 ±                 | 0 . 0034 0 . 0022 0 . 0019 0 . 0020 |
+| S        | 96 192 336 720 | 0 . 460 ± 0 . 0017 0 . 487 ± 0 . 505 ± 0 . 0017 0 . 511 ± 0 . 569 ± 0 . 0020 0 . 545 ± 0 . 764 ± 0 . 0046 0 . 641 ±                 | 0 . 0010 0 . 0008 0 . 0011 0 . 0014 |

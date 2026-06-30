@@ -1,0 +1,461 @@
+<!-- image -->
+
+## Series2vec: similarity-based self-supervised representation learning for time series classification
+
+Navid Mohammadi Foumani 1  · Chang Wei Tan 1  · Geoffrey I. Webb 1 · Hamid Rezatofighi 1 · Mahsa Salehi 1
+
+Received: 4 December 2023 / Accepted: 26 May 2024 / Published online: 20 June 2024
+
+© The Author(s) 2024
+
+## Abstract
+
+We  argue  that  time  series  analysis  is  fundamentally  different  in  nature  to  either vision or natural language processing with respect to the forms of meaningful selfsupervised learning tasks that can be defined. Motivated by this insight, we introduce a novel approach called Series2Vec for self-supervised representation learning. Unlike the state-of-the-art methods in time series which rely on hand-crafted data augmentation, Series2Vec is trained by predicting the similarity between two series in both temporal and spectral domains through a self-supervised task. By leveraging the similarity prediction task, which has inherent meaning for a wide range of time series analysis tasks, Series2Vec eliminates the need for hand-crafted data augmentation. To further enforce the network to learn similar representations for similar  time  series,  we  propose a novel approach that applies order-invariant attention to  each  representation  within  the  batch  during  training.  Our  evaluation  of  Series2Vec on nine large real-world datasets, along with the UCR/UEA archive, shows enhanced  performance  compared  to  current  state-of-the-art  self-supervised  techniques for time series. Additionally, our extensive experiments show that Series2Vec performs  comparably  with  fully  supervised  training  and  offers  high  efficiency  in datasets with limited-labeled data. Finally, we show that the fusion of Series2Vec with other representation learning models leads to enhanced performance for time series classification. Code and models are open-source at https://  github.  com/  Navid fouma  ni/  Serie  s2Vec
+
+Keywords Representation learning · Similarity-based self-supervised · Time series classification
+
+Responsible editor: Rita P. Ribeiro.
+
+<!-- image -->
+
+## 1  Introduction
+
+Learning  from  large  time  series  datasets  is  important  in  various  fields  such  as human activity recognition (Foumani et al. 2024a), diagnosis based on electronic health records (Rajkomar et al. 2018), and systems monitoring problems (Bagnall et al. 2018). These applications can generate hundreds to thousands of time series every day, producing large quantities of data that are critical for the performance of various time series tasks. However, obtaining labeled data for large time series datasets can be costly and challenging. Machine learning models trained on large labeled  time  series  datasets  tend  to  produce  better  performance  than  models trained on sparsely labeled datasets, small datasets with limited labels or without supervision which produce subpar performance on various time series machine learning tasks (Yue et al. 2022; Yang and Hong 2022). Therefore, instead of relying  on  good  quality  annotations  on  large  datasets,  researchers  and  practitioners are  now  turning  their  attention  towards  self-supervised  representation  learning for time series.
+
+Self-supervised representation learning is a subfield of machine learning that aims  to  learn  representations  from  data  without  requiring  explicit  supervision (Goyal  et  al.  2021).  Unlike  supervised  learning,  where  models  are  trained  on labeled  data,  self-supervised  learning  methods  train  a  model  through  a pretext task, leveraging the inherent structure of the data to learn useful representations in  an  unsupervised  manner. The learned representations can then be used for a variety of downstream tasks such as classification, anomaly detection, and forecasting (Foumani et al. 2024a).
+
+Contrastive  learning  is  an  effective  and  popular  self-supervised  learning method, originally developed for image analysis. Contrastive methods are trained by  minimizing  the  distance  between  the  representation  of  a  reference  sample (anchor sample) and its positive pairs, while simultaneously increasing the distance between representations of negative pairs. These negative and positive pairs are created through hand-crafted data augmentation (van den Oord et al. 2018). These methods have been successfully used to improve performance in a variety of learning tasks such as image classification (Chen et al. 2020), object detection (He et al. 2020; Grill et al. 2020), and natural language processing (van den Oord et al. 2018).
+
+A common yet powerful method for contrastive learning with images is to first create synthetic transformations (augmentation) of an image and then the model learns to contrast the image and its transforms from other images in the training data. We believe that this approach works well for images because many learning tasks  related  to  images  involve  the  interpretation  of  the  objects  captured  in  the image.  Transformations  such  as  scaling,  blurring,  and  rotation  assume  that  the resulting images will resemble those that would have been generated in the original scenario with changes in camera zoom, stability, focus, or angle.
+
+However,  there  do  not  appear  to  be  equivalent  transformations  that  can  be applied  to  time  series  data.  Transformations  that  have  been  used  in  contrastive learning for time series, including TS-TCC (Eldele et al. 2021), MCL (Wickstrøm et al. 2022), TS2Vec (Yue et al. 2022), BTSF Yang and Hong (2022), and TF-C (Zhang  et  al.  2022),  all  carry  the  risk  that  the  variants  of  the  positive  sample might be less similar to the anchor sample compared to the series in the negative set.  In  addition,  their  performance  critically  depends  on  the  choice  of  augmentations (Yang and Hong 2022; Zhang et al. 2022). For instance, T-Loss (Franceschi et al. 2019) uses a subseries as a positive sample for a given anchor sample. In situations where there is a level shift in the anchor sample, the defined positive sample may be less similar to the anchor sample compared to the series in the negative set, where no level shift exists. TS-TCC (Eldele et al. 2021) uses augmentation techniques such as permutation which carries the same risk. i.e., the permutation of the anchor sample may be very similar to a series in the negative set. Figure 1a shows an example where augmentation techniques proposed for TSTCC, using jittering and permutation with the same hyper-parameters proposed in the original paper, produce augmented series that are different (dissimilar under Dynamic Time Warping (DTW) distance (Sakoe and Chiba 1971)) from the original series. The original series of class 0 is more similar to the augmented series of class 2 than to its own augmentation and the augmented series of class 0 and 1 are quite dissimilar to their original series. Additionally, for further clarification, we conducted the nearest neighbor algorithm with DTW distance (1NN-DTW) on the  original  training  set,  the  original  training  set  combined  with  augmented data, and solely on the augmented data. The classification accuracy of 1NN-DTW decreases significantly from 0.89 to 0.77 when the augmented series are used as a training set, as shown in Fig. 1b.
+
+<!-- image -->
+
+Fig. 1 a A dendrogram comparing the similarity of three time series of different classes and their augmented variants taken from the BME dataset  (Dau  et  al.  2019).  The  three  original  raw  series  are  augmented using the strong augmentation technique (jittering and permutation) proposed in TS-TCC (Eldele et al. 2021). Under DTW distance, the original series of class 0 is most similar to the augmented series of class 2. Additionally, the augmented series of class 0 and 1 are quite dissimilar from their original series. b 1NN-DTW classification accuracy of BME dataset on different training sets. A significant decrease in accuracy can be observed when using only the augmented series as the training set
+
+<!-- image -->
+
+For  this  reason,  we  propose  Series2Vec,  a  novel  self-supervised  method inspired by contrastive learning that uses learning similarity as its self-supervised task. Our model utilizes time series similarity measures to assign a target output that is used to calculate the encoder loss. This use of a time series specific loss function provides a different type of implicit bias to the image inspired augmentations such as jittering and permutations that have previously been used in time series contrastive learning. This method of creating representations in time series data offers a new and more effective approach to implicit bias encoding.
+
+<!-- image -->
+
+This method simply aims to provide similar representations for time series that are similar to each other in the original feature space and dissimilar representations for the time series that are far from each other-
+
+$$S i m _ { t } ( x ^ { i } , x ^ { j } ) < S i m _ { t } ( x ^ { i } , x ^ { k } ) \, \Longrightarrow \, R _ { t } ( E _ { t } ( x ^ { i } ) , E _ { t } ( x ^ { j } ) ) < R _ { t } ( E _ { t } ( x ^ { i } ) ) , E _ { t } ( x ^ { k } ) \quad ( 1 )$$
+
+where Sim t is a relevant similarity measure in the time domain, Rt is a relevant similarity measure in the representation domain, /u1D404 /u1D42D is  the function from time series to their representations and /u1D431 /u1D422 , /u1D431 /u1D423 and /u1D431 /u1D424 are time series. Since frequency information in time series can be of great importance and is a different/additional source of information, we further extended our model to also learn representations in the frequency domain.
+
+To do so, we propose a novel approach that applies self-attention to each representation within the batch during training. The self-attention mechanism enforces the network to learn similar representations for all similar time series within each batch. Our approach draws inspiration from the contrastive learning method for self-supervised  representation  learning;  however,  Series2Vec  benefits  from  the similarity prediction loss over time series to represent their structure. Notably, it achieves this without the need for hand-crafted data augmentation. One crucial insight motivating this work is the relevance of the unsupervised similarity step to a wide range of time series analysis tasks, which enables the model to focus on modeling the sequential structure of time series.
+
+Additionally, we demonstrate that similarity-based representation learning can be used as a complementary technique with other self-supervised methods such as  self-prediction  and  contrastive  learning  to  enhance  the  performance  of  time series analysis.
+
+In summary, the main contributions of this work are as follows:
+
+- A novel self-supervised learning framework (Series2Vec) is proposed for time series representation learning, inspired by contrastive learning.
+- A time series similarity measure-based pretext is proposed to assign the target output for the encoder loss, providing a more suitable implicit bias for time series analysis.
+- A novel  approach  is  introduced  that  applies  order-invariant  self-attention  to each representation during training, effectively enhancing the preservation of similarity in the representation domain.
+
+The  Series2Vec  framework  was  evaluated  extensively  on  nine  real-world  time series datasets, along with the UCR/UEA archive, and displayed improved results compared to existing SOTA self-supervised methods. It is also evaluated when fused with other representation learning models.
+
+<!-- image -->
+
+## 2    Related work
+
+Self-supervised  learning  for  time  series  classification  can  mainly  be  divided  into two groups: contrastive learning and self-prediction. This section delves into these approaches, and for a more comprehensive understanding, we recommend that interested readers refer to the recent survey (Foumani et al. 2024a). Additionally, a literature review on time series similarity measures has been conducted and is available in Appendix A for those interested.
+
+## 2.1    Contrastive learning
+
+Contrastive learning involves model learning to differentiate between positive and negative time series examples. Scalable Representation Learning (SRL) (Franceschi et  al.  2019)  and Temporal Neighborhood Coding (TNC) (Tonekaboni et al. 2021) apply a subsequence-based sampling and assume that distant segments are negative pairs and neighbor segments are positive pairs. TNC takes advantage of the local smoothness of a signal's generative process to define neighborhoods in time with stationary properties to further improve the sampling quality for the contrastive loss function. TS2Vec (Yue et al. 2022) uses contrastive learning to obtain robust contextual representations for each timestamp in a hierarchical manner. It involves randomly sampling two overlapping subseries from input and encouraging consistency of  contextual  representations  on  the  common  segment.  The  encoder  is  optimized using both temporal contrastive loss and instance-wise contrastive loss.
+
+In addition to the subsequence-based methods, there are also other models such as Time-series Temporal and Contextual Contrasting (TS-TCC) (Eldele et al. 2021), Mixing up Contrastive Learning (MCL) (Wickstrøm et al. 2022), and Bilinear Temporal-Spectral  Fusion  (BTSF)  (Yang  and  Hong  2022)  that  employ  instance-based sampling. TS-TCC uses weak and strong augmentations to transform the input series into two views and then uses a temporal contrasting module to learn robust temporal representations. The contrasting contextual module is then built upon the contexts from the temporal contrasting module and aims to maximize similarity among contexts of the same sample while minimizing similarity among contexts of different samples (Eldele et al. 2021). BTSF uses simple dropout as the augmentation method and aims to incorporate spectral information into the feature representation (Yang and  Hong  2022).  Similarly,  Time-Frequency  Consistency  (TF-C)  (Zhang  et  al. 2022) is a self-supervised learning method that leverages the frequency domain to achieve better representation. It proposes that the time-based and frequency-based representations, learned from the same time series sample, should be more similar to each other in the time-frequency space compared to representations of different time series samples. These self-supervised methods have demonstrated the ability to generate high-level semantic representations (Foumani et al. 2024a) by capturing essential features that remain consistent across various data views. However, they can also introduce  notable  biases  that  might  impede  performance  in  specific  downstream tasks  or  even  to  pretraining  tasks  with  dissimilar  data  distributions.  Additionally, their efficacy is significantly influenced by the selection of augmentation techniques
+
+<!-- image -->
+
+(Yang and Hong 2022; Zhang et al. 2022). To address the above drawbacks, we propose a model that utilizes time series similarity measures to assign a target output for learning high-level representations without the need for data augmentation.
+
+## 2.2    Self-prediction
+
+The main idea behind self-prediction methods is to remove or corrupt parts of the input and train the model to predict or reconstruct the altered content (Foumani et al. 2024a).  Studies  have  explored  using  transformer-based  self-supervised  learning methods for time series classification, following the success of models like BERT (Devlin et al. 2019). BErt-inspired Neural Data Representations (BENDER) (Kostas et al. 2021) uses the transformer structure to model EEG sequences and shows that it can effectively handle massive amounts of biosignals data recorded with differing hardware. Similarly, EEG2Rep (Foumani et al. 2024b) introduces a self-prediction approach  for  self-supervised  representation  learning  from  EEG.  Two  core  novel components of this model are outlined: (1) Instead of learning to predict the masked input  directly  from  raw  data,  EEG2Rep  trains  to  predict  the  masked  input  within the  latent  representation  space,  and  (2)  Instead  of  conventional  masking  methods, EEG2Rep uses a new semantic subsequence preserving (SSP) method which provides  informative  masked  inputs  to  guide  EEG2Rep  to  generate  rich  semantic representations.
+
+Transformer-based Framework (TST) (Zerveas et al. 2021) adapts vanilla transformers to the multivariate time series domain and uses a self-prediction-based selfsupervised pre-training approach with masked data. The pre-trained models are then fine-tuned for downstream tasks such as classification and regression. These studies demonstrate the potential of using transformer-based self-supervised learning methods for time series classification. Compared to contrastive methods, self-prediction pretraining  tasks  require  less  prior  knowledge  and  exhibit  better  generalization across various downstream tasks (Foumani et al. 2024b, a). While many of these approaches  leverage  auto-encoding  techniques  (Kostas  et  al.  2021;  Zerveas  et  al. 2021), it is worth noting that auto-encoding can be computationally intensive, and the level of detail needed for series reconstruction and prediction may exceed what is necessary for effective representation learning (Grill et al. 2020). In this paper, we propose a model inspired by contrastive learning to avoid the costly reconstruction step in raw time series space.
+
+## 3    Method
+
+## 3.1    Problem definition
+
+In this study, we aim to tackle the problem of learning a nonlinear embedding function that can effectively map each time series /u1D431 /u1D422 from a given dataset X into a condensed and meaningful representation r i ∈ ℝ K ,  where K denotes the desired representation dimension. The dataset X comprises n samples, specifically X = { /u1D431 /u1D7CF , /u1D431 /u1D7D0 , ..., /u1D431 /u1D427 } , where each /u1D431 /u1D422 represents a d x -dimensional time series of length L . We denote that /u1D431 /u1D422 ≡ /u1D431 /u1D422 /u1D42D represents an input time series sample, and /u1D431 /u1D422 /u1D41F represents the discrete frequency spectrum of /u1D431 /u1D422 . We define r i t as the representation of /u1D431 /u1D422 sample in the time domain, and r i f as the representation of /u1D431 /u1D422 in the frequency domain, and r i is the concatenation of [ r i t , r i f ] .  These representations can be used in various downstream tasks, such as classification. To evaluate the quality of our learned representation r = { r 1 , r 2 .., r n } ,  we  consider  two  scenarios  based  on  the  availability  of labeled data: Linear Probing and Fine-Tuning (see Sect. 4).
+
+<!-- image -->
+
+## 3.2    Model architecture
+
+The overall architecture of Series2Vec is shown in Fig. 2. The Series2Vec model architecture proposed in this work is designed to handle both univariate and multivariate time series inputs. However, for the purpose of simplicity, we will focus on illustrating the model using univariate time series in the following descriptions. As shown in Fig. 2 the model comprises four main components: a time encoder ( /u1D404 /u1D42D ), a frequency encoder ( /u1D404 /u1D41F ),  a  similarity measuring functions for time and frequency (Sect.  3.3),  and  an  similarity-preserving  loss  function  (Sect.  3.4).  The  encoder blocks map the input time series data into condensed and meaningful representations in both time and frequency domains. A similarity measuring function calculates the similarity between pairs of input series, providing a quantitative measure of their resemblance. To optimize the encoder blocks, a similarity-preserving loss function is employed. This loss function guides the learning process, encouraging the encoder blocks to learn representations that preserve the similarity relationships between different samples in the dataset in both time and frequency domains.
+
+For a given input time series sample, denoted as /u1D431 /u1D422 ,  we obtain its corresponding frequency spectrum, /u1D431 /u1D422 /u1D41F ,  through a transform operator such as the Fourier Transformation (Cooley et al. 1969). The frequency spectrum captures universal frequency information  within  the  time  series  data,  which  has  been  widely  acknowledged  as a key component in classical signal processing (Cooley et al. 1969). Furthermore, recent studies have demonstrated the potential of utilizing frequency information to enhance  self-supervised  representation  learning  for  time  series  data  (Zhang  et  al. 2022; Yang and Hong 2022).
+
+<!-- image -->
+
+Fig. 2 Architecture of Series2Vec. The top module learns the representations in the temporal domain and the bottom module learns the representations in the frequency domain
+
+<!-- image -->
+
+The  time-domain  input /u1D431 /u1D422 /u1D42D and  the  frequency-domain  input /u1D431 /u1D422 /u1D41F are  separately passed into the time and frequency encoders to extract features. The feature extraction process is as follows:
+
+$$r _ { t } ^ { i } = E _ { t } ( x _ { t } ^ { i } , \theta _ { t } ) , \quad r _ { f } ^ { i } = E _ { f } ( x _ { f } ^ { i } , \theta _ { f } )$$
+
+where /u1D703 T and /u1D703 F represent  the  parameters  of  the  time  and  frequency  encoders, respectively. The encoded representations of /u1D431 /u1D422 are denoted as r i t ∈ ℝ K and r i f ∈ ℝ K . Following  the  established  setup  outlined  in  previous  works  (e.g.,  Foumani  et  al. (2021, 2023)), we adopt disjoint convolutions for encoding both temporal and spectral features. These convolutions efficiently capture the temporal and spatial features (Foumani et al. 2021). To ensure consistent representation sizes, we employ max pooling at the end of the encoding network. This choice guarantees the scalability of our model to different input lengths.
+
+## 3.3    Similarity measuring function
+
+Soft-DTW  (Cuturi  and  Blondel  2017)  is  employed  as  the  similarity  function  in time domain. It was proposed as an alternative to DTW and we used it due to the availability of an efficient GPU implementation of Soft-DTW, 1 allows our proposed method to be more efficient, scale, and run faster on large time series datasets. The distance calculated by Soft-DTW is a continuous and differentiable function. The formulation for Soft-DTW distance is given by
+
+$$\mathcal { S } _ { T } ( x _ { t } ^ { i } , x _ { t } ^ { j } ) = \min _ { \pi } \sum _ { i = 1 } ^ { L } \| x _ { t } ^ { i } - x _ { t } ^ { j , \pi ( i ) } \| ^ { 2 } e ^ { - \frac { \alpha } { 2 } \| i - \pi ( i ) \| ^ { 2 } } \\ \stackrel { i } { t } \text { and } x _ { t } ^ { j } \text { are the two time series being compared, } L \text { is the length of the time }$$
+
+Where /u1D431 /u1D422 /u1D42D and /u1D431 /u1D423 /u1D42D are the two time series being compared, L is the length of the time series, and /u1D70B is a warping path. The warping path is defined as a function that maps each index of one time series to a corresponding index in the other time series. The goal  is  to  find  the  warping  path  that  minimizes  the  sum  of  the  squared  distances between the corresponding elements of the two time series. The parameter /u1D6FC ∈ [ 0, 1 ] controls the degree of alignment between the two time series. Smaller values of /u1D6FC result in a more accurate alignment, while larger values lead to a more robust alignment. It is worth noting that setting /u1D6FC = 0 makes Soft-DTW and DTW equivalent.
+
+For the similarity function in the frequency domain, we use the Euclidean distance as unlike the temporal domain where Soft-DTW is employed, the concept of time warping does not apply directly to the frequency domain. The Euclidean distance between two input series /u1D431 /u1D422 /u1D41F and /u1D431 /u1D423 /u1D41F can be calculated as follows:
+
+[1 https://  github.  com/  Magho  umi/  pytor  ch-  softd  tw-  cuda](https://github.com/Maghoumi/pytorch-softdtw-cuda)
+
+<!-- image -->
+
+$$\L _ { F } ( x _ { f } ^ { i } , x _ { f } ^ { j } ) = \sqrt { \sum _ { k = 1 } ^ { M } \| x _ { f } ^ { i , k } - x _ { f } ^ { j , k } \| ^ { 2 } } \\ \L _ { \ } \text {represent the frequency domain representations of two time series}$$
+
+Here, /u1D431 /u1D422 /u1D41F and /u1D431 /u1D423 /u1D41F represent the frequency domain representations of two time series being compared, and M is the number of frequency bins. The Euclidean distance is computed by taking the square root of the sum of squared differences between corresponding frequency components of the two representations.
+
+## 3.4    Self-supervised similarity-preserving
+
+To simplify the explanation,  we  will  focus  on  the  time  domain  and  omit  the  frequency domain. Let's assume that r i and r j are the representation vectors for input time series /u1D431 /u1D422 and /u1D431 /u1D423 , respectively. Our main objective is to learn similar representations for all similar time series within each batch. To accomplish this, we leverage transformers and make use of the order-invariant property of self-attention mechanisms. In our approach, each time series within each batch functions as a query and attends to the keys of the other samples in the batch in order to construct its representation. This process allows the representation we seek to capture and aggregate all  the  relevant  information  from the input representations of the entire batch. By employing the transformer's architecture and utilizing self-attention, we aim to generate richer representations that encapsulate the relative characteristics and similarities among the input time series samples.
+
+To the best of our knowledge, our work is the first to introduce the concept of feeding each time series as an input token to transformers to learn similarity-based representations. In our approach, we utilize transformers to model the relationships and  interactions  between  the  time  series  within  the  batch.  By  treating  each  time series as a separate input token, we enable the model to capture the fine-grained similarities between different series. Specifically, the attention operation in transformers starts with building three different linearly-weighted vectors from the input, known as query, key, and value. Transformers then map a query and a set of key-value pairs to generate an output. For an input batch representation, R = { r 1 , r 2 , ..., r B } where B is the batch size, self-attention computes an output series Z = { z 1 , z 2 , ..., z B } where z i ∈ ℝ d z and is computed as a weighted sum of input elements:
+
+$$z ^ { i } = \sum _ { j = 1 } ^ { B } \alpha _ { i , j } ( r ^ { j } W ^ { V } )$$
+
+Each coefficient weight /u1D6FC i , j is calculated using a softmax function:
+
+<!-- image -->
+
+$$\alpha _ { i , j } = \frac { \ e x p ( e _ { i j } ) } { \sum _ { k = 1 } ^ { B } e x p ( e _ { i k } ) } \\ \intertext { n w i g h t f r o m e s t i o n s j o t i v a n d i s p u t e d u s i m p e q n o t h s }$$
+
+where e ij is an attention weight from representations j to i and is computed using a scaled dot-product:
+
+$$e _ { i j } = \frac { ( r ^ { i } W ^ { Q } ) ( r ^ { j } W ^ { K } ) ^ { T } } { \sqrt { d _ { z } } } \\ W ^ { K } , W ^ { V } \in \mathbb { R } ^ { K \times d _ { z } } \text { are parameter matrices and are unique per}$$
+
+The  projections W Q , W K , W V ∈ ℝ K × d z are  parameter  matrices  and  are  unique  per layer. Instead of computing self-attention once, Multi-Head Attention (MHA) (Vaswani et al. 2017) does so multiple times in parallel, i.e., employing h attention heads. Assuming z i , z j ∈ ℝ d z are the output vectors of transformers for input representation r i and r j ∈ ℝ K , respectively. The pretext objective we have defined aims to mini-
+
+mize the following loss function:
+
+$$\mathcal { L } _ { t } = \text {smooth} _ { L _ { t } } ( R _ { t } ( z ^ { i } , z ^ { j } ) , S i m _ { t } ( x ^ { i } , x ^ { j } ) )$$
+
+The Eq. 8 is calculated the smooth L 1 loss (Girshick 2015) between the similarity Rt ( z i , z j ) and similarity function Sim t ( /u1D431 /u1D422 , /u1D431 /u1D423 ) . The smooth L 1 loss is defined as:
+
+$$\text {similarity function} \, S m _ { t } ( x , x ^ { \cdot } ) \colon \text {the smooth} \, L _ { t } \, \exp \left ( x \right ) \colon \text {the} \, \exp \left ( 1 - \exp \left ( x \right ) \right ) \colon \text {the} \, \exp \left ( 0 . 5 x ^ { 2 } \right ) \colon \text {if} \, | x | < 1 \\ \text {smooth} \, L _ { t } \, \exp \left ( x \right ) = \begin{cases} \ 0 . 5 x ^ { 2 } & \text {if} \, | x | < 1 \\ | x | - 0 . 5 \text { otherwise} \end{cases} \\ \text {smooth} \, L 1 \, \text {loss} \, \text { because the literature shows it is less sensitive to outliers} \\ \text {MSE loss} \, \text {and in certain scenarios} \, \text {it prevents the issue of expold-}$$
+
+We chose smooth L1 loss because the literature shows it is less sensitive to outliers compared to  MSE loss,  and  in  certain  scenarios,  it  prevents  the  issue  of  exploding gradients (Girshick 2015). We also found experimentally that it performs better than MSE loss. The similarity ( Rt ( z i , z j ) is computed by taking the dot product of the encoded vectors z i and z j .  The similarity Sim t ( /u1D431 /u1D422 , /u1D431 /u1D423 ) is calculated between the time series /u1D431 /u1D422 and /u1D431 /u1D423 using Eq. 3.
+
+In  our  model,  we  follow  the  same  process  for  the  frequency  domain.  The  loss function is defined as follows:
+
+$$\mathcal { L } _ { f } = \text {smooth} _ { L _ { 1 } } ( R _ { f } ( z _ { f } ^ { i } , z _ { f } ^ { j } ) , \text {Sim} _ { F } ( x _ { f } ^ { i } , x _ { f } ^ { j } ) )$$
+
+Here, the similarity Sim f ( /u1D431 /u1D422 /u1D41F , /u1D431 /u1D423 /u1D41F ) is  calculated  between /u1D431 /u1D422 /u1D41F and /u1D431 /u1D423 /u1D41F using  Eq.  4.  The total loss is then calculated as:
+
+$$\mathcal { L } _ { T o t a l } = \mathcal { L } _ { t } + \mathcal { L } _ { f }$$
+
+Training the encoder using L Total loss function that is based on a time series-specific similarity measure enabled the model to learn a representation of the input data that effectively captures the similarities between the series in each batch. Additionally, time series-specific similarity measures are able to align and compare time series with different time steps and lengths by warping the time axis, making the loss function robust to non-linear variations in the data. This makes the model more robust and less sensitive to small variations in the data, which in turn improves its ability to  generalize to unseen time series data. Furthermore, by training the model with a loss function that is based on time series-specific similarity measures, the model is  exposed  to  a  wide  range  of  time  series  variations,  such  as  different  time  steps, lengths, and irregular intervals, which allows it to learn the underlying patterns in the data that are specific to time series. Time series-specific similarity measures like Dynamic Time Warping (DTW) can handle irregular time intervals, non-stationary time series, and variable-length time series, which can be beneficial when training the model with time series that have these characteristics. Refer to Algorithm 1 for a detailed, step-by-step walkthrough of our method.
+
+<!-- image -->
+
+Algorithm 1 Similarity-based representation learning pseudocode
+
+The primary focus of our proposed pretext model is to leverage the similarity  information  between  time  series,  without  being  limited  by  the  quality  of  a specific  similarity  measure.  This  allows  for  flexibility  in  the  choice  of  similarity  measure,  as  any  time  series  similarity  measure  can  be  plugged  into  the model and used to learn representations. In this paper, we chose a time seriesspecific similarity measure, Soft-DTW (Cuturi and Blondel 2017) (please refer to Sect. 3.3 for the reason why we used this similarity measure). Our proposed model  is  not  limited  to  specific  similarity  measures  and  has  the  potential  to incorporate other similarity measures as well.
+
+## 4    Experimental results
+
+This  section  presents  the  experimental  results  of  our  study,  focusing  on  the performance evaluation of the Series2Vec model in a downstream task of time series classification. The experiments are divided into three main parts: (1) linear probing, (2) fine-tuning, and (3) ablation study. Our primary objective is to assess  the  effectiveness  of  the  learned  representation  in  accurately  classifying time series data and to compare Series2Vec performance against other state-ofthe-art models. For implementation details and hyperparameters of Series2Vec and  Baseline  Models,  please  refer  to  Appendix  B.  Additional  experiments  on the UCR/UEA archive are provided in the Appendix D due to space constraints. Here we evaluate models on commonly used datasets in the representation learning literature.
+
+<!-- image -->
+
+## 4.1    Datasets
+
+To evaluate the performance of our model, we utilize a total of nine publicly available datasets that have been previously used in the literature for time series representation  learning  (Foumani  et  al.  2024a).  These  datasets  cover  various  domains, such as epileptic seizure prediction (Andrzejak et al. 2001), sleep stage classification (Goldberger et al. 2000), and human activity recognition datasets such as Anguita et al. (2013), PAMAP2 (Reiss and Stricker 2012), Skoda (Zappi et al. 2012), USCHAD (Zhang and Sawchuk 2012), Opportunity (Chavarriaga et al. 2013), WISDM (Lockhart  et  al.  2012),  and  WISDM2  (Weiss  and  Lockhart  2012).  The  details  of each dataset are presented in Appendix C.
+
+## 4.2    Evaluation procedure
+
+Following the literature on time series classification (Fawaz et al. 2019; Yue et al. 2022;  Foumani  et  al.  2023),  we  evaluate  model  performance  using  classification accuracy as the main metric. Models are ranked based on their accuracy per dataset, with the highest accuracy receiving a rank of 1 and the lowest rank assigned to the worst performer. In the case of ties, the average rank is calculated. In the final step, we compute the average rank across all datasets for each model, with the lowest  average  rank  indicating  the  method  with  the  highest  average  accuracy  across datasets.
+
+## 4.3    Linear probing
+
+We assume access to a large volume of unlabeled data X u = /u1D431 /u1D422 | i = 1, ..., n ,  along with a smaller subset of labeled data X l = { ( /u1D431 /u1D422 , y i ) | i = 1, ..., m } samples  ( m ≪ n ). Each sample in X l is associated with a label y i ∈ { 1, ..., C } ,  where C represents the number of classes. First, we pre-train a model without using labels through a selfsupervised pretext task.  Once  the  pre-training  is  complete,  we  freeze  the  encoder and add a linear classifier on top of the pre-trained model's output or intermediate representations. This linear classifier can be implemented as a linear layer or logistic  regression.  The  linear  classifier  is  subsequently  trained  on  a  downstream  task, typically  a  classification  task,  utilizing  the  pre-trained  representations  as  inputs. Linear probing serves as an evaluation method to assess the quality of the learned representations.
+
+{ }
+
+<!-- image -->
+
+Table 1 Comparing  self-supervised  models:  An  analysis  of  average  accuracy  scores  for  Series2Vec, TS2Vec, TS-TCC, TNC, MCL, TF-C and TST
+
+| TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   | TS2Vec, TS-TCC, TNC, MCL, TF-C and TST   |
+|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|------------------------------------------|
+| Datasets                                 | Series2Vec                               | TS2Vec                                   | TS-TCC                                   | TNC                                      | MCL                                      | TF-C                                     | TST                                      |
+| WISDM2                                   | 64.70 ± 0.34                             | 62.50 ±                                  | 0.49 64.36 ± 1.02                        | 63.75 ± 0.9                              | 63.84 ±                                  | 0.98 63.35 ± 2.05                        | 61.75 ± 1.34                             |
+| PAMAP2                                   | 81.99 ± 0.41                             | 77.33 ± 0.52                             | 62.33 ± 1.23                             | 67.25 ± 1.09                             | 61.93 ±                                  | 1.74 40.32 ± 1.74                        | 52.80 ± 1.15                             |
+| USC- HAD                                 | 56.12 ± 1.34                             | 47.28 ±                                  | 4.17 53.89 ± 3.43                        | 51.19 ± 2.05                             | 50.45 ±                                  | 3.60 48.51 ± 2.83                        | 46.57 ± 5.29                             |
+| Sleep                                    | 80.62 ± 3.59                             | 77.38 ±                                  | 4.74 80.59 ± 1.82                        | 75.71 ± 4.93                             | 74.82 ±                                  | 4.16 73.82 ± 6.63                        | 74.93 ± 5.68                             |
+| Skoda                                    | 98.65 ± 0.11                             | 98.09 ±                                  | 0.44 96.39 ± 0.52                        | 95.39 ± 0.27                             | 94.04 ±                                  | 0.53 96.40 ± 0.67                        | 86.95 ± 1.41                             |
+| Opp                                      | 86.56 ± 0.42                             | 85.00 ±                                  | 1.56 82.90 ± 1.68                        | 83.81 ±                                  | 4.73 82.54 ±                             | 0.85 83.06 ± 1.25                        | 82.81 ± 4.61                             |
+| WISDM                                    | 81.17 ± 0.27                             | 80.23 ±                                  | 2.31 76.16 ± 2.39                        | 73.16 ± 5.47                             | 74.06 ±                                  | 2.12 72.08 ± 3.00                        | 62.88 ± 6.54                             |
+| Epilepsy                                 | 97.61 ± 0.03                             | 97.52 ±                                  | 0.18 96.83 ± 0.12                        | 95.83 ± 0.15                             | 96.91 ±                                  | 0.13 96.73 ± 0.33                        | 82.61 ± 0.24                             |
+| UCI-HAR                                  | 94.77 ± 0.13                             | 93.76 ± 1.17                             | 89.21 ±                                  | 0.24 90.21 ± 0.27                        | 88.46 ±                                  | 2.84 81.09 ± 1.46                        | 86.21 ± 2.31                             |
+| Average                                  | 82 . 47                                  | 79.90                                    | 78.07                                    | 77.37                                    | 76.33                                    | 72.81                                    | 70.83                                    |
+| Rank                                     | 1                                        | 3                                        | 3.33                                     | 4                                        | 4.78                                     | 5.44                                     | 6.44                                     |
+
+The highest accuracy for each dataset is given in bold
+
+## 4.3.1    Comparison with baseline approaches
+
+In  order  to  evaluate  the  effectiveness  of  our  approach,  we  conducted  extensive comparison against  six  state-of-the-art  self-supervised  methods  for  time  series, including TS2Vec (Yue et al. 2022), TS-TCC (Eldele et al. 2021), TNC (Tonekaboni et al. 2021), TF-C (Zhang et al. 2022), MCL (Wickstrøm et al. 2022) and TST  (Zerveas  et  al.  2021).  To  ensure  a  fair  comparison,  we  utilized  publicly available code for the baseline methods. We employed the same encoder architecture, with identical computational complexity and parameters as previously outlined. Additionally, we followed the literature (Yue et al. 2022; Eldele et al. 2021) by setting the representation dimensions to K = 320 .
+
+Table 1 presents the average accuracy of Series2Vec over five runs, along with other state-of-the-art self-supervised models, for the purpose of comparison. The number in bold for each dataset represents the highest accuracy achieved for that dataset.  The  last  row  in  Table  1  shows  the  rank  of  each  model  across  all  nine datasets. The results presented in this table indicate that our model, Series2Vec, achieves the highest average rank of 1 (which is significantly more accurate than other  models)  and  the  highest  average  accuracy  of  82.47  among  all  self-supervised models. The second most accurate model, TS2Vec, obtains an average rank of 3 and an average accuracy of 79.90. TS-TCC follows closely with an average accuracy of 78.07. TST is the worst-performing model with an average accuracy of 70.83.
+
+Figure 3 illustrates t-SNE plots visualizing representations learned by TS-TCC, TS2Vec, and our method on the Epilepsy dataset (excluding TNC, TF-C, MCL, and TST due to inferior performance). In Fig. 3a and b, the two classes are not easily separable  in  the  learned  representation  space,  leading  to  low  classification  accuracy. Contrastingly, Fig. 3c demonstrates clear separability between the two classes, underscoring  the  efficacy  of  Series2Vec  in  enhancing  representations  and,  consequently, improving classification accuracy.
+
+<!-- image -->
+
+<!-- image -->
+
+Fig. 3 Comparison of 2D t-SNE plots for representation learned by a TS-TCC, b TS2Vec, and c Series2Vec on the Epilepsy dataset
+
+<!-- image -->
+
+Fig. 4 Comparison  of  Linear  Probing  with  Series2Vec,  TS2Vec,  TS-TCC  and  Supervised  on  all  nine datasets. The x-axis represents the number of labeled samples per class, while the y-axis represents the corresponding accuracy achieved by each approach
+
+<!-- image -->
+
+## 4.3.2    Low-label regimes
+
+We  conducted  a  comparison  between  three  self-supervised  models  (Series2Vec, TS2Vec, and TS-TCC) and a supervised model in a low-labeled data regime. The TNC, TF-C, MCL, and TST models were excluded from the comparison due to their significantly lower accuracy compared to the other models. Figure 4 demonstrates that our proposed Series2Vec model consistently outperforms both the supervised model and other representation learning models (except for one dataset -Sleep- in comparison to TS-TCC) when the number of labeled data points is limited to less than 50. Note each subfigure here shows the results for one dataset. This indicates the promising performance of Series2Vec models in scenarios where data scarcity is  a  challenge.  It  is  important  to  highlight  that  Series2Vec  does  not  exhibit  a  significant performance advantage over TS-TCC on the Epilepsy dataset. This can be attributed  to  the  presence  of  low-level  noise  in  EEG  data,  such  that  jittering  replicates  this  effect  allowing  classifiers  to  avoid  overfitting  high-frequency  effects. Furthermore, Series2Vec demonstrates slightly lower performance compared to the TS-TCC method on the Sleep dataset. We believe this is due to the relatively long length of the series (e.g., 3000 time steps), which poses a challenge for our model to accurately represent similarity using only a single similarity loss across both time and frequency domains.
+
+## 4.4    Pre-training
+
+We assume that the dataset X is fully labeled, denoted as X = { ( /u1D431 /u1D422 , y i ) | i = 1, ..., n } . Each sample in X l is associated with a label y i ∈ { 1, ..., C } ,  where C represents the number of classes. We investigate whether leveraging similarity-based representation learning for initialization provides advantages compared to randomly initializing a supervised model. To examine this, we first pre-train the model without using labels  through  a  self-supervised  pretext  task.  Afterward,  we  train  (fine-tune)  the entire model for a few epochs using the labeled dataset in a fully supervised manner.
+
+Table 2 presents the classification accuracy results for different datasets, comparing  the  performance  of  a  model  with  random  initialization  and  pre-trained
+
+Table 2 Comparison of Classification Accuracy between Random Initialization and Pre-Trained Series2Vec
+
+| Datasets   | WIS2    | PAM2    | USC     | Sleep   | Skoda   | Opp     | WIS     | Ep      | HAR     | Average   |
+|------------|---------|---------|---------|---------|---------|---------|---------|---------|---------|-----------|
+| Random     | 65.91   | 75.10   | 56.26   | 82.20   | 99.16   | 89.34   | 84.69   | 98.17   | 96.06   | 82.99     |
+| Series2Vec | 68 . 26 | 78 . 13 | 56 . 89 | 82 . 78 | 99 . 37 | 89 . 60 | 86 . 20 | 98 . 35 | 96 . 40 | 84 . 00   |
+
+The highest accuracy for each dataset are given in bold
+
+<!-- image -->
+
+Table 3 Series2Vec Ablation Study: Component Analysis
+
+| Component     | WIS2   | PAM2    | USC     | Sleep   | Skoda   | Opp     | WIS     | Ep      | HAR     | Average         |
+|---------------|--------|---------|---------|---------|---------|---------|---------|---------|---------|-----------------|
+| w/o Attention | 59.83  | 70.64   | 36.84   | 61.21   | 93.25   | 82.97   | 74.70   | 91.00   | 90.03   | 73.38 ( ↓ 9.08) |
+| w/o Spectral  | 60.83  | 78.64   | 38.84   | 70.21   | 96.25   | 85.97   | 79.70   | 97.00   | 92.60   | 77.78 ( ↓ 4.68) |
+| w/o Temporal  | 63.16  | 71.88   | 45.82   | 63.36   | 98.42   | 86.45   | 80.54   | 96.65   | 93.62   | 77.76 ( ↓ 4.70) |
+| Series2Vec    | 64 . 7 | 81 . 99 | 56 . 12 | 80 . 62 | 98 . 65 | 86 . 56 | 81 . 17 | 97 . 61 | 94 . 77 | 82 . 47         |
+
+The highest accuracy per dataset are given in bold
+
+Table 4 L Sim as Complementary Loss Function
+
+| Loss function         | Average accuracy   |
+|-----------------------|--------------------|
+| L Sim (Series2Vec)    | 82 . 47            |
+| L Cons (TS-TCC)       | 78.07              |
+| L SP (TST)            | 70.83              |
+| L Sim + L Cons        | 82.61 ( ↑ 0.14)    |
+| L Sim + L SP          | 83.45 ( ↑ 0.98)    |
+| L Sim + L SP + L Cons | 83 . 55 ( ↑ 1.08)  |
+
+The highest average accuracy are given in bold
+
+Series2Vec.  The  table  shows  that  using  pre-trained  Series2Vec  leads  to  an  average improvement of 1% in accuracy compared to the random initialization. Significant improvements are observed in specific datasets, such as WISDM2, PAMAP2, and  WISDM.  For  WISDM2,  Series2Vec  achieves  an  accuracy  gain  of  2.35% compared to the random initialization. Similarly, for PAMAP2 and WISDM, the accuracy  gains  are  3.03%  and  1.51%  respectively,  validating  the  effectiveness  of utilizing similarity-based methods for enhanced learning and improved time series classification.
+
+## 4.5    Ablation study
+
+Component  analysis To  assess  the  effectiveness  of  the  proposed  components in Series2Vec, we conducted a comparison between the Series2Vec model and three variations, as presented in Table 3. The variations are as follows: (1) w/o Attention ,  where  the  transformer  block  is  removed;  (2) w/o  Spectral ,  where only the temporal domain is used as input feature; and (3) w/o Temporal , where the frequency of the input series is solely utilized to generate the representation.
+
+As shown in Table 3, the inclusion of order-invariant self-attention has a significant impact on the model's accuracy, thereby validating our approach, which employs it to ensure that the model attends to similar series in the batch for a given time series. Furthermore, we observed that in datasets recorded with a low sampling rate such as WISDM2, Skoda, WISDM, and UCI-HAR, employing the frequency domain improves the model's performance. Low sampling may make it  difficult  for  the  model  to  capture  fine-grained  temporal  patterns  in  the  data.
+
+<!-- image -->
+
+However,  frequency-based  representations  derived  from  the  FFT  can  capture information about the underlying periodicity and spectral content of the signal.
+
+Complementary  loss  function We  evaluate  our  similarity  preserving  loss ( L Sim )  performance  in  combination  with  other  methods  such  as  self-prediction loss ( L SP )  used  in  TST  and  contrastive loss ( L Cons )  employed in TS-TCC. Table 4 showcases the average accuracy of five runs for different combinations of similarity, contrastive, and self-prediction loss on all nine datasets. Notably, we find that the similarity loss surpasses the individual performance of self-prediction loss in TST and contrastive loss in TS-TCC. Additionally, the combination of self-prediction and similarity-preserving learning yields superior results compared to  the  combination  of  contrastive  and  similarity  loss.  This  suggests that self-prediction and similarity learning capture distinct implicit biases, and their fusion leads to enhanced performance in time series analysis.
+
+## 5    Conclusion
+
+This  paper  proposes  a  novel  self-supervised  learning  method,  Series2Vec,  for time series analysis. Series2Vec is inspired by contrastive learning, but instead of using synthetic transformations, it utilizes time series similarity metrics to assign the target output for the encoder loss. This method offers a novel and more effective approach to implicit bias encoding, making it more suitable for time series analysis.  The  experiment  results  show  that  Series2Vec  outperforms  existing methods for time series representation learning. Moreover, our findings indicate that Series2Vec performs well in datasets with a limited number of labeled samples.  Finally,  fusion  of  similarity-based  loss  function  with  other  representation learning models leads to enhanced performance in time series classification. In the future, we will explore incorporating additional similarity measurements into the  model  to  better  represent  the  similarity  among  the  series.  Furthermore,  we plan to preprocess the data before calculating similarity to improve the robustness of the pretext targets to noise.
+
+## Appendix 1: Related work on similarity measures
+
+A  similarity  measure  calculates  the  distance  between  two  time  series  and  the smaller the distance, the more similar the two time series. There have been many similarity measures developed for time series data. Time series similarity measures  play  an  important  role  in  almost  all  time  series  data  mining  tasks  such  as classification, regression, anomaly detection, motif discovery and clustering (Tan et al. 2021; Petitjean et al. 2011). One of the popular similarity measures for comparing a pair of time series is Dynamic Time Warping (DTW) (Sakoe and Chiba 1971).  DTW  calculates  the  distance  by  aligning  the  two  time  series  in  a  nonlinear way, allowing more flexible comparison than traditional methods such as Euclidean distance. It is also robust to shifts and dilation across the time dimension (Sakoe and Chiba 1971). This makes DTW useful for comparing time series that may have been recorded at different times or at different frequencies and a valuable tool for many applications (Petitjean et al. 2011).
+
+<!-- image -->
+
+Its  popularity  has  led  to  various  extensions  of  the  measure.  The  weighted DTW (WDTW) (Jeong et al. 2011) and the recent Amerced DTW (ADTW) (Herrmann and Webb 2023) are variants of DTW that penalize off-diagonal warping paths.  ADTW  was  shown  to  significantly  outperform  both  DTW  and  WDTW when benchmarked on the univariate UCR time series archive (Dau et al. 2019). The use of DTW as a feature was explored in Kate (2016) where each time series is represented as a vector of DTW distances to each of the examples in the training dataset. The authors demonstrated the effectiveness of DTW features using a support vector machine (SVM) and concatenated with other features, where their method  was  more  accurate  than  nearest  neighbor  classification.  SPIRAL  (Lei et al. 2019) proposed an alternative approach to time series clustering by utilizing pairwise DTW similarity to create clustering input, rather than relying solely on raw features in the time series. They demonstrated that the combination of DTWbased  features  and  K-means  clustering  is  more  effective,  efficient,  and  flexible compared to other state-of-the-art time series clustering methods.
+
+Since  DTW  is  not  differentiable,  it  cannot  be  used  as  a  loss  function  for  the neural networks. Hence, Soft-DTW (Cuturi and Blondel 2017) (see Sect. 3.3) was developed to allow DTW to be used as a loss function to train neural networks. The authors showed that using Soft-DTW as the measure for clustering and forecasting is  superior  to  using  DTW (Cuturi and Blondel 2017). Given the benefits of SoftDTW and the availability of an efficient GPU implementation, Soft-DTW is used as a proof of concept for our work. We will consider the exploration of other similarity measures for time series self-supervised learning as our future work.
+
+## Appendix 2: Series2Vec and baseline models: implementation details
+
+We  compare  our  Series2vec  model  against  six  state-of-the-art  self-supervised baselines  consisting  of  both  contrastive  learning  and  self-prediction  based  methods,  allowing  for  a  comprehensive  evaluation  of  our  model's  performance  (Section 4.3.1). We implemented these baselines following the methodologies outlined in their respective papers: TS2Vec (Yue et al. 2022), TS-TCC (Eldele et al. 2021), TNC (Tonekaboni et al. 2021), TF-C (Zhang et al. 2022), MCL (Wickstrøm et al. 2022), and TST (Zerveas et al. 2021). Unless otherwise specified, we utilized the default hyper-parameter settings as reported in the original works. All pre-training and  fine-tuning  processes  for  the  baselines  were  conducted  using  a  single  Nvidia A5000 GPU with 24GB of memory, coupled with an Intel(R) Core(TM) i9-10900K CPU.
+
+<!-- image -->
+
+## Series2Vec (our model)
+
+Series2Vec model employed two layers of temporal and spatial convolutions (Foumani et al. 2021) to encode temporal and spectral features. The model utilized 16 filters per layer in the temporal and spatial convolution layers. During training, a batch size of 256 was used, and the Adam optimization algorithm (Kingma and Ba 2014) was employed. To prevent overfitting, an early stopping method based on the validation  loss  was  implemented. The model is pre-trained for 100 epochs, and logistic regression is then applied to the representations for linear probing. Following the transformer-based model for multivariate time series classification (TST) (Zerveas et  al.  2021),  our  experiments  utilized  eight  attention  heads  to  capture  the  diverse features from the input time series. We set the transformer encoding dimension to d z = 320 ,  with the feed-forward network (FFN) in the transformer block expanding the input and projecting it back to its original size. The Soft-DTW's parameter /u1D6FC , which determines the level of alignment between the two time series, is set to 0.1 as per the original paper's recommendation (Cuturi and Blondel 2017).
+
+## TS2Vec (Yue et al. 2022)
+
+TS2Vec is a contrastive learning-based self-supervised method that incorporates contextual consistency and hierarchical loss functions to capture long-range temporal structures in time series data. It stands out as a potent representative learning  technique  with  a  tailored  architecture.  Its  encoder  network  comprises  three key components. Initially, the input time series undergoes augmentation via the selection of overlapping subseries (random cropping), which are then projected into  a  higher-dimensional  latent  space.  Subsequently,  latent  vectors  undergo random  timestamp  masking.  Finally,  contextual  representations  are  produced through a dilated CNN with residual blocks. Loss computation involves gradual pooling along the time dimension, with a contextual consistency-based loss function applied at each step. In baseline experiments, we utilize 10 layers of ResNet blocks,  a  batch  size  of  256,  and  a  representation  dimension  of  320,  as  per  the original paper.
+
+## TS-TCC (Eldele et al. 2021)
+
+TS-TCC  is  a  contrastive  learning-based  self-supervised  method,  using  contextual  information  with  a  transformer-based  auto-regressive  model  and  ensuring robustness  through  various  augmentations.  It  introduces  a  challenging  pretext task where raw time series data undergo both strong and weak augmentations to create  two  correlated  views.  A  novel  temporal  contrasting  module  is  proposed to  learn  robust  temporal  representations  by  tackling  a  challenging  cross-view prediction  task.  Additionally,  a  contextual  contrasting  module  is  introduced  to enhance discriminative representations by maximizing similarity within the same sample's contexts while minimizing similarity across different samples' contexts.
+
+<!-- image -->
+
+A representation dimension of 320 is used for baseline comparisons, alongside identical hyper-parameters as described in the original paper.
+
+## TNC (Tonekaboni et al. 2021)
+
+TNC  is  a  contrastive  learning-based  self-supervised  method  that  focuses  on learning representations capable of encoding the underlying state of non-stationary time series data. This objective is achieved by ensuring that the distribution of  observations  in  the  latent  space  differs  from  the  distribution  of  temporally separated observations. For each time point, the TNC model calculates a neighborhood size using the Augmented Dickey-Fuller (ADF) test. Subsequently, the encoded representations of two different windows are passed to a discriminator to predict the probability that they belong to the same temporal neighborhood. During our experiments, we encountered significant computational overhead associated with the ADF tests, leading to slower performance.
+
+## TF-C (Zhang et al. 2022)
+
+TF-C is a contrastive learning-based self-supervised method that enhances representations by exploiting the frequency domain. It proposes that the time-based and frequency-based representations, learned from the same time series sample, should be more similar to each other in the time-frequency space compared to representations of  different  time  series  samples.  TF-C  utilizes  a  1-D  ResNet  backbone  similar  to SimCLR. After hyperparameter tuning, the encoder comprises three convolutional layers: each layer has a kernel size of 8, with strides of 8, 1, and 1, respectively, and depths of 32, 64, and 128, respectively. Max pooling is applied after each convolutional layer, with all pooling kernel sizes and strides set to 2. For linear probing, TF-C employs two fully-connected layers with hidden dimensions of 256 and 128, respectively.
+
+## MCL (Wickstrøm et al. 2022)
+
+MCL is  a  contrastive  learning-based  self-supervised  method.  It  introduces  novel mixing-up augmentations and pretext tasks aimed at predicting the correct mixing proportion between two time series samples. In the Mixing-up process, an augmentation is created by taking the convex combination of two randomly selected time series from the dataset, with the mixing parameter drawn randomly from a beta distribution. The contrastive loss is then calculated between the original inputs and the augmented time series. This loss, a minor adaptation of the NT-Xent loss, incentivizes accurate prediction of the mixing amount. We adopted the same beta distribution as reported in the original Mixing-up model.
+
+<!-- image -->
+
+Table 5 Description of datasets used in our experiments
+
+| Dataset     |   #Train |   # Test |   # Subject |   Length |   # Channel |   # Class |
+|-------------|----------|----------|-------------|----------|-------------|-----------|
+| WISDM2      |  134,614 |   14,421 |          29 |       40 |           3 |         6 |
+| PAMAP2      |   51,192 |   11,590 |           9 |      100 |          52 |        18 |
+| USC-HAD     |   46,899 |     9327 |          14 |      100 |           6 |        12 |
+| Sleep       |   25,612 |     8910 |          20 |     3000 |           1 |         5 |
+| Skoda       |   22,587 |     5646 |           1 |       50 |          64 |        11 |
+| Opportunity |   15,011 |     2374 |           4 |      100 |         113 |        18 |
+| WISDM       |   11,960 |     5207 |          13 |       40 |           3 |         6 |
+| Epilepsy    |     9200 |     2300 |         500 |      178 |           1 |         2 |
+| UCI-HAR     |     7352 |     2947 |          30 |      128 |           9 |         6 |
+
+## TST (Zerveas et al. 2021)
+
+TST is a self-prediction-based method that applies vanilla transformers to the multivariate time series domain. It utilizes a single linear layer to patchify the input series and employs two transformer layers, each consisting of 8 heads, to capture diverse features from the input time series. The model is pretrained through random masking  in  the  raw  space,  and  the  loss  function  is  based  on  raw  space  reconstruction. Subsequently,  pretrained  models  are  fine-tuned  for  downstream  tasks,  including classification and regression. These findings underscore the promise of transformerbased self-supervised learning approaches for time series classification.
+
+## Appendix 3: Datasets
+
+We chose these datasets as they are commonly employed in self-supervised representation learning for time series research (Eldele et al. 2021; Zhang et al. 2022). The details of each dataset are provided in Table 5. For all datasets except Skoda, we performed subject-wise data splitting, ensuring that the test set comprises at least 20 percent of the data. However, since the Skoda datasets were recorded using only one subject, subject-wise data splitting was not applicable in this case. As for class distribution, the Opportunity dataset shows varying proportions among its classes. Datasets  such  as UCI-HAR , USC-HAD , Sleep ,  and Skoda are  relatively  balanced. Moreover, datasets like WISDM , WISDM2 ,  and PAMAP2 display  a  more  uniform distribution, with most classes sharing comparable ratios of the data.
+
+<!-- image -->
+
+Fig. 5 Pairwise comparison of Series2Vec with state-of-the-art self-supervised methods. Each cell presents the average difference in accuracy across all datasets, the win/draw/loss counts of numbers of datasets  for  which Series2Vec obtains higher or lower accuracy, and the p-value from a Wilcoxon signedrank test. The methods are ranked by their average accuracy across all the default folds of a 128 UCR datasets and b 30 UEA datasets, indicated by the values below each method. The values in bold indicate that the two methods are significantly different under significance level /u1D6FC = 0.05 .  The  color  represents the scale of the average difference in accuracy
+
+## Appendix 4: Additional experiments on UCR/UEA
+
+In  order  to  highlight  the  great  performance  and  generalisability  of  Series2Vec  on diverse problems, we compare Series2Vec with the same self-supervised methods used in Sect. 4.3.1 on the UCR univariate and UEA multivariate time series classification benchmarking archive (Dau et al. 2019; Bagnall et al. 2018).
+
+We compare the models using a Multiple Comparison Matrix (MCM) (IsmailFawaz et al. 2023) as shown in Fig. 5a and b. The methods in this matrix are ordered on the average accuracy of the method across the set of datasets. The average accuracy is indicated below each method in the figure. This approach preserves the relative ordering of the methods in any comparison conducted on the same set of tasks. Each cell in the matrix contains statistics relating to a pairwise comparison between the methods on the left with the methods at the top of the column. There are three statistics  in  each  cell  of  the  figure.  The  first  is  the  average  difference  in  accuracy between  Series2Vec  and  the  other  methods.  The  second  is  the  number  of  wins/ draws/losses against the top method. The final row shows the p-value of a two-sided Wilcoxon  signed  rank  significance  test  without  multiple  testing  corrections.  The Wilcoxon signed ranked test is computed using the ranking of each method on each dataset, using the same ranking process as in Sect. 4.2. The values in bold indicate that the two methods are significantly different at a significance level of /u1D6FC = 0.05 . The color in the figure represents the scale of the average difference in accuracy.
+
+<!-- image -->
+
+Figure 5a and b show that Series2Vec outperforms all the other methods on these archives. It is significantly more accurate than all the methods except TS2Vec, while winning on more datasets.
+
+However, Series2Vec is still outperformed by the state-of-the-art time series classification methods on these archives. This is because the archives mainly contain relatively small-size training datasets that are less than 10,000 training examples, and are significantly smaller than the ones used in this work (see Table 5). Self-supervised  techniques  usually  require  large  training  datasets  to  generalize  and  perform well.  This  highlights  the  limitations  in  current  time  series  classification  research, the  need  of  having  more  larger  datasets  and  room  for  improving  self-supervised techniques.
+
+Funding Open Access funding enabled and organized by CAUL and its Member Institutions
+
+Open Access This article is licensed under a Creative Commons Attribution 4.0 International License, which permits use, sharing, adaptation, distribution and reproduction in any medium or format, as long as  you  give  appropriate  credit  to  the  original  author(s)  and  the  source,  provide  a  link  to  the  Creative Commons licence, and indicate if changes were made. The images or other third party material in this article are included in the article's Creative Commons licence, unless indicated otherwise in a credit line to the material. If material is not included in the article's Creative Commons licence and your intended use is not permitted by statutory regulation or exceeds the permitted use, you will need to obtain permission directly from the copyright holder. To view a copy of this licence, visit http://creativecommons.org/ licenses/by/4.0/.
+
+## References
+
+- Andrzejak RG, Lehnertz K, Mormann F, Rieke C, David P, Elger CE (2001) Indications of nonlinear deterministic and finite-dimensional structures in time series of brain electrical activity: dependence on recording region and brain state. Phys Rev E 64(6):061907
+- Anguita D, Ghio A, Oneto L, Parra X, Reyes-Ortiz JL et al (2013) A public domain dataset for human activity recognition using smartphones. Esann 3:3
+- Bagnall A, Dau HA, Lines J, Flynn M, Large J, Bostrom A, Southam P, Keogh E (2018) The UEA multivariate time series classification archive. Preprint arXiv:  1811.  00075
+- Chavarriaga  R,  Sagha  H,  Calatroni  A,  Digumarti  ST,  Tröster  G,  Millán  JDR,  Roggen  D  (2013)  The opportunity challenge: a benchmark database for on-body sensor-based activity recognition. Pattern Recognit Lett 34(15):2033-2042
+- Chen T, Kornblith S, Norouzi M, Hinton G (2020) A simple framework for contrastive learning of visual representations. In: International conference on machine learning, pp 1597-1607
+- Cooley JW, Lewis PA, Welch PD (1969) The fast Fourier transform and its applications. IEEE Trans Educ 12(1):27-34
+- Cuturi M, Blondel M (2017) Soft-DTW: a differentiable loss function for time-series. In: International conference on machine learning. PMLR, pp 894-903
+- Dau HA, Bagnall A, Kamgar K, Yeh C-CM, Zhu Y, Gharghabi S, Ratanamahatana CA, Keogh E (2019) The UCR time series archive. IEEE/CAA J Autom Sin 6(6):1293-1305
+- Devlin J, Chang M-W, Lee K, Toutanova K (2019) BERT: pre-training of deep bidirectional transformers for language understanding. In: ACL, 1, 4171-4186
+- Eldele E, Ragab M, Chen Z, Wu M, Kwoh CK, Li X, Guan C (2021) Time-series representation learning via temporal and contextual contrasting. In: IJCAI-21, pp 2352-2359
+- Fawaz HI, Forestier G, Weber J, Idoumghar L, Muller P-A (2019) Deep learning for time series classification: a review. DMKD 33(4):917-963
+- Foumani SNM, Tan CW, Salehi M (2021) Disjoint-CNN for multivariate time series classification. In: 2021 international conference on data mining workshops (ICDMW). IEEE, pp 760-769
+- Foumani NM, Tan CW, Webb GI, Salehi M (2023) Improving position encoding of transformers for multivariate time series classification. Data Min Knowl Discov 38:22-48
+- Foumani NM, Miller L, Tan CW, Webb GI, Forestier G, Salehi M (2024) Deep learning for time series classification and extrinsic regression: a current survey. ACM Comput Surv 56:1-45
+
+<!-- image -->
+
+- Foumani NM, Mackellar G, Ghane S, Irtza  S,  Nguyen  N,  Salehi  M  (2024)  Eeg2rep:  enhancing  selfsupervised EEG representation through informative masked inputs. Preprint arXiv:  2402.  17772
+- Franceschi J-Y, Dieuleveut A, Jaggi M (2019) Unsupervised scalable representation learning for multivariate time series. NeurIPS 32
+- Girshick R (2015) Fast r-CNN. In: Proceedings of the IEEE international conference on computer vision, pp 1440-1448
+- Goldberger AL, Amaral LA, Glass L, Hausdorff JM, Ivanov PC, Mark RG, Mietus JE, Moody GB, Peng C-K, Stanley HE (2000) Physiobank, physiotoolkit, and physionet: components of a new research resource for complex physiologic signals. Circulation 101(23):215-220
+- Goyal P, Caron M, Lefaudeux B, Xu M, Wang P, Pai V, Singh M, Liptchinsky V, Misra I, Joulin A et al (2021) Self-supervised pretraining of visual features in the wild. Preprint arXiv:  2103.  01988
+- Grill J-B, Strub F, Altché F, Tallec C, Richemond P, Buchatskaya E, Doersch C, Avila Pires B, Guo Z, Gheshlaghi Azar M et al (2020) Bootstrap your own latent-a new approach to self-supervised learning. NeurIPS 33:21271-21284
+- He K, Fan H, Wu Y, Xie S, Girshick R (2020) Momentum contrast for unsupervised visual representation learning. In: IEEE/CVF conference on computer vision and pattern recognition, pp 9729-9738
+- Herrmann M, Webb GI (2023) Amercing: an intuitive and effective constraint for dynamic time warping. Pattern Recognit 109333
+- Ismail-Fawaz  A,  Dempster  A,  Tan  CW,  Herrmann  M,  Miller  L,  Schmidt  DF,  Berretti  S,  Weber  J, Devanne M, Forestier G et al (2023) An approach to multiple comparison benchmark evaluations that is stable under manipulation of the comparate set. Preprint arXiv:  2305.  11921
+- Jeong Y-S, Jeong MK, Omitaomu OA (2011) Weighted dynamic time warping for time series classification. Pattern Recognit 44(9):2231-2240
+- Kate RJ (2016) Using dynamic time warping distances as features for improved time series classification. DMKD 30:283-312
+- Kingma DP, Ba J (2014) Adam: a method for stochastic optimization. Preprint arXiv:  1412.  6980
+- Kostas D, Aroca-Ouellette S, Rudzicz F (2021) Bendr: using transformers and a contrastive self-supervised learning task to learn from massive amounts of EEG data. Front Hum Neurosci 15:653659
+- Lei Q, Yi J, Vaculin R, Wu L, Dhillon IS (2019) Similarity preserving representation learning for time series clustering. In: 28th international joint conference on artificial intelligence, pp 2845-2851
+- Lockhart JW, Pulickal T, Weiss GM (2012) Applications of mobile activity recognition. In: Conference on ubiquitous computing, pp 1054-1058
+- Petitjean F, Ketterlin A, Gançarski P (2011) A global averaging method for dynamic time warping, with applications to clustering. Pattern Recognit 44(3):678-693
+- Rajkomar A, Oren E, Chen K, Dai AM, Hajaj N, Hardt M, Liu PJ, Liu X, Marcus J, Sun M et al (2018) Scalable and accurate deep learning with electronic health records. NPJ Digit Med 1(1):1-10
+- Reiss A, Stricker D (2012) Introducing a new benchmarked dataset for activity monitoring. In: International symposium on wearable computers, pp 108-109
+- Sakoe H, Chiba S (1971) A dynamic programming approach to continuous speech recognition. Int Congr Acoust 3:65-69
+- Tan CW, Bergmeir C, Petitjean F, Webb GI (2021) Time series extrinsic regression: predicting numeric values from time series data. DMKD 35:1032-1060
+- Tonekaboni S, Eytan D, Goldenberg A (2021) Unsupervised representation learning for time series with temporal neighborhood coding. Preprint arXiv:  2106.  00750
+- van den Oord A, Li Y, Vinyals O (2018) Representation learning with contrastive predictive coding. Preprint arXiv:  1807.  03748
+- Vaswani A, Shazeer N, Parmar N, Uszkoreit J, Jones L, Gomez AN, Kaiser Ł, Polosukhin I (2017) Attention is all you need. Adv Neural Inf Process Syst 30
+- Weiss GM, Lockhart J (2012) The impact of personalization on smartphone-based activity recognition. In: Workshops at AAAI
+- Wickstrøm K, Kampffmeyer M, Mikalsen KØ, Jenssen R (2022) Mixing up contrastive learning: selfsupervised representation learning for time series. Pattern Recognit Lett. 155:54-61
+- Yang L, Hong S (2022) Unsupervised time-series representation learning with iterative bilinear temporalspectral fusion. In: International conference on machine learning, pp 25038-25054
+- Yue Z, Wang Y, Duan J, Yang T, Huang C, Tong Y, Xu B (2022) Ts2vec: towards universal representation of time series. AAAI 36:8980-8987
+
+<!-- image -->
+
+- Zappi P, Roggen D, Farella E, Tröster G, Benini L (2012) Network-level power-performance trade-off in wearable activity recognition: a dynamic sensor selection approach. Trans Embed Comput Syst 11(3):1-30
+- Zerveas G, Jayaraman S, Patel D, Bhamidipaty A, Eickhoff C (2021) A transformer-based framework for multivariate time series representation learning. In: SIGKDD, pp 2114-2124
+- Zhang M, Sawchuk AA (2012) USC-HAD: a daily activity dataset for ubiquitous activity recognition using wearable sensors. In: Conference on ubiquitous computing, pp 1036-1043
+- Zhang X, Zhao Z, Tsiligkaridis T, Zitnik M (2022) Self-supervised contrastive pre-training for time series via time-frequency consistency. In: Proceedings of neural information processing systems. NeurIPS
+
+Publisher's Note Springer Nature remains neutral with regard to jurisdictional claims in published maps and institutional affiliations.
+
+## Authors and Affiliations
+
+## Navid Mohammadi Foumani 1  · Chang Wei Tan 1  · Geoffrey I. Webb 1 · Hamid Rezatofighi 1 · Mahsa Salehi 1
+
+* Navid Mohammadi Foumani
+
+navid.foumani@monash.edu
+
+Chang Wei Tan
+
+chang.tan@monash.edu
+
+Geoffrey I. Webb geoff.webb@monash.edu
+
+Hamid Rezatofighi hamid.rezatofighi@monash.edu
+
+Mahsa Salehi mahsa.salehi@monash.edu
+
+- 1 Department of Data Science and Artificial Intelligence, Monash University, Melbourne, VIC, Australia
+
+<!-- image -->

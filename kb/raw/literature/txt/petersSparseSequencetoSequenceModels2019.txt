@@ -1,0 +1,588 @@
+## Sparse Sequence-to-Sequence Models
+
+Ben Peters † Vlad Niculae † and Andr´ e F. T. Martins †‡
+
+‡ Unbabel, Lisbon, Portugal
+
+† Instituto de Telecomunicac ¸ ˜ oes, Lisbon, Portugal
+
+benzurdopeters@gmail.com , vlad@vene.ro , andre.martins@unbabel.com
+
+## Abstract
+
+Sequence-to-sequence models are a powerful workhorse of NLP. Most variants employ a softmax transformation in both their attention mechanism and output layer, leading to dense alignments and strictly positive output probabilities. This density is wasteful, making models less interpretable and assigning probability mass to many implausible outputs. In this paper, we propose sparse sequence-to-sequence models, rooted in a new family of α -entmax transformations, which includes softmax and sparsemax as particular cases, and is sparse for any α &gt; 1 . We provide fast algorithms to evaluate these transformations and their gradients, which scale well for large vocabulary sizes. Our models are able to produce sparse alignments and to assign nonzero probability to a short list of plausible outputs, sometimes rendering beam search exact. Experiments on morphological inflection and machine translation reveal consistent gains over dense models.
+
+## 1 Introduction
+
+Attention-based sequence-to-sequence ( seq2seq ) models have proven useful for a variety of NLP applications, including machine translation (Bahdanau et al., 2015; Vaswani et al., 2017), speech recognition (Chorowski et al., 2015), abstractive summarization (Chopra et al., 2016), and morphological inflection generation (Kann and Sch¨ utze, 2016), among others. In part, their strength comes from their flexibility: many tasks can be formulated as transducing a source sequence into a target sequence of possibly different length.
+
+However, conventional seq2seq models are dense : they compute both attention weights and output probabilities with the softmax function (Bridle, 1990), which always returns positive values. This results in dense attention alignments , in which each source position is attended to at each target position, and in dense output probabilities , in which each vocabulary type always has nonzero probability of being generated. This contrasts with traditional statistical machine translation systems, which are based on sparse, hard alignments, and decode by navigating through a sparse lattice of phrase hypotheses. Can we transfer such notions of sparsity to modern neural architectures? And if so, do they improve performance?
+
+Figure 1: The full beam search of our best performing morphological inflection model when generating the past participle of the verb 'draw'. The model gives nonzero probability to exactly three hypotheses, including the correct form ('drawn') and the form that would be correct if 'draw' were regular ('drawed').
+
+<!-- image -->
+
+In this paper, we provide an affirmative answer to both questions by proposing neural sparse seq2seq models that replace the softmax transformations (both in the attention and output) by sparse transformations . Our innovations are rooted in the recently proposed sparsemax transformation (Martins and Astudillo, 2016) and FenchelYoung losses (Blondel et al., 2019). Concretely, we consider a family of transformations (dubbed α -entmax ), parametrized by a scalar α , based on the Tsallis entropies (Tsallis, 1988). This family includes softmax ( α = 1 ) and sparsemax ( α = 2 ) as particular cases. Crucially, entmax transforms are sparse for all α &gt; 1 .
+
+Our models are able to produce both sparse attention , a form of inductive bias that increases focus on relevant source words and makes alignments more interpretable, and sparse output probabilities , which together with auto-regressive mod- els can lead to probability distributions that are nonzero only for a finite subset of all possible strings. In certain cases, a short list of plausible outputs can be enumerated without ever exhausting the beam (Figure 1), rendering beam search exact . Sparse output seq2seq models can also be used for adaptive, sparse next word suggestion (Figure 2).
+
+Figure 2: Forced decoding using sparsemax attention and 1.5-entmax output for the German source sentence, 'Dies ist ein weiterer Blick auf den Baum des Lebens.' Predictions with nonzero probability are shown at each time step. All other target types have probability exactly zero. When consecutive predictions consist of a single word, we combine their borders to showcase auto-completion potential. The selected gold targets are in boldface.
+
+| This So And Here 92.9% 5.9% 1.3% <0.1%   | is another   | view look glimpse kind looking way vision gaze 0.9% 0.2% <0.1% <0.1%   | 49.8% 27.1% 19.9% 2.0%   | at on ,   | 95.7% 5.9% 1.3%   | the tree of life .   |
+|------------------------------------------|--------------|------------------------------------------------------------------------|--------------------------|-----------|-------------------|----------------------|
+
+Overall, our contributions are as follows:
+
+- We propose an entmax sparse output layer , together with a natural loss function. In largevocabulary settings, sparse outputs avoid wasting probability mass on unlikely outputs, substantially improving accuracy. For tasks with little output ambiguity, entmax losses, coupled with beam search, can often produce exact finite sets with only one or a few sequences. To our knowledge, this is the first study of sparse output probabilities in seq2seq problems.
+- We construct entmax sparse attention , improving interpretability at no cost in accuracy. Weshow that the entmax gradient has a simple form (Proposition 2), revealing an insightful missing link between softmax and sparsemax.
+- We derive a novel exact algorithm for the case of 1.5-entmax, achieving processing speed close to softmax on the GPU, even with large vocabulary sizes. For arbitrary α , we investigate a GPU-friendly approximate algorithm. 1
+
+We experiment on two tasks: one character-level with little ambiguity ( morphological inflection generation ) and another word-level, with more ambiguity ( neural machine translation ). The results show clear benefits of our approach, both in terms of accuracy and interpretability.
+
+1 Our standalone Pytorch entmax implementation is available at https://github.com/deep-spin/entmax .
+
+## 2 Background
+
+The underlying architecture we focus on is an RNNbased seq2seq with global attention and inputfeeding (Luong et al., 2015). We provide a brief description of this architecture, with an emphasis on the attention mapping and the loss function.
+
+Notation. Scalars, vectors, and matrices are denoted respectively as a , a , and A . Wedenote the d -probability simplex (the set of vectors representing probability distributions over d choices) by △ d := { p ∈ R d : p ≥ 0 , ‖ p ‖ 1 = 1 } . We denote the positive part as [ a ] + := max { a, 0 } , and by [ a ] + its elementwise application to vectors. We denote the indicator vector e y := [0 , . . . , 0 , 1 ︸︷︷︸ y , 0 , . . . , 0] .
+
+Encoder. Given an input sequence of tokens x := [ x 1 , . . . , x J ] , the encoder applies an embedding lookup followed by K layered bidirectional LSTMs (Hochreiter and Schmidhuber, 1997), resulting in encoder states [ h 1 , . . . , h J ] .
+
+Decoder. The decoder generates output tokens y 1 , . . . , y T , one at a time, terminated by a stop symbol. At each time step t , it computes a probability distribution for the next generated word y t , as follows. Given the current state s t of the decoder LSTM, an attention mechanism (Bahdanau et al., 2015) computes a focused, fixed-size summary of the encodings [ h 1 , . . . , h J ] , using s t as a query vector. This is done by computing token-level scores z j := s ⊤ t W ( z ) h j , then taking a weighted average
+
+$$\text {til} _ { \mu } \cdot \quad c _ { t } \colon = \sum _ { j = 1 } ^ { J } \pi _ { j } h _ { j } , \text { where } \pi \colon = \text {softmax} ( z ) . \quad ( 1 )$$
+
+The contextual output is the non-linear combination o t := tanh ( W ( o ) [ s t ; c t ] + b ( o ) ) , yielding the predictive distribution of the next word
+
+$$p ( y _ { t } = \cdot \, | \, x , y _ { 1 } , \dots , y _ { t - 1 } ) \colon = \text {softmax} ( V o _ { t } + b ) . \\ \\ L _ { \text {span} } = 2 \\$$
+
+The output o t , together with the embedding of the predicted ̂ y t , feed into the decoder LSTM for the next step, in an auto-regressive manner. The model is trained to maximize the likelihood of the correct target sentences, or equivalently, to minimize
+
+$$\mathcal { L } = \sum _ { ( x , y ) \in \mathcal { D } } \sum _ { t = 1 } ^ { | y | } \underbrace { ( - \log \text {softmax} ( V o _ { t } ) ) _ { y t } } _ { L _ { \text {softmax} ( y _ { t } , V o _ { t } ) } } .$$
+
+A central building block in the architecture is the transformation softmax : R d →△ d ,
+
+$$\ s o f t { \max ( z ) _ { j } } { \colon = \frac { \exp ( z _ { j } ) } { \sum _ { i } \exp ( z _ { i } ) } } ,$$
+
+which maps a vector of scores z into a probability distribution ( i.e. , a vector in △ d ). As seen above, the softmax mapping plays two crucial roles in the decoder: first, in computing normalized attention weights (Eq. 1), second, in computing the predictive probability distribution (Eq. 2). Since exp ⪈ 0 , softmax never assigns a probability of zero to any word, so we may never fully rule out non-important input tokens from attention, nor unlikely words from the generation vocabulary. While this may be advantageous for dealing with uncertainty, it may be preferrable to avoid dedicating model resources to irrelevant words. In the next section, we present a strategy for differentiable sparse probability mappings . We show that our approach can be used to learn powerful seq2seq models with sparse outputs and sparse attention mechanisms.
+
+## 3 Sparse Attention and Outputs
+
+## 3.1 The sparsemax mapping and loss
+
+To pave the way to a more general family of sparse attention and losses, we point out that softmax (Eq. 4) is only one of many possible mappings from R d to △ d . Martins and Astudillo (2016) introduce sparsemax : an alternative to softmax which tends to yield sparse probability distributions :
+
+$$\ s p a r s e { \max ( z ) } \colon = \arg \min _ { p \in \triangle ^ { d } } \| p - z \| ^ { 2 } . \quad ( 5 ) \quad \text {call}$$
+
+Since Eq. 5 is a projection onto △ d , which tends to yield sparse solutions, the predictive distribution p ⋆ := sparsemax ( z ) is likely to assign exactly zero probability to low-scoring choices. They also propose a corresponding loss function to replace the negative log likelihood loss L softmax (Eq. 3):
+
+$$( 2 ) \quad L _ { s p a r s e m a x } ( y , z ) \colon = \frac { 1 } { 2 } \left ( \| e _ { y } - z \| ^ { 2 } - \| p ^ { * } - z \| ^ { 2 } \right ) , ( 6 )$$
+
+̸
+
+This loss is smooth and convex on z and has a margin : it is zero if and only if z y ≥ z y ′ +1 for any y ′ = y (Martins and Astudillo, 2016, Proposition 3). Training models with the sparsemax loss requires its gradient ( cf. Appendix A.2):
+
+$$\nabla _ { z } \lfloor _ { s p a r s e m a x } ( y , z ) = - e _ { y } + p ^ { * } .$$
+
+For using the sparsemax mapping in an attention mechanism, Martins and Astudillo (2016) show that it is differentiable almost everywhere, with
+
+$$\frac { \partial s p a r s e m a x ( z ) } { \partial z } = d i a g ( s ) - \frac { 1 } { \| s \| _ { 1 } } s s ^ { \top } ,$$
+
+where s j = 1 if p ⋆ j &gt; 0 , otherwise s j = 0 .
+
+Entropy interpretation. At first glance, sparsemax appears very different from softmax, and a strategy for producing other sparse probability mappings is not obvious. However, the connection becomes clear when considering the variational form of softmax (Wainwright and Jordan, 2008):
+
+$$\text {softmax} ( z ) = \arg \max _ { p \in \triangle ^ { d } } p ^ { \top } z + H ^ { s } ( p ) , \quad ( 7 )$$
+
+where H S ( p ) := -∑ j p j log p j is the well-known Gibbs-Boltzmann-Shannon entropy with base e .
+
+Likewise, letting H G ( p ) := 1 2 ∑ j p j (1 -p j ) be the Gini entropy , we can rearrange Eq. 5 as
+
+$$\int _ { \ } s p a r s e m a x ( z ) = \arg \max _ { p \in \triangle ^ { \sigma } } p ^ { \top } z + H ^ { G } ( p ) , \quad ( 8 )$$
+
+crystallizing the connection between softmax and sparsemax: they only differ in the choice of entropic regularizer .
+
+## 3.2 A new entmax mapping and loss family
+
+The parallel above raises a question: can we find interesting interpolations between softmax and sparsemax? We answer affirmatively, by considering a generalization of the Shannon and Gini entropies proposed by Tsallis (1988): a family of entropies parametrized by a scalar α &gt; 1 which we call Tsallis α -entropies :
+
+̸
+
+$$\text {ds} \quad H _ { \alpha } ^ { T } ( p ) \coloneqq \begin{cases} \frac { 1 } { \alpha ( \alpha - 1 ) } \sum _ { j } \left ( p _ { j } - p _ { j } ^ { \alpha } \right ) , & \alpha \neq 1 , \\ H ^ { S } ( p ) , & \alpha = 1 . \end{cases} \quad ( 9 )$$
+
+Figure 3: Illustration of entmax in the two-dimensional case α -entmax ([ t, 0]) 1 . All mappings except softmax saturate at t = ± 1 / α -1 . While sparsemax is piecewise linear, mappings with 1 &lt; α &lt; 2 have smooth corners.
+
+<!-- image -->
+
+This family is continuous, i.e. , lim α → 1 H T α ( p ) = H S ( p ) for any p ∈ △ d ( cf. Appendix A.1). Moreover, H T 2 ≡ H G . Thus, Tsallis entropies interpolate between the Shannon and Gini entropies. Starting from the Tsallis entropies, we construct a probability mapping, which we dub entmax :
+
+$$\alpha \text {-entmax} ( z ) \coloneqq \arg \max _ { p \in \triangle ^ { d } } p ^ { \top } z + H _ { \alpha } ^ { \top } ( p ) , \quad ( 1 0 ) \quad \text {i.} \\$$
+
+and, denoting p ⋆ := α -entmax ( z ) , a loss function
+
+$$\L _ { \alpha } ( y , z ) \colon = ( p ^ { * } - e _ { y } ) ^ { \top } z + H _ { \alpha } ^ { T } ( p ^ { * } )$$
+
+The motivation for this loss function resides in the fact that it is a Fenchel-Young loss (Blondel et al., 2019), as we briefly explain in Appendix A.2. Then, 1 -entmax ≡ softmax and 2 -entmax ≡ sparsemax . Similarly, L 1 is the negative log likelihood, and L 2 is the sparsemax loss. For all α &gt; 1 , entmax tends to produce sparse probability distributions , yielding a function family continuously interpolating between softmax and sparsemax, cf. Figure 3. The gradient of the entmax loss is
+
+$$\nabla _ { z } \L _ { \alpha } ( y , z ) = - e _ { y } + p ^ { * } . \quad ( 1 2 ) \quad ^ { 6 } _ { 7 }$$
+
+Tsallis entmax losses have useful properties including convexity, differentiability, and a hingelike separation margin property: the loss incurred becomes zero when the score of the correct class is separated by the rest by a margin of 1 / α -1 . When separation is achieved, p ⋆ = e y (Blondel et al., 2019). This allows entmax seq2seq models to be adaptive to the degree of uncertainty present: decoders may make fully confident predictions at 'easy' time steps, while preserving sparse uncertainty when a few choices are possible (as exemplified in Figure 2).
+
+Tsallis entmax probability mappings have not, to our knowledge, been used in attention mechanisms. They inherit the desirable sparsity of sparsemax, while exhibiting smoother, differentiable curvature, whereas sparsemax is piecewise linear.
+
+## 3.3 Computing the entmax mapping
+
+Whether we want to use α -entmax as an attention mapping, or L α as a loss function, we must be able to efficiently compute p ⋆ = α -entmax ( z ) , i.e. , to solve the maximization in Eq. 10. For α = 1 , the closed-form solution is given by Eq. 4. For α &gt; 1 , given z , we show that there is a unique threshold τ such that (Appendix C.1, Lemma 2):
+
+$$= \quad \alpha \text {-entmax} ( z ) = [ ( \alpha - 1 ) z - \tau 1 ] _ { + } ^ { 1 / \alpha - 1 } , \quad ( 1 3 )$$
+
+i.e. , entries with score z j ≤ τ / α -1 get zero probability. For sparsemax ( α = 2 ), the problem amounts to Euclidean projection onto △ d , for which two types of algorithms are well studied:
+
+i. exact, based on sorting (Held et al., 1974; Michelot, 1986),
+
+ii. iterative, bisection-based (Liu and Ye, 2009).
+
+The bisection approach searches for the optimal threshold τ numerically. Blondel et al. (2019) generalize this approach in a way applicable to α -entmax . The resulting algorithm is ( cf. Appendix C.1 for details):
+
+## Algorithm 1 Compute α -entmax by bisection.
+
+```
+1 Define p ( τ ) := [ z -τ ] 1 / α -1 + , set z ← ( α -1) z 2 τ min ← max ( z ) -1; τ max ← max ( z ) -d 1 -α 3 for t ∈ 1 , . . . , T do 4 τ ← ( τ min + τ max ) / 2 5 Z ← ∑ j p j ( τ ) 6 if Z < 1 then τ max ← τ else τ min ← τ 7 return 1 / Z p ( τ )
+```
+
+Algorithm 1 works by iteratively narrowing the interval containing the exact solution by exactly half. Line 7 ensures that approximate solutions are valid probability distributions, i.e. , that p ⋆ ∈ △ d .
+
+Although bisection is simple and effective, an exact sorting-based algorithm, like for sparsemax, has the potential to be faster and more accurate. Moreover, as pointed out by Condat (2016), when exact solutions are required, it is possible to construct inputs z for which bisection requires arbitrarily many iterations. To address these issues, we propose a novel, exact algorithm for 1.5-entmax , halfway between softmax and sparsemax.
+
+## Algorithm 2 Compute 1 . 5 -entmax ( z ) exactly.
+
+$$\frac { \text {Algorithm 2 Compute 1.5-entmax} ( z ) \text { exactly.} } { 1 \text { Sort z, yielding } z _ { [ d ] } \leq \cdots \leq z _ { [ 1 ] } ; \text { set } z \leftarrow z _ { / 2 } } \\ \text { for } \rho \in 1 , \dots , d \text { do} \\ M ( \rho ) \leftarrow 1 / \rho \sum _ { j = 1 } ^ { \rho } z _ { [ j ] } \\ S ( \rho ) \leftarrow \sum _ { j = 1 } ^ { \rho } ( z _ { [ j ] } - M ( \rho ) ) ^ { 2 } \\ \tau \left ( \rho \right ) \leftarrow M ( \rho ) - \sqrt { ^ { 1 / \rho \left ( 1 - S ( \rho ) \right ) } } \\ \text { if } z _ { [ \rho + 1 ] } \leq \tau ( \rho ) \leq z _ { [ \rho ] } \text { then} \\ \text { return } p ^ { * } = [ z - \tau 1 ] _ { + } ^ { 2 }$$
+
+We give a full derivation in Appendix C.2. As written, Algorithm 2 is O ( d log d ) because of the sort; however, in practice, when the solution p ⋆ has no more than k nonzeros, we do not need to fully sort z , just to find the k largest values. Our experiments in §4.2 reveal that a partial sorting approach can be very efficient and competitive with softmax on the GPU, even for large d . Further speed-ups might be available following the strategy of Condat (2016), but our simple incremental method is very easy to implement on the GPU using primitives available in popular libraries (Paszke et al., 2017).
+
+Our algorithm resembles the aforementioned sorting-based algorithm for projecting onto the simplex (Michelot, 1986). Both algorithms rely on the optimality conditions implying an analyticallysolvable equation in τ : for sparsemax ( α = 2 ), this equation is linear, for α = 1 . 5 it is quadratic (Eq. 36 in Appendix C.2). Thus, exact algorithms may not be available for general values of α .
+
+## 3.4 Gradient of the entmax mapping
+
+The following result shows how to compute the backward pass through α -entmax , a requirement when using α -entmax as an attention mechanism.
+
+Proposition 1. Let α ≥ 1 . Assume we have computed p ⋆ = α -entmax ( z ) , and define the vector
+
+$$s _ { i } = \begin{cases} ( p _ { i } ^ { * } ) ^ { 2 - \alpha } , & p _ { i } ^ { * } > 0 , \\ 0 , & o t h e r w i s e . \end{cases}$$
+
+$$T h e n , \quad \frac { \partial \alpha \text {-entmax} ( z ) } { \partial z } = \text {diag} ( s ) - \frac { 1 } { \| s \| _ { 1 } } \ s s ^ { \top } . \quad \text {In} \quad \\$$
+
+Proof: The result follows directly from the more general Proposition 2, which we state and prove in Appendix B, noting that ( t α -t α ( α -1) ) ′′ = t α -2 .
+
+The gradient expression recovers the softmax and sparsemax Jacobians with α = 1 and α = 2 ,
+
+̸
+
+respectively (Martins and Astudillo, 2016, Eqs. 8 and 12), thereby providing another relationship between the two mappings. Perhaps more interestingly, Proposition 1 shows why the sparsemax Jacobian depends only on the support and not on the actual values of p ⋆ : the sparsemax Jacobian is equal for p ⋆ = [ . 99 , . 01 , 0] and p ⋆ = [ . 5 , . 5 , 0] . This is not the case for α -entmax with α = 2 , suggesting that the gradients obtained with other values of α may be more informative. Finally, we point out that the gradient of entmax losses involves the entmax mapping (Eq. 12), and therefore Proposition 1 also gives the Hessian of the entmax loss.
+
+## 4 Experiments
+
+The previous section establishes the computational building blocks required to train models with entmax sparse attention and loss functions. We now put them to use for two important NLP tasks, morphological inflection and machine translation. These two tasks highlight the characteristics of our innovations in different ways. Morphological inflection is a character-level task with mostly monotonic alignments, but the evaluation demands exactness: the predicted sequence must match the gold standard. On the other hand, machine translation uses a word-level vocabulary orders of magnitude larger and forces a sparse output layer to confront more ambiguity: any sentence has several valid translations and it is not clear beforehand that entmax will manage this well.
+
+Despite the differences between the tasks, we keep the architecture and training procedure as similar as possible. We use two layers for encoder and decoder LSTMs and apply dropout with probability 0.3. We train with Adam (Kingma and Ba, 2015), with a base learning rate of 0.001, halved whenever the loss increases on the validation set. We use a batch size of 64. At test time, we select the model with the best validation accuracy and decode with a beam size of 5. We implemented all models with OpenNMT-py (Klein et al., 2017). 2
+
+In our primary experiments, we use three α values for the attention and loss functions: α = 1 (softmax), α = 1 . 5 (to which our novel Algorithm 2 applies), and α = 2 (sparsemax). We also investigate the effect of tuning α with increased granularity.
+
+2 Our experiment code is at https://github.com/ deep-spin/OpenNMT-entmax .
+
+Table 1: Average per-language accuracy on the test set (CoNLL-SIGMORPHON 2018 task 1) averaged or ensembled over three runs.
+
+|            | α          | high   | high   | medium   | medium   |
+|------------|------------|--------|--------|----------|----------|
+| output     | attention  | (avg.) | (ens.) | (avg.)   | (ens.)   |
+| 1          | 1          | 93.15  | 94.20  | 82.55    | 85.68    |
+|            | 1.5        | 92.32  | 93.50  | 83.20    | 85.63    |
+|            | 2          | 90.98  | 92.60  | 83.13    | 85.65    |
+| 1.5        | 1          | 94.36  | 94.96  | 84.88    | 86.38    |
+|            | 1.5        | 94.44  | 95.00  | 84.93    | 86.55    |
+|            | 2          | 94.05  | 94.74  | 84.93    | 86.59    |
+| 2          | 1          | 94.59  | 95.10  | 84.95    | 86.41    |
+|            | 1.5        | 94.47  | 95.01  | 85.03    | 86.61    |
+|            | 2          | 94.32  | 94.89  | 84.96    | 86.47    |
+| UZH (2018) | UZH (2018) |        | 96.00  |          | 86.64    |
+
+## 4.1 Morphological Inflection
+
+The goal of morphological inflection is to produce an inflected word form (such as 'drawn') given a lemma ('draw') and a set of morphological tags ( { verb , past , participle } ). We use the data from task 1 of the CoNLL-SIGMORPHON 2018 shared task (Cotterell et al., 2018). shared task
+
+Training. We train models under two data settings: high (approximately 10,000 samples per language in 86 languages) and medium (approximately 1,000 training samples per language in 102 languages). We depart from previous work by using multilingual training : each model is trained on the data from all languages in its data setting. This allows parameters to be shared between languages, eliminates the need to train language-specific models, and may provide benefits similar to other forms of data augmentation (Bergmanis et al., 2017). Each sample is presented as a pair: the source contains the lemma concatenated to the morphological tags and a special language identification token (Johnson et al., 2017; Peters et al., 2017), and the target contains the inflected form. As an example, the source sequence for Figure 1 is english verb participle past d r a w . Although the set of inflectional tags is not sequential, treating it as such is simple to implement and works well in practice (Kann and Sch¨ utze, 2016). All models use embedding and hidden state sizes of 300. We validate at the end of every epoch in the high setting and only once every ten epochs in medium because of its smaller size.
+
+Accuracy. Results are shown in Table 1. We report the official metric of the shared task, word accuracy averaged across languages. In addition to the average results of three individual model runs, we use an ensemble of those models, where we decode by averaging the raw probabilities at each time step. Our best sparse loss models beat the softmax baseline by nearly a full percentage point with ensembling, and up to two and a half points in the medium setting without ensembling. The choice of attention has a smaller impact. In both data settings, our best model on the validation set outperforms all submissions from the 2018 shared task except for UZH (Makarov and Clematide, 2018), which uses a more involved imitation learning approach and larger ensembles. In contrast, our only departure from standard seq2seq training is the drop-in replacement of softmax by entmax.
+
+Sparsity. Besides their accuracy, we observed that entmax models made very sparse predictions: the best configuration in Table 1 concentrates all probability mass into a single predicted sequence in 81% validation samples in the high data setting, and 66% in the more difficult medium setting. When the model does give probability mass to more than one sequence, the predictions reflect reasonable ambiguity, as shown in Figure 1. Besides enhancing interpretability, sparsity in the output also has attractive properties for beam search decoding: when the beam covers all nonzero-probability hypotheses, we have a certificate of globally optimal decoding, rendering beam search exact . This is the case on 87% of validation set sequences in the high setting, and 79% in medium . To our knowledge, this is the first instance of a neural seq2seq model that can offer optimality guarantees.
+
+## 4.2 Machine Translation
+
+We now turn to a highly different seq2seq regime in which the vocabulary size is much larger, there is a great deal of ambiguity, and sequences can generally be translated in several ways. We train models for three language pairs in both directions:
+
+- IWSLT 2017 German ↔ English (DE ↔ EN, Cettolo et al., 2017): training size 206,112.
+- KFTT Japanese ↔ English (JA ↔ EN, Neubig, 2011): training size of 329,882.
+- WMT2016 Romanian ↔ English (RO ↔ EN, Bojar et al., 2016): training size 612,422, diacritics removed (following Sennrich et al., 2016b).
+
+Table 2: Machine translation comparison of softmax, sparsemax, and the proposed 1.5-entmax as both attention mapping and loss function. Reported is tokenized test BLEU averaged across three runs (higher is better).
+
+| method         | DE EN        | EN DE        | JA EN        | EN JA        | RO EN        | EN RO        |
+|----------------|--------------|--------------|--------------|--------------|--------------|--------------|
+| softmax        | 25.70 ± 0.15 | 21.86 ± 0.09 | 20.22 ± 0.08 | 25.21 ± 0.29 | 29.12 ± 0.18 | 28.12 ± 0.18 |
+| 1 . 5 - entmax | 26.17 ± 0.13 | 22.42 ± 0.08 | 20.55 ± 0.30 | 26.00 ± 0.31 | 30.15 ± 0.06 | 28.84 ± 0.10 |
+| sparsemax      | 24.69 ± 0.22 | 20.82 ± 0.19 | 18.54 ± 0.11 | 23.84 ± 0.37 | 29.20 ± 0.16 | 28.03 ± 0.16 |
+
+Training. We use byte pair encoding (BPE; Sennrich et al., 2016a) to ensure an open vocabulary. We use separate segmentations with 25k merge operations per language for RO ↔ EN and a joint segmentation with 32k merges for the other language pairs. DE ↔ EN is validated once every 5k steps because of its smaller size, while the other sets are validated once every 10k steps. We set the maximum number of training steps at 120k for RO ↔ EN and 100k for other language pairs. We use 500 dimensions for word vectors and hidden states.
+
+Evaluation. Table 2 shows BLEU scores (Papineni et al., 2002) for the three models with α ∈ { 1 , 1 . 5 , 2 } , using the same value of α for the attention mechanism and loss function. We observe that the 1.5-entmax configuration consistently performs best across all six choices of language pair and direction. These results support the notion that the optimal function is somewhere between softmax and sparsemax, which motivates a more fine-grained search for α ; we explore this next.
+
+Fine-grained impact of α . Algorithm 1 allows us to further investigate the marginal effect of varying the attention α and the loss α , while keeping the other fixed. We report DE EN validation accuracy on a fine-grained α grid in Figure 4. On this dataset, moving from softmax toward sparser attention (left) has a very small positive effect on accuracy, suggesting that the benefit in interpretability does not hurt accuracy. The impact of the loss function α (right) is much more visible: there is a distinct optimal value around α = 1 . 33 , with performance decreasing for too large values. Interpolating between softmax and sparsemax thus inherits the benefits of both, and our novel Algorithm 2 for α = 1 . 5 is confirmed to strike a good middle ground. This experiment also confirms that bisection is effective in practice, despite being inexact. Extrapolating beyond the sparsemax loss ( α &gt; 2 ) does not seem to perform well.
+
+Sparsity. In order to form a clearer idea of how sparse entmax becomes, we measure the average number of nonzero indices on the DE EN validation set and show it in Table 3. As expected, 1.5-entmax is less sparse than sparsemax as both an attention mechanism and output layer. In the attention mechanism, 1.5-entmax's increased support size does not come at the cost of much interpretability, as Figure 5 demonstrates. In the output layer, 1.5-entmax assigns positive probability to only 16.13 target types out of a vocabulary of 17,993, meaning that the supported set of words often has an intuitive interpretation. Figure 2 shows the sparsity of the 1.5-entmax output layer in practice: the support becomes completely concentrated when generating a phrase like 'the tree of life', but grows when presenting a list of synonyms ('view', 'look', 'glimpse', and so on). This has potential practical applications as a predictive translation system (Green et al., 2014), where the model's support set serves as a list of candidate auto-completions at each time step.
+
+Table 3: Average number of nonzeros in the attention and output distributions for the DE EN validation set.
+
+| method         |   # attended |   # target words |
+|----------------|--------------|------------------|
+| softmax        |        24.25 |            17993 |
+| 1 . 5 - entmax |         5.55 |            16.13 |
+| sparsemax      |         3.75 |             7.55 |
+
+Training time. Importantly, the benefits of sparsity do not come at a high computational cost. Our proposed Algorithm 2 for 1.5-entmax runs on the GPU at near-softmax speeds (Figure 6). For other α values, bisection (Algorithm 1) is slightly more costly, but practical even for large vocabulary sizes. On DE EN, bisection is capable of processing about 10,500 target words per second on a single Nvidia GeForce GTX 1080 GPU, compared to 13,000 words per second for 1.5-entmax with Algorithm 2 and 14,500 words per second with softmax. On the smaller-vocabulary morphology datasets, Algorithm 2 is nearly as fast as softmax.
+
+Figure 4: Effect of tuning α on DE EN, for attention (left) and for output (right), while keeping the other α = 1 . 5 .
+
+<!-- image -->
+
+Figure 5: Attention weights produced by the DE EN 1.5-entmax model. Nonzero weights are outlined.
+
+<!-- image -->
+
+## 5 Related Work
+
+Sparse attention. Sparsity in the attention and in the output have different, but related, motivations. Sparse attention can be justified as a form of inductive bias, since for tasks such as machine translation one expects only a few source words to be relevant for each translated word. Dense attention probabilities are particularly harmful for long sequences, as shown by Luong et al. (2015), who propose 'local attention' to mitigate this problem. Combining sparse attention with fertility constraints has been recently proposed by Malaviya et al. (2018). Hard attention (Xu et al., 2015; Aharoni and Goldberg, 2017; Wu et al., 2018) selects exactly one source token. Its discrete, non-differentiable nature requires imitation learning or Monte Carlo policy gradient approximations, which drastically complicate training. In contrast, entmax is a differentiable, easy to use, drop-in softmax replacement. A recent study by Jain and Wallace (2019) tackles the limitations of attention probabilities to provide interpretability. They only study dense attention in classification tasks, where attention is less crucial for the final predictions. In their conclusions, the authors defer to future work exploring sparse attention mechanisms and seq2seq models. We believe our paper can foster interesting investigation in this area.
+
+Figure 6: Training timing on three DE EN runs. Markers show validation checkpoints for one of the runs.
+
+<!-- image -->
+
+Losses for seq2seq models. Mostly motivated by the challenges of large vocabulary sizes in seq2seq , an important research direction tackles replacing the cross-entropy loss with other losses or approximations (Bengio and Sen´ ecal, 2008; Morin and Bengio, 2005; Kumar and Tsvetkov, 2019). While differently motivated, some of the above strategies ( e.g. , hierarchical prediction) could be combined with our proposed sparse losses. Niculae et al. (2018) use sparsity to predict interpretable sets of structures. Since auto-regressive seq2seq makes no factorization assumptions, their strategy cannot be applied without approximations, such as in Edunov et al. (2018).
+
+## 6 Conclusion and Future Work
+
+We proposed sparse sequence-to-sequence models and provided fast algorithms to compute their attention and output transformations. Our approach yielded consistent improvements over dense models on morphological inflection and machine translation, while inducing interpretability in both attention and output distributions. Sparse output layers also provide exactness when the number of possible hypotheses does not exhaust beam search.
+
+Given the ubiquity of softmax in NLP, entmax has many potential applications. A natural next step is to apply entmax to self-attention (Vaswani et al.,
+
+- 2017). In a different vein, the strong morphological inflection results point to usefulness in other tasks where probability is concentrated in a small number of hypotheses, such as speech recognition.
+
+## Acknowledgments
+
+This work was supported by the European Research Council (ERC StG DeepSPIN 758969), and by the Fundac ¸˜ ao para a Ciˆ encia e Tecnologia through contracts UID/EEA/50008/2019 and CMUPERI/TIC/0046/2014 (GoLocal). We thank Mathieu Blondel, Nikolay Bogoychev, Gonc ¸alo Correia, Erick Fonseca, Pedro Martins, Tsvetomila Mihaylova, Miguel Rios, Marcos Treviso, and the anonymous reviewers, for helpful discussion and feedback.
+
+## References
+
+- Roee Aharoni and Yoav Goldberg. 2017. Morphological inflection generation with hard monotonic attention. In Proc. ACL .
+- Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. 2015. Neural machine translation by jointly learning to align and translate. In Proc. ICLR .
+- Yoshua Bengio and Jean-S´ ebastien Sen´ ecal. 2008. Adaptive importance sampling to accelerate training of a neural probabilistic language model. IEEE Transactions on Neural Networks , 19(4):713-722.
+- Toms Bergmanis, Katharina Kann, Hinrich Sch¨ utze, and Sharon Goldwater. 2017. Training data augmentation for low-resource morphological inflection. In Proc. CoNLL-SIGMORPHON .
+- Mathieu Blondel, Andr´ e FT Martins, and Vlad Niculae. 2019. Learning classifiers with Fenchel-Young losses: Generalized entropies, margins, and algorithms. In Proc. AISTATS .
+- Ondrej Bojar, Rajen Chatterjee, Christian Federmann, Yvette Graham, Barry Haddow, Matthias Huck, Antonio Jimeno Yepes, Philipp Koehn, Varvara Logacheva, Christof Monz, et al. 2016. Findings of the 2016 conference on machine translation. In ACL WMT .
+- [John S Bridle. 1990. Probabilistic interpretation of feedforward classification network outputs, with relationships to statistical pattern recognition. In Neurocomputing , pages 227-236. Springer.](https://link.springer.com/chapter/10.1007/978-3-642-76153-9_28)
+- M Cettolo, M Federico, L Bentivogli, J Niehues, S St¨ uker, K Sudoh, K Yoshino, and C Federmann. 2017. Overview of the IWSLT 2017 evaluation campaign. In Proc. IWSLT .
+- Sumit Chopra, Michael Auli, and Alexander M Rush. 2016. Abstractive sentence summarization with attentive recurrent neural networks. In Proc. NAACLHLT .
+- Jan K Chorowski, Dzmitry Bahdanau, Dmitriy Serdyuk, Kyunghyun Cho, and Yoshua Bengio. 2015. Attention-based models for speech recognition. In Proc. NeurIPS .
+- Laurent Condat. 2016. Fast projection onto the simplex and the ℓ 1 ball. Mathematical Programming , 158(12):575-585.
+- Ryan Cotterell, Christo Kirov, John Sylak-Glassman, G˙ eraldine Walther, Ekaterina Vylomova, Arya D McCarthy, Katharina Kann, Sebastian Mielke, Garrett Nicolai, Miikka Silfverberg, et al. 2018. The CoNLL-SIGMORPHON 2018 shared task: Universal morphological reinflection. Proc. CoNLLSIGMORPHON .
+- John M Danskin. 1966. The theory of max-min, with applications. SIAM Journal on Applied Mathematics , 14(4):641-664.
+- Sergey Edunov, Myle Ott, Michael Auli, David Grangier, et al. 2018. Classical structured prediction losses for sequence to sequence learning. In Proc. NAACLHLT .
+- Spence Green, Sida I Wang, Jason Chuang, Jeffrey Heer, Sebastian Schuster, and Christopher D Manning. 2014. Human effort and machine learnability in computer aided translation. In Proc. EMNLP .
+- Michael Held, Philip Wolfe, and Harlan P Crowder. 1974. Validation of subgradient optimization. Mathematical Programming , 6(1):62-88.
+- Sepp Hochreiter and J¨ urgen Schmidhuber. 1997. Long short-term memory. Neural Computation , 9(8):1735-1780.
+- Sarthak Jain and Byron C. Wallace. 2019. Attention is not explanation. In Proc. NAACL-HLT .
+- Melvin Johnson, Mike Schuster, Quoc V Le, Maxim Krikun, Yonghui Wu, Zhifeng Chen, Nikhil Thorat, Fernanda Vi´ egas, Martin Wattenberg, Greg Corrado, et al. 2017. Googles multilingual neural machine translation system: Enabling zero-shot translation. Transactions of the Association for Computational Linguistics , 5:339-351.
+- Katharina Kann and Hinrich Sch¨ utze. 2016. MED: The LMU system for the SIGMORPHON 2016 shared task on morphological reinflection. In Proc. SIGMORPHON .
+- Diederik Kingma and Jimmy Ba. 2015. Adam: A method for stochastic optimization. In Proc. ICLR .
+- Guillaume Klein, Yoon Kim, Yuntian Deng, Jean Senellart, and Alexander M Rush. 2017. OpenNMT: Open-source toolkit for neural machine translation. arXiv e-prints .
+- [Sachin Kumar and Yulia Tsvetkov. 2019. Von MisesFisher loss for training sequence to sequence models with continuous outputs. In Proc. ICLR .](https://arxiv.org/abs/1812.04616)
+- Jun Liu and Jieping Ye. 2009. Efficient Euclidean projections in linear time. In Proc. ICML .
+- Minh-Thang Luong, Hieu Pham, and Christopher D Manning. 2015. Effective approaches to attentionbased neural machine translation. In Proc. EMNLP .
+- Peter Makarov and Simon Clematide. 2018. UZH at CoNLL-SIGMORPHON 2018 shared task on universal morphological reinflection. Proc. CoNLLSIGMORPHON .
+- Chaitanya Malaviya, Pedro Ferreira, and Andr´ e FT Martins. 2018. Sparse and constrained attention for neural machine translation. In Proc. ACL .
+- Andr´ e FT Martins and Ram´ on Fernandez Astudillo. 2016. From softmax to sparsemax: A sparse model of attention and multi-label classification. In Proc. of ICML .
+- Christian Michelot. 1986. A finite algorithm for finding the projection of a point onto the canonical simplex of R n . Journal of Optimization Theory and Applications , 50(1):195-200.
+- Frederic Morin and Yoshua Bengio. 2005. Hierarchical probabilistic neural network language model. In Proc. AISTATS .
+- Graham Neubig. 2011. The Kyoto free translation task. http://www.phontron.com/kftt .
+- Vlad Niculae and Mathieu Blondel. 2017. A regularized framework for sparse and structured neural attention. In Proc. NeurIPS .
+- Vlad Niculae, Andr´ e FT Martins, Mathieu Blondel, and Claire Cardie. 2018. SparseMAP: Differentiable sparse structured inference. In Proc. ICML .
+- Kishore Papineni, Salim Roukos, Todd Ward, and WeiJing Zhu. 2002. BLEU: a method for automatic evaluation of machine translation. In Proc. ACL .
+- Adam Paszke, Sam Gross, Soumith Chintala, Gregory Chanan, Edward Yang, Zachary DeVito, Zeming Lin, Alban Desmaison, Luca Antiga, and Adam Lerer. 2017. Automatic differentiation in PyTorch. In Proc. NeurIPS Autodiff Workshop .
+- Ben Peters, Jon Dehdari, and Josef van Genabith. 2017. Massively multilingual neural grapheme-tophoneme conversion. In Proc. Workshop on Building Linguistically Generalizable NLP Systems .
+- R Tyrrell Rockafellar. 1970. Convex Analysis . Princeton University Press.
+- Rico Sennrich, Barry Haddow, and Alexandra Birch. 2016a. Neural machine translation of rare words with subword units. In Proc. ACL .
+- Rico Sennrich, Barry Haddow, and Alexandra Birch. 2016b. Edinburgh neural machine translation systems for WMT 16. In Proc. WMT .
+- Constantino Tsallis. 1988. Possible generalization of Boltzmann-Gibbs statistics. Journal of Statistical Physics , 52:479-487.
+- Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Proc. NeurIPS .
+- Martin J Wainwright and Michael I Jordan. 2008. Graphical models, exponential families, and variational inference. Foundations and Trends® in Machine Learning , 1(1-2):1-305.
+- Shijie Wu, Pamela Shapiro, and Ryan Cotterell. 2018. Hard non-monotonic attention for character-level transduction. In Proc. EMNLP .
+- Kelvin Xu, Jimmy Ba, Ryan Kiros, Kyunghyun Cho, Aaron Courville, Ruslan Salakhudinov, Rich Zemel, and Yoshua Bengio. 2015. Show, attend and tell: Neural image caption generation with visual attention. In Proc. ICML .
+
+## A Background
+
+## A.1 Tsallis entropies
+
+Recall the definition of the Tsallis family of entropies in Eq. 9 for α ≥ 1 ,
+
+̸
+
+$$H _ { \alpha } ^ { T } ( p ) \coloneqq \begin{cases} \frac { 1 } { \alpha ( \alpha - 1 ) } \sum _ { j } \left ( p _ { j } - p _ { j } ^ { \alpha } \right ) , & \text {if } \alpha \neq 1 , \\ H ^ { S } ( p ) , & \text {if } \alpha = 1 . \end{cases}$$
+
+This family is continuous in α , i.e. , lim α → 1 H T α ( p ) = H T 1 ( p ) for any p ∈ △ d . Proof: For simplicity, we rewrite H T α in separable form:
+
+$$H _ { \alpha } ^ { T } ( p ) = \sum _ { j } h _ { \alpha } ( p _ { j } ) \quad \text {with} \quad h _ { \alpha } ( t ) \colon = \begin{cases} \frac { t - t ^ { \alpha } } { \alpha ( \alpha - 1 ) } , & \alpha > 1 , \\ - t \log t , & \alpha = 1 . \end{cases}$$
+
+It suffices to show that lim α → 1 h α ( t ) = h 1 ( t ) for t ∈ [0 , 1] . Let f ( α ) := t -t α , and g ( α ) := α ( α -1) . Observe that f (1) g (1) = 0 / 0 , so we are in an indeterminate case. We take the derivatives of f and g :
+
+$$f ^ { \prime } ( \alpha ) = 0 - ( \exp ( \log t ^ { \alpha } ) ) ^ { \prime } = - \exp ( \log t ^ { \alpha } ) \cdot ( \alpha \log t ) ^ { \prime } = - t ^ { \alpha } \log t , \quad \text {and} \quad g ^ { \prime } ( \alpha ) = 2 \alpha - 1 .$$
+
+From l'Hˆ opital's rule,
+
+## Supplementary Material
+
+$$\lim _ { \alpha \to 1 } \frac { f ( \alpha ) } { g ( \alpha ) } = \lim _ { \alpha \to 1 } \frac { f ^ { \prime } ( \alpha ) } { g ^ { \prime } ( \alpha ) } = - t \log t = h _ { 1 } ( t ) .$$
+
+Note also that, as α →∞ , the denominator grows unbounded, so H T ∞ ≡ 0 .
+
+## A.2 Fenchel-Young losses
+
+In this section, we recall the definitions and properties essential for our construction of α -entmax . The concepts below were formalized by Blondel et al. (2019) in more generality; we present below a less general version, sufficient for our needs.
+
+Definition 1 (Probabilistic prediction function regularized by Ω ) . Let Ω: △ d → R ∪ {∞} be a strictly convex regularization function. We define the prediction function π Ω as
+
+$$\pi _ { \Omega } ( z ) \in \arg \max _ { p \in \triangle ^ { d } } \left ( p ^ { \top } z - \Omega ( p ) \right )$$
+
+Definition 2 (Fenchel-Young loss generated by Ω ) . Let Ω: △ d → R ∪ {∞} be a strictly convex regularization function. Let y ∈ △ denote a ground-truth label (for example, y = e y if there is a unique correct class y ). Denote by z ∈ R d the prediction scores produced by some model, and by p ⋆ := π Ω ( z ) the probabilistic predictions. The Fenchel-Young loss L Ω : R d ×△→ R + generated by Ω is
+
+$$L _ { \Omega } ( z ; y ) \coloneqq \Omega ( y ) - \Omega ( p ^ { * } ) + z ^ { \top } ( p ^ { * } - y ) .$$
+
+This justifies our choice of entmax mapping and loss (Eqs. 10-11), as π -H T α = α -entmax and L -H T α = L α .
+
+## Properties of Fenchel-Young losses.
+
+1. Non-negativity. L Ω ( z ; y ) ≥ 0 for any z ∈ R d and y ∈ △ d .
+2. Zero loss. L Ω ( z ; y ) = 0 if and only if y = π Ω ( z ) , i.e. , the prediction is exactly correct.
+3. Convexity. L Ω is convex in z .
+4. Differentiability. L Ω is differentiable with ∇ L Ω ( z ; y ) = p ⋆ -y .
+5. Smoothness. If Ω is strongly convex, then L Ω is smooth.
+6. Temperature scaling. For any constant t &gt; 0 , L t Ω ( z ; y ) = t L Ω ( z / t ; y ) .
+
+Characterizing the solution p ⋆ of π Ω ( z ) . To shed light on the generic probability mapping in Eq. 16, we derive below the optimality conditions characterizing its solution. The optimality conditions are essential not only for constructing algorithms for computing p ⋆ (Appendix C), but also for deriving the Jacobian of the mapping (Appendix B). The Lagrangian of the maximization in Eq. 16 is
+
+$$\mathcal { L } ( p , \nu , \tau ) = \Omega ( p ) - ( z + \nu ) ^ { \top } p + \tau ( 1 ^ { \top } p - 1 ) .$$
+
+$$\partial _ { p } \mathcal { L } ( p , \nu , \tau ) = \partial \Omega ( p ) - z - \nu + \tau 1 .$$
+
+The subgradient KKT conditions are therefore:
+
+$$\begin{cases} z + \nu - \tau 1 \in \partial \Omega ( p ) & \\ & p ^ { \top } \nu = 0 \\ & p \in \triangle ^ { d } & \\ & \nu \geq 0 . \end{cases}$$
+
+Connection to softmax and sparsemax. We may now directly see that, when Ω( p ) := ∑ j p j log p j , Eq. 20 becomes log p j = z j + ν j -τ -1 , which can only be satisfied if p j &gt; 0 , thus ν = 0 . Then, p j = exp ( z j ) / Z , where Z := exp ( τ +1) . From Eq. 22, Z must be such that p j sums to 1, yielding the well-known softmax expression. In the case of sparsemax, note that for any p ∈ △ d , we have
+
+$$\Omega ( p ) = - H ^ { G } ( p ) = 1 / 2 \sum _ { j } p _ { j } ( p _ { j } - 1 ) = 1 / 2 \| p \| ^ { 2 } - \frac { 1 } { 2 } \underbrace { \sum _ { j } p _ { j } } _ { = 1 } = 1 / 2 \| p \| ^ { 2 } + \text {const.}$$
+
+$$\text {Thus, argmax} p ^ { \top } z + H ^ { G } ( p ) = \arg \min _ { p \in \triangle ^ { d } } 0 . 5 \left ( \| p \| ^ { 2 } - 2 p ^ { \top } z \left ( + \| z \| ^ { 2 } \right ) \right ) = \arg \min _ { p \in \triangle ^ { d } } \| p - z \| ^ { 2 } .$$
+
+## B Backward pass for generalized sparse attention mappings
+
+When a mapping π Ω is used inside the computation graph of a neural network, the Jacobian of the mapping has the important role of showing how to propagate error information, necessary when training with gradient methods. In this section, we derive a new, simple expression for the Jacobian of generalized sparse π Ω . We apply this result to obtain a simple form for the Jacobian of α -entmax mappings.
+
+The proof is in two steps. First, we prove a lemma that shows that Jacobians are zero outside of the support of the solution. Then, completing the result, we characterize the Jacobian at the nonzero indices.
+
+with subgradient Lemma 1 (Sparse attention mechanisms have sparse Jacobians) . Let Ω : R d → R be strongly convex. The attention mapping π Ω is differentiable almost everywhere, with Jacobian ∂ π Ω ∂ z symmetric and satisfying
+
+$$\frac { \partial ( \pi _ { \Omega } ( z ) ) _ { i } } { \partial z _ { j } } = 0 \ \ i f \ \ ( \pi _ { \Omega } ( z ) ) _ { i } = 0 \ \ o r \ \ ( \pi _ { \Omega } ( z ) ) _ { j } = 0 .$$
+
+Proof: Since Ω is strictly convex, the argmax in Eq. 16 is unique. Using Danskin's theorem (Danskin, 1966), we may write
+
+$$\pi _ { \Omega } ( z ) = \nabla \max _ { p \in \triangle } \left ( p ^ { \top } z - \Omega ( p ) \right ) = \nabla \Omega ^ { * } ( z ) .$$
+
+Since Ω is strongly convex, the gradient of its conjugate Ω ∗ is differentiable almost everywhere (Rockafellar, 1970). Moreover, ∂ π Ω ∂ z is the Hessian of Ω ∗ , therefore it is symmetric, proving the first two claims.
+
+Recall the definition of a partial derivative,
+
+$$\frac { \partial ( \pi _ { \Omega } ( z ) ) _ { i } } { \partial z _ { j } } = \lim _ { \varepsilon \to 0 } \frac { 1 } { \varepsilon } \left ( \pi _ { \Omega } ( z + \varepsilon e _ { j } ) _ { i } - \pi _ { \Omega } ( z ) _ { i } \right ) .$$
+
+Denote by p ⋆ := π Ω ( z ) . We will show that for any j such that p ⋆ j = 0 , and any ε ≥ 0 ,
+
+$$\pi _ { \Omega } ( z - \varepsilon e _ { j } ) = \pi _ { \Omega } ( z ) = p ^ { * } .$$
+
+In other words, we consider only one side of the limit, namely subtracting a small non-negative ε . A vector p ⋆ solves the optimization problem in Eq. 16 if and only if there exists ν ⋆ ∈ R d and τ ⋆ ∈ R satisfying Eqs. 20-23. Let ν ε := ν ⋆ + ε e j . We verify that ( p ⋆ , ν ε , τ ⋆ ) satisfies the optimality conditions for π Ω ( z -ε e j ) , which implies that π Ω ( z -ε e j ) = π Ω ( z ) . Since we add a non-negative quantity to ν ⋆ , which is non-negative to begin with, ( ν ε ) j ≥ 0 , and since p ⋆ j = 0 , we also satisfy p ⋆ j ( ν ε ) j = 0 . Finally,
+
+$$z - \varepsilon e _ { j } + \nu _ { \varepsilon } - \tau ^ { * } 1 = z - \varepsilon e _ { j } + \nu ^ { * } + \varepsilon e _ { j } - \tau ^ { * } 1 \in \partial \Omega ( p ^ { * } ) .$$
+
+It follows that lim ε → 0 -1 ε ( π Ω ( z + ε e j ) i -π Ω ( z ) i ) = 0 . If π Ω is differentiable at z , this one-sided limit must agree with the derivative. Otherwise, the sparse one-sided limit is a generalized Jacobian.
+
+Proposition 2. Let p ⋆ := π Ω ( z ) , with strongly convex and differentiable Ω . Denote the support of p ⋆ by S = { j ∈ { 1 , . . . , d } : p j &gt; 0 } . If the second derivative h ij = ∂ 2 Ω ∂p i ∂p j ( p ⋆ ) exists for any i, j ∈ S , then
+
+$$\frac { \partial \pi _ { \Omega } } { \partial z } = S - \frac { 1 } { \| s \| _ { 1 } } \ s s ^ { \top } \ \ w h e r e \ \ S _ { i j } = \begin{cases} H _ { i j } ^ { - 1 } , & i , j \in \mathcal { S } , \\ 0 , & o . w . \end{cases} , \quad a n d \ s = S 1 .$$
+
+In particular, if Ω( p ) = ∑ j g ( p j ) with g twice differentiable on (0 , 1] , we have
+
+$$\frac { \partial \pi _ { \Omega } } { \partial z } = \text {diag} \, s - \frac { 1 } { \| s \| _ { 1 } } \, s s ^ { \top } \quad \text {where} \quad s _ { i } = \begin{cases} ( g ^ { \prime \prime } ( p _ { i } ^ { * } ) ) ^ { - 1 } , & i \in \mathcal { S } , \\ 0 , & o . w . \end{cases}$$
+
+Proof: Lemma 1 verifies that ∂ ( π Ω ) i ∂z j = 0 for i, j / ∈ S . It remains to find the derivatives w.r.t. i, j ∈ S . Denote by ¯ p ⋆ , ¯ z the restriction of the corresponding vectors to the indices in the support S . The optimality conditions on the support are
+
+$$\begin{cases} \ g ( \bar { p } ) + \tau 1 & = \bar { z } \\ 1 ^ { \top } \bar { p } & = 1 \end{cases}$$
+
+where g ( ¯ p ) := ( ∇ Ω( p ) )∣ ∣ S , so ∂ g ∂ ¯ p ( ¯ p ⋆ ) = H . Differentiating w.r.t. ¯ z at p ⋆ yields
+
+$$\begin{cases} \ H _ { \overline { \partial } \bar { \tilde { z } } } ^ { \partial \bar { p } } + 1 \frac { \partial \tau } { \partial \bar { \tilde { z } } } & = I \\ I ^ { \top } \frac { \partial \bar { p } } { \partial \bar { \tilde { z } } } & = 0 \end{cases}$$
+
+Since Ω is strictly convex, H is invertible. From block Gaussian elimination ( i.e. , the Schur complement),
+
+$$\frac { \partial \tau } { \partial \bar { z } } = - \frac { 1 } { 1 ^ { \top } H ^ { - 1 } 1 } 1 ^ { \top } H ^ { - 1 } ,$$
+
+which can then be used to solve for ∂ ¯ p ∂ ¯ z giving
+
+$$\frac { \partial \bar { p } } { \partial \bar { z } } = H ^ { - 1 } - \frac { 1 } { 1 ^ { \top } H ^ { - 1 } 1 } H ^ { - 1 } 1 1 ^ { \top } H ^ { - 1 } ,$$
+
+yielding the desired result. When Ω is separable, H is diagonal, with H ii = g ′′ ( p ⋆ i ) , yielding the simplified expression which completes the proof.
+
+Connection to other differentiable attention results. Our result is similar, but simpler than Niculae and Blondel (2017, Proposition 1), especially in the case of separable Ω . Crucially, our result does not require that the second derivative exist outside of the support. As such, unlike the cited work, our result is applicable in the case of α -entmax , where either g ′′ ( t ) = t α -2 or its reciprocal may not exist at t = 0 .
+
+## C Algorithms for entmax
+
+## C.1 General thresholded form for bisection algorithms.
+
+The following lemma provides a simplified form for the solution of α -entmax .
+
+Lemma 2. For any z , there exists a unique τ ⋆ such that
+
+$$\alpha \text {-entmax} ( z ) = [ ( \alpha - 1 ) z - \tau ^ { * } 1 ] _ { + } ^ { 1 / \alpha - 1 } .$$
+
+Proof: We use the regularized prediction functions defined in Appendix A.2. From both definitions,
+
+$$\alpha \text {-entmax} ( z ) \equiv \pi _ { - H _ { \alpha } ^ { T } } ( z ) .$$
+
+$$- ( \alpha - 1 ) H _ { \alpha } ^ { T } ( p ) = \frac { 1 } { \alpha } \sum _ { i = 1 } ^ { d } p _ { i } ^ { \alpha } + \text {const.}$$
+
+From the constant invariance and scaling properties of π Ω (Blondel et al., 2019, Proposition 1, items 4-5),
+
+$$\pi _ { - H _ { \alpha } ^ { T } } ( z ) = \pi _ { \Omega } ( ( \alpha - 1 ) z ) , \quad \text {with} \quad \Omega ( p ) = \sum _ { j = 1 } ^ { d } g ( p _ { j } ) , \quad g ( t ) = \frac { t ^ { \alpha } } { \alpha } .$$
+
+Using (Blondel et al., 2019, Proposition 5), noting that g ′ ( t ) = t α -1 and ( g ′ ) -1 ( u ) = u 1 / α -1 , yields
+
+$$\pi _ { \Omega } ( z ) = [ z - \tau ^ { * } 1 ] _ { + } ^ { \prime / \alpha - 1 } , \quad \text {and therefore} \quad \alpha { \text {-entmax} } ( z ) = [ ( \alpha - 1 ) z - \tau ^ { * } 1 ] _ { + } ^ { \prime / \alpha - 1 } . \quad ( 2 8 )$$
+
+Uniqueness of τ ⋆ follows from the fact that α -entmax has a unique solution p ⋆ , and Eq. 28 implies a one-to-one mapping between p ⋆ and τ ⋆ , as long as p ⋆ ∈ △ .
+
+Corollary 2.1. For α = 1 . 5 , Lemma 2 implies existence of a unique τ ⋆ such that
+
+$$1 . 5 { \text {-entmax} } ( z ) = [ z / 2 - \tau ^ { * } 1 ] _ { + } ^ { 2 } .$$
+
+We first note that for all p ∈ △ d ,
+
+## C.2 An exact algorithm for entmax with α = 1 . 5 : Derivation of Algorithm 2.
+
+In this section, we derive an exact, sorting-based algorithm for 1 . 5 -entmax . The key observation is that the solution can be characterized by the size of its support, ρ ⋆ = ‖ p ⋆ ‖ 0 . Then, we can simply enumerate all possible values of ρ ∈ { 1 , . . . , d } until the solution verifies all optimality conditions. The challenge, however, is expressing the threshold τ as a function of the support size ρ ; for this, we rely on α = 1 . 5 .
+
+Proposition 3. Exact computation of 1 . 5 -entmax ( z )
+
+Let z [ d ] ≤ · · · ≤ z [1] denote the sorted coordinates of z , and, for convenience, let z [ d +1] := -∞ . Define the topρ mean, unnormalized variance, and induced threshold for ρ ∈ { 1 , . . . , d } as
+
+$$M _ { z } ( \rho ) \colon = \frac { 1 } { \rho } \sum _ { j = 1 } ^ { \rho } z _ { [ j ] } , \quad S _ { z } ( \rho ) \colon = \sum _ { j = 1 } ^ { \rho } ( z _ { [ j ] } - M _ { z } ( \rho ) ) ^ { 2 } \, , \quad \tau _ { z } ( \rho ) \colon = \begin{cases} M _ { z } ( \rho ) - \sqrt { \frac { 1 - S _ { z } ( \rho ) } { \rho } } , & S _ { z } ( \rho ) \leq 1 , \\ + \infty , & S _ { z } ( \rho ) > 1 . \end{cases}$$
+
+Then,
+
+$$( 1 . 5 { \text  entmax} ( z ) ) _ { i } = \left [ \frac { z _ { i } } { 2 } - \tau _ { z / 2 } ( \rho ) \right ] _ { + } ^ { 2 } ,$$
+
+for any ρ satisfying τ z ( ρ ) ∈ [ z [ ρ +1] , z [ ρ ] ] .
+
+Proposition 3 implies the correctness of Algorithm 2. To prove it, we first need the following lemma.
+
+Lemma3. Define τ ( ρ ) as in Proposition 3. Then, τ is non-decreasing, and there exists ρ max ∈ { 1 , . . . , d } such that τ is finite for 1 ≤ ρ ≤ ρ max , and infinite for ρ &gt; ρ max .
+
+The proof is slightly more technical, and we defer it to after the proof of the proposition.
+
+Proof of Proposition 3. First, using Corollary 2.1 we reduce the problem of computing 1 . 5 -entmax to
+
+$$\pi _ { \Omega } ( z ) \coloneqq \arg \max _ { p \in \triangle ^ { d } } p ^ { \top } z - \sum _ { j } 2 / 3 \, p _ { j } ^ { 3 / 2 } .$$
+
+Denote by τ ⋆ the optimal threshold as defined in the corollary. We will show that τ ⋆ = τ ( ρ ) for any ρ satisfying τ ( ρ ) ∈ [ z [ ρ +1] , z [ ρ ] ] , where we assume, for convenience, z [ d +1] = -∞ . The generic stationarity condition in Eq. 20, applied to the problem in Eq. 30, takes the form
+
+$$\sqrt { p _ { j } } = \nu _ { j } + z _ { j } - \tau \quad \forall \, 0 < j \leq d \\$$
+
+Since Ω is symmetric, π Ω is permutation-preserving (Blondel et al., 2019, Proposition 1, item 1), so we may assume w.l.o.g. that z is sorted non-increasingly, i.e., z 1 ≥ · · · ≥ z d ; in other words, z j = z [ j ] . Therefore, the optimal p is also non-increasing. Denote by ρ an index such as p j ≥ 0 for 1 ≤ j ≤ ρ , and p j = 0 for j &gt; ρ . From the complementary slackness condition (21), ν j = 0 for 1 ≤ j ≤ ρ , thus we may split the stationarity conditions (31) into
+
+$$\int \sqrt { p _ { j } } = z _ { j } - \tau , \ \forall \ 1 \leq j \leq \rho ,$$
+
+$$\left \{ \ \nu _ { j } = \tau - z _ { j } , \ \forall \, \rho < j \leq d .$$
+
+For (32) to have solutions, the r.h.s. must be non-negative, i.e., τ ≤ z j for j ≤ ρ , so τ ≤ z ρ . At the same time, from dual feasability (23) we have ν j = τ -z j ≥ 0 for j &gt; ρ , therefore
+
+$$\tau ( \rho ) \in [ z _ { \rho + 1 } , z _ { \rho } ] .$$
+
+Given ρ , we can solve for τ using (32) and primal feasability (22)
+
+$$1 = \sum _ { j = 1 } ^ { d } p _ { j } = \sum _ { j = 1 } ^ { \rho } ( z _ { j } - \tau ) ^ { 2 } .$$
+
+Expanding the squares and dividing by 2 ρ yields the quadratic equation
+
+$$\frac { 1 } { 2 } \tau ^ { 2 } - \frac { \sum _ { j = 1 } ^ { \rho } z _ { j } } { \rho } \tau + \frac { \sum _ { j = 1 } ^ { \rho } z _ { j } ^ { 2 } - 1 } { 2 \rho } = 0 ,$$
+
+$$\Delta ( \rho ) = ( M ( \rho ) ) ^ { 2 } - \frac { \sum _ { j = 1 } ^ { \rho } z _ { j } ^ { 2 } } { \rho } + \frac { 1 } { \rho } = \frac { 1 - S ( \rho ) } { \rho } .$$
+
+with discriminant
+
+where we used the variance expression E [ ( X -E [ X ]) 2 ] = E [ X 2 ] -E [ X ] 2 . If S ( ρ ) &gt; 1 , ∆( ρ ) &lt; 0 , so there must exist an optimal ρ satisfying S ( ρ ) ∈ [0 , 1] . Therefore, (36) has the two solutions τ ± ( ρ ) = M ( ρ ) ± √ 1 -S ( ρ ) ρ . However, τ + leads to a contradiction: The mean M ( ρ ) is never smaller than the smallest averaged term, so M ( ρ ) ≥ z ρ , and thus τ + ≥ z ρ . At the same time, from (34), τ ≤ z ρ , so τ must equal z ρ , which can only happen if M ( ρ ) = z ρ and S ( ρ ) = 1 . But M ( ρ ) = z ρ only if z 1 = · · · = z ρ , in which case S ( ρ ) = 0 (contradiction).
+
+Therefore, τ ⋆ = τ ( ρ ) = M ( ρ ) -√ 1 -S ( ρ ) ρ for some ρ verifying (34). It remains to show that any such ρ leads to the same value of τ ( ρ ) . Pick any ρ 1 &lt; ρ 2 , both verifying (34). Therefore, ρ 1 +1 ≤ ρ 2 and
+
+$$z _ { \rho _ { 1 } + 1 } \underbrace { \leq } _ { ( 3 4 ) \text { for } \rho _ { 1 } } \tau ( \rho _ { 1 } ) \underbrace { \leq } _ { \text {Lemma 3} } \tau ( \rho _ { 2 } ) \underbrace { \leq } _ { ( 3 4 ) \text { for } \rho _ { 2 } } z _ { \rho _ { 2 } } \underbrace { \leq } _ { z \text { sorted} } z _ { \rho _ { 1 } + 1 } ,$$
+
+thus τ ( ρ 1 ) = τ ( ρ 2 ) , and so any ρ verifying (34) satisfies τ ⋆ = τ ( ρ ) , concluding the proof.
+
+Proof of Lemma 3. We regard τ ( ρ ) as an extended-value sequence, i.e. , a function from N → R ∪ ∞ . The lemma makes a claim about the domain of the sequence τ , and a claim about its monotonicity. We prove the two in turn.
+
+Domain of τ . The threshold τ ( ρ ) is only finite for ρ ∈ T := { ρ ∈ { 1 , . . . , d } : S ( ρ ) ≤ 1 } , i.e., where (1 -S ( ρ )) / ρ ≥ 0 . We show there exists ρ max such that T = { 1 , . . . , ρ max } . Choose ρ max as the largest index satisfying S ( ρ max ) ≤ 1 . By definition, ρ &gt; ρ max implies ρ / ∈ T . Remark that S (1) = 0 , and S ( ρ +1) -S ( ρ ) = ( · ) 2 ≥ 0 . Therefore, S is nondecreasing and, for any 1 ≤ ρ ≤ ρ max , 0 ≤ S ( ρ ) ≤ 1 .
+
+Monotonicity of τ . Fix ρ ∈ [ ρ max -1] , assume w.l.o.g. that M z ( ρ ) = 0 , and define ˜ z as
+
+$$\tilde { z } _ { [ j ] } = \begin{cases} x , & j = \rho + 1 , \\ z _ { [ j ] } , & \text {otherwise.} \end{cases}$$
+
+The ρ highest entries of ˜ z are the same as in z , so M ˜ z ( ρ ) = M z ( ρ ) = 0 , S ˜ z ( ρ ) = S z ( ρ ) , and τ ˜ z ( ρ ) = τ z ( ρ ) . Denote ˜ τ ( x ) := τ ˜ z ( ρ +1) , and analogously ˜ M ( x ) and ˜ S ( x ) . Then,
+
+$$\tau _ { z } ( \rho + 1 ) = \widetilde { \tau } ( z _ { [ \rho + 1 ] } ) \geq \min _ { x \colon \widetilde { S } ( x ) \in [ 0 , 1 ] } \widetilde { \tau } ( x ) = \widetilde { \tau } ( x ^ { * } )$$
+
+We seek the lower bound ˜ τ ( x ⋆ ) and show that ˜ τ ( x ⋆ ) ≥ τ z ( ρ ) . From (39), this implies τ z ( ρ +1) ≥ τ z ( ρ ) and, by transitivity, the monotonicity of τ z .
+
+It is easy to verify that the following incremental update expressions hold.
+
+$$\widetilde { M } ( x ) = \frac { x } { \rho + 1 } , \quad \widetilde { S } ( x ) = S _ { z } ( \rho ) + \frac { \rho } { \rho + 1 } x ^ { 2 } .$$
+
+We must solve the optimization problem
+
+$$\minimize _ { x } \, \widetilde { \tau } ( x ) \, \text { subject to } \, \widetilde { S } ( x ) \in [ 0 , 1 ] .$$
+
+The objective value is
+
+$$\widetilde { \tau } ( x ) = \widetilde { M } ( x ) - \sqrt { \frac { 1 - \widetilde { S } ( x ) } { \rho + 1 } } = \frac { 1 } { \rho + 1 } \left ( x - \sqrt { \left ( 1 - S _ { z } ( \rho ) \right ) ( \rho + 1 ) - \rho x ^ { 2 } } \right )$$
+
+Ignoring the constraint for a moment and setting the gradient to 0 yields the solution
+
+$$0 & = \widetilde { \tau } ^ { \prime } ( x ^ { * } ) = \frac { 1 } { \rho + 1 } \left ( 1 + \frac { \rho x ^ { * } } { \sqrt { ( 1 - S _ { z } ( \rho ) ) ( \rho + 1 ) - \rho x ^ { * } ^ { 2 } } } \right ) \\ \Longleftrightarrow & \quad \rho x ^ { * } = - \sqrt { ( 1 - S _ { z } ( \rho ) ) ( \rho + 1 ) - \rho x ^ { * } ^ { 2 } } ,$$
+
+implying x ⋆ &lt; 0 . Squaring both sides and rearranging yields the solution of the unconstrained problem,
+
+$$x ^ { * } = - \sqrt { \frac { 1 - S _ { z } ( \rho ) } { \rho } } .$$
+
+We verify that x ⋆ readily satisfies the constraints, thus it is a solution to the minimization in Eq. 41:
+
+$$0 \leq S _ { z } ( \rho ) \leq \widetilde { S } ( x ^ { * } ) = S _ { z } ( \rho ) + \frac { 1 - S _ { z } ( \rho ) } { \rho + 1 } \leq S _ { z } ( \rho ) + \frac { 1 - S _ { z } ( \rho ) } { 2 } \leq 1 .$$
+
+Plugging x ⋆ into the objective yields
+
+$$\intertext { i n t o w i c v e c i v e y s } \widetilde { \tau } ( x ^ { * } ) & = \frac { 1 } { \rho + 1 } \left ( - \sqrt { \frac { 1 - S _ { z } ( \rho ) } { \rho } } - \sqrt { \rho ( 1 - S _ { z } ( \rho ) ) } \right ) \\ & = - \sqrt { \frac { 1 - S _ { z } ( \rho ) } { \rho } } \frac { 1 } { \rho + 1 } ( 1 + \rho ) \\ & = - \sqrt { \frac { 1 - S _ { z } ( \rho ) } { \rho } } = \tau _ { z } ( \rho ) . \\ \widetilde { \tau } ( x ) & > \tau _ { z } ( \rho ) \, f o r \, x u i d \, y s \, \varphi .$$
+
+Therefore, ˜ τ ( x ) ≥ τ z ( ρ ) for any valid x , proving that τ z ( ρ ) ≤ τ z ( ρ +1) .

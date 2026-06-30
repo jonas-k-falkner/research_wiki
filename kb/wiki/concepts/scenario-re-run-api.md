@@ -3,13 +3,13 @@ type: concept
 domain: scenario-engine
 project: P3
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p3-scenario-engine
+- src-2026-06-p3-scenario-engine
 tags:
-  - concept
+- concept
 ---
 
 # Scenario re-run API

@@ -3,13 +3,13 @@ type: experiment
 domain: nowcasting-graph
 project: P4
 status: draft
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - experiment
+- experiment
 ---
 
 # Experiment: P4 public-first nowcast MVP

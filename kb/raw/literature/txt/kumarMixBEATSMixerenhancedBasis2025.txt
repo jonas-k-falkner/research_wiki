@@ -1,0 +1,374 @@
+## Mix-BEATS: Mixer-enhanced Basis Expansion Analysis for Load Forecasting
+
+## [Anuj Kumar](https://orcid.org/0009-0008-9556-8921)
+
+Indian Institute of Science Robert Bosch Centre for Cyber Physical Systems Bangalore, Karnataka, India anujkumar1@alum.iisc.ac.in
+
+## [Shivam Dwivedi](https://orcid.org/0009-0008-2263-1248)
+
+Indian Institute of Science Robert Bosch Centre for Cyber Physical Systems Bangalore, Karnataka, India
+
+dshivam@iisc.ac.in
+
+## Abstract
+
+Short-term load forecasting (STLF) is crucial for energy management and integrating renewables, but traditional models often fail to generalize across diverse buildings. While Time Series Foundation Models (TSFM) offer potential, most are transformer-based, making them computationally heavy and unsuitable for edge deployment. We introduce Mix-BEATS , a lightweight and accurate model combining N-BEATS and TSMixer architectures for buildinglevel energy prediction. Adapting TSMixer originated from MLPMixer, originally designed for vision tasks using pure MLP blocks for patchwise and spatial mixing, we leverage its principles for temporal forecasting. Mix-BEATS is trained on hourly smart-meter data from 38,956 buildings and evaluated on a held-out set of 1,000 buildings using the NRMSE metric. We compare Mix-BEATS against state-of-the-art TSFMs such as Lag-Llama, Moirai, Chronos, and Tiny Time Mixers in zero-shot and fine-tuned settings, as well as generic models including Autoformer, N-BEATS, TS-Mixer, etc., under domain-specific training and testing. In both comparisons, Mix-BEATS consistently outperforms the baselines, demonstrating robust generalization and efficiency for real-world STLF tasks. Code: https://github.com/AI-IoT-Lab/Mix-BEATS.
+
+## CCS Concepts
+
+- Computing methodologies → Machine learning algorithms ;
+- Hardware → Energy metering ; Smart grid .
+
+## Keywords
+
+Energy Informatics, Smart Grid, Energy Forecasting, Short-term Load Forecasting (STLF), Demand-side Load Management, Time Series Foundation Models (TSFM), Machine Learning
+
+Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee provided that copies are not made or distributed for profit or commercial advantage and that copies bear this notice and the full citation on the first page. Copyrights for components of this work owned by others than the author(s) must be honored. Abstracting with credit is permitted. To copy otherwise, or republish, to post on servers or to redistribute to lists, requires prior specific permission and/or a fee. Request permissions from permissions@acm.org.
+
+E-ENERGY '25, Rotterdam, Netherlands
+
+© 2025 Copyright held by the owner/author(s). Publication rights licensed to ACM.
+
+ACM ISBN 979-8-4007-1125-1/25/06
+
+https://doi.org/10.1145/3679240.3734632
+
+## [Harish Kumar Saravanan](https://orcid.org/0009-0000-1622-8315)
+
+Indian Institute of Science Robert Bosch Centre for Cyber Physical Systems Bangalore, Karnataka, India harishk@iisc.ac.in
+
+## [Pandarasamy Arjunan](https://orcid.org/0000-0002-7697-3576)
+
+Indian Institute of Science Robert Bosch Centre for Cyber Physical Systems Bangalore, Karnataka, India samy@iisc.ac.in
+
+## ACMReference Format:
+
+Anuj Kumar, Harish Kumar Saravanan, Shivam Dwivedi, and Pandarasamy Arjunan. 2025. Mix-BEATS: Mixer-enhanced Basis Expansion Analysis for Load Forecasting. In The 16th ACM International Conference on Future and Sustainable Energy Systems (E-ENERGY '25), June 17-20, 2025, Rotterdam, Netherlands. ACM, New York, NY, USA, 8 pages. https://doi.org/10.1145/ 3679240.3734632
+
+## 1 Introduction
+
+Short-term load forecasting (STLF) is essential for efficient energy management, yet traditional models like ARIMA [15] and basic machine learning approaches struggle to generalize across diverse buildings due to non-linear and heterogeneous consumption patterns. Recently, foundational models tailored for time series forecasting have emerged, including Tiny Time Mixers (TTMs) [8], LagLlama [20], Moirai [22], and Chronos [2]. While these models show strong general forecasting performance, their large transformerbased architectures are often unsuitable for edge deployment and their effectiveness on STLF remains underexplored.
+
+To bridge this gap, we propose Mix-BEATS , a lightweight model that combines the ensemble power of N-BEATS [16] with the efficiency of TSMixer [5]. Pre-trained on hourly energy data from 38,956 real-world buildings, Mix-BEATS is evaluated on a heldout test set of 1,000 commercial and residential buildings using the Normalized Root Mean Squared Error (NRMSE) metric. For comparison, we also benchmarked baseline models such as Autoformer [23], LightTS [3], and TSMixer [5] using domain-specific training.
+
+## Key Contributions
+
+- Mix-BEATS: Alightweight STLF model combining TSMixer and N-BEATS, optimized for efficiency and edge deployment.
+- Large-Scale Pretraining: Trained on hourly energy data from 38,956 real-world buildings.
+- TSFM Benchmarking: Evaluated against TSFMs (TTMs, Chronos, Lag-Llama, Moirai) on 1,000 held-out buildings in zero-shot and fine-tuned settings with NRMSE metric.
+- Generic Model Comparison: Benchmarked against generic models using domain-specific training with MSE metric.
+
+<!-- image -->
+
+Expansion of Blocks
+
+Figure 1: Mix-BEATS Model Architecture.
+
+## Algorithm 1: Workflow of the Mix-BEATS Model
+
+```
+Input: Input time series x ∈ R 𝑇 , backcast length 𝑇 , forecast horizon 𝐻 , number of stacks 𝑀 , blocks per stack 𝐾 , patch length 𝐿 Output: Final forecast F ∈ R 𝐻 1 Initialize residual & forecast: r 1 , 0 ← x , F ← 0 ; 2 for 𝑚 = 1 to 𝑀 do // Loop over stacks 3 for 𝑘 = 1 to 𝐾 do // Loop over blocks within each stack // TSMixer block processing 4 Reshape: Split r 𝑚,𝑘 -1 to patches as z 1 ∈ R 𝑃 × 𝐿 ; 5 Patch Mixing: z 2 ← LN ( Transpose ( z 1 )) 𝑊 𝑝 𝑚,𝑘 ; 6 z 3 ← z 1 + Transpose ( GELU ( z 2 ) 𝑊 𝑝 ′ 𝑚,𝑘 ) ; 7 Time Mixing: z 4 ← LN ( z 3 ) 𝑊 𝑙 𝑚,𝑘 ; 8 z 5 ← z 3 + GELU ( z 4 ) 𝑊 𝑙 ′ 𝑚,𝑘 ; 9 Reshape: Merge z 5 to actual shape as h 𝑚,𝑘 ∈ R 𝑇 ; // Backcast and Forecast branches 10 𝚯 𝑏 𝑚,𝑘 ← W 𝑏 𝑚,𝑘 · h 𝑚,𝑘 ; 𝚯 𝑓 𝑚,𝑘 ← W 𝑓 𝑚,𝑘 · h 𝑚,𝑘 ; 11 b 𝑚,𝑘 ← Linear ( 𝚯 𝑏 𝑚,𝑘 ) ; f 𝑚,𝑘 ← Linear ( 𝚯 𝑓 𝑚,𝑘 ) ; // Residual update and aggregation 12 r 𝑚,𝑘 ←( r 𝑚,𝑘 -1 -b 𝑚,𝑘 ) ∈ R 𝑇 ; 13 F ←( F + f 𝑚,𝑘 ) ∈ R 𝐻 ; 14 r 𝑚 + 1 , 0 ← r 𝑚,𝑘 ; 15 return F
+```
+
+## 2 Methodology
+
+## 2.1 Problem Statement
+
+We address the problem of univariate time series point forecasting in discrete time. Given an observed input sequence as x 1: 𝑇 = { 𝑥 1 , 𝑥 2 , . . . , 𝑥 𝑇 } ∈ R 𝑇 , the goal is to predict ˆ x 𝑇 + 1: 𝑇 + 𝐻 = { ˆ 𝑥 𝑇 + 1 , ˆ 𝑥 𝑇 + 2 , . . . , ˆ 𝑥 𝑇 + 𝐻 } ∈ R 𝐻 . The model is trained using the Huber loss to balance robustness to outliers with smooth optimization (see Appendix D.3). For evaluation, we use NRMSE and MSE metrics, which offer scale-independent accuracy and are well-suited for energy forecasting tasks (see Appendix D.2).
+
+## 2.2 Mix-BEATS
+
+Mix-BEATS is a hybrid neural architecture for univariate time series forecasting (Figure 1), combining the residual learning of N-BEATS with the Patch-Time mixing mechanism of TSMixer.
+
+Input and Output: The model receives a backcast window x ∈ R 𝑇 and aims to predict a forecast window F ∈ R 𝐻 , where 𝑇 and 𝐻 are the input and output lengths, respectively.
+
+Model Architecture: The model consists of 𝑀 stacks, each with 𝐾 blocks. Every block learns to approximate the input and contributes to the overall forecast.
+
+TSMixer Block: Each TSMixer block applies two sequential MLP-based mixing operations: patch mixing and time mixing.
+
+- The residual input r 𝑚,𝑘 -1 is first divided into 𝑃 patches of length 𝐿 as z 1 ∈ R 𝑃 × 𝐿 .
+- Patch Mixing: The input is reshaped as Transpose ( z 1 ) ∈ R 𝐿 × 𝑃 and mixed along the patch dimension:
+
+$$z _ { 2 } = L N ( \text {Transpose} ( z _ { 1 } ) ) W _ { m , k } ^ { p } \quad ( 1 )$$
+
+$$z _ { 3 } = z _ { 1 } + \text {Transpose} ( G E L U ( z _ { 2 } ) W _ { m , k } ^ { p ^ { \prime } } ) \quad ( 2 )$$
+
+- Time Mixing: Performed mixing along the temporal dim.
+
+$$z _ { 4 } = L N ( z _ { 3 } ) W _ { m , k } ^ { l } & & ( 3 )$$
+
+$$z _ { 5 } = z _ { 3 } + G E L U ( z _ { 4 } ) W _ { m , k } ^ { l ^ { \prime } }$$
+
+- z 5 is reshaped to recover the time series form h 𝑚,𝑘 ∈ R 𝑇 .
+
+Table 1: Performance comparison of Time Series Foundation Models with our model in zero-shot and fine-tuned forecasting using NRMSE across different datasets. A context length of 168 (7 days) and a forecast horizon of 24 (1 day) are used. (Bold - Best, Underline - 2nd Best)
+
+| Dataset   |   Moirai |   Chronos |   Zero-shot Lag-Llama |   TTMs |   Mix-BEATS |   Moirai |   Fine-tuned Lag-Llama |   Mix-BEATS |
+|-----------|----------|-----------|-----------------------|--------|-------------|----------|------------------------|-------------|
+| Enernoc   |    29.93 |     26.72 |                 52.41 |  23.94 |       23.27 |    25.41 |                  28.71 |       21.72 |
+| Iblend    |    28.03 |     16.90 |                 63.89 |  22.24 |       20.31 |    22.73 |                  19.17 |       20.62 |
+| Average   |    28.98 |     21.81 |                 58.15 |  23.09 |       21.79 |    24.07 |                  23.94 |       21.17 |
+| Mathura   |   110.33 |    103.51 |                114.22 | 136.79 |      132.82 |    92.19 |                 100.07 |      121.70 |
+| Bareilly  |    70.63 |     74.57 |                 90.61 |  65.15 |       64.01 |    55.14 |                  70.00 |       58.96 |
+| MFRED     |    27.83 |     26.12 |                 62.70 |  25.47 |       25.12 |    21.53 |                  31.54 |       24.92 |
+| NEEA      |    81.13 |     83.37 |                 92.66 |  70.04 |       69.25 |    67.54 |                  85.00 |       70.79 |
+| NEST      |    72.43 |     72.06 |                 85.73 |  65.03 |       65.44 |    55.71 |                  67.63 |       51.27 |
+| Prayas    |    91.13 |     88.66 |                101.20 | 102.70 |      100.90 |    57.56 |                  78.76 |       71.64 |
+| Smart*    |    66.63 |     70.42 |                 84.34 |  62.27 |       60.74 |    65.87 |                  89.85 |       74.70 |
+| Ireland   |    87.23 |     93.05 |                116.36 |  82.25 |       81.75 |    70.74 |                  83.57 |       77.36 |
+| GoiEner   |   112.35 |    115.32 |                131.96 | 118.42 |      119.00 |   100.07 |                 111.80 |       97.08 |
+| SGSC      |    92.74 |    100.16 |                112.64 |  93.63 |       92.20 |    85.97 |                  89.96 |       83.42 |
+| Average   |    81.24 |     82.72 |                 99.24 |  82.18 |       81.12 |    67.23 |                  80.82 |       73.18 |
+
+Table 2: Details of Real Building Datasets Used for this Study. (Hourly Data) (C: Commercial, R: Residential)
+
+| Dataset     | Location    |   # Buildings |      # Obs. | Years   |
+|-------------|-------------|---------------|-------------|---------|
+| IBlend (C)  | India       |             9 |     296,357 | 2013-17 |
+| Enernoc (C) | USA         |           100 |     877,728 | 2012    |
+| NEST (R)    | Switzerland |             1 |      34,715 | 2019-23 |
+| Ireland (R) | Ireland     |            20 |     174,398 | 2020    |
+| MFRED (R)   | USA         |            26 |     227,622 | 2019    |
+| CEEW (R)    | India       |            84 |     923,897 | 2019-21 |
+| SMART* (R)  | USA         |           114 |     958,998 | 2016    |
+| Prayas (R)  | India       |           116 |   1,536,409 | 2018-20 |
+| NEEA (R)    | USA         |           192 |   2,922,289 | 2018-20 |
+| SGSC (R)    | Australia   |        13,735 | 172,277,213 | 2011-14 |
+| GoiEner (R) | Spain       |        25,559 | 632,313,933 | 2014-22 |
+| Total       |             |        39,956 | 812,543,559 |         |
+
+These stages efficiently model inter- and intra-patch dependencies using lightweight MLPs.
+
+Backcast-Forecast Branches: Each TSMixer block produces a hidden state h 𝑚,𝑘 , linearly projected into backcast and forecast components.
+
+$$\Theta _ { m , k } ^ { b } = W _ { m , k } ^ { b } \cdot \mathbf h _ { m , k } \in \mathbb { R } ^ { p } ; \, \Theta _ { m , k } ^ { f } \ = W _ { m , k } ^ { f } \cdot \mathbf h _ { m , k } \in \mathbb { R } ^ { q } \quad ( 5 ) \quad \text {cast}$$
+
+where 𝑝, 𝑞 ≪ 𝑇 , and W 𝑏 𝑚,𝑘 , W 𝑓 𝑚,𝑘 are learnable parameters that capture backward and forward dependencies. Outputs are processed by 𝑔 𝑏 𝑚,𝑘 and 𝑔 𝑓 𝑚,𝑘 to capture trend and seasonality.
+
+$$b _ { m , k } = g _ { m , k } ^ { b } ( \Theta _ { m , k } ^ { b } ) \in \mathbb { R } ^ { T } ; \quad f _ { m , k } \ = g _ { m , k } ^ { f } ( \Theta _ { m , k } ^ { f } ) \in \mathbb { R } ^ { H } \ \ ( 6 )$$
+
+Here, b 𝑚,𝑘 aids residual learning by reconstructing the input, while f 𝑚,𝑘 contributes to the forecast; both use linear functions.
+
+Residual Learning: The model employs residual updates:
+
+$$r _ { m , k } \leftarrow r _ { m , k - 1 } - b _ { m , k } ; \ \ F \leftarrow F + f _ { m , k } \quad \ \ ( 7 ) \quad ^ { 2 } _ { 3 }$$
+
+This process iterates over all stacks and blocks, progressively refining the forecast. The complete workflow of our model is detailed in Algorithm 1.
+
+## 3 Experiments and Results
+
+## 3.1 Datasets
+
+As part of this study, we collected energy datasets from 39,956 real-world buildings-spanning commercial and residential types across multiple countries and years (Appendix A). Brief details of these datasets are provided in Table 2. To avoid bias, we excluded public datasets previously used for pre-training in existing TSFM models in Appendix B. Generic benchmark datasets used for evaluation are summarized in Appendix A.3.
+
+## 3.2 Implementation and Evaluation Setup
+
+All experiments are conducted in JupyterLab using open-source libraries for time series forecasting, including GluonTS 1 , AutoGluon 2 for TSFMs, and TSLib 3 for generic models. Mix-BEATS is pretrained on energy data from 38,956 buildings using an 8-day (192hour) sliding window with a 1-day stride, where each sample includes a 168-hour context to forecast the next 24 hours. The model comprises 3 stacks of 3 TSMixer blocks, with a patch size of 8, hidden dimension of 256, and GELU activation. It is trained for 100 epochs with early stopping on a dual RTX 4090 setup, though GPU use is optional for zero-shot inference. Optimal parameters are chosen through extensive tuning (Figure3). For evaluation, zero-shot forecasting is performed on 1,000 unseen commercial and residential buildings, in the fine-tuned setup, the first 6 months of each unseen building are used for training and the rest for testing, using the past 168 hours to predict the next 24, demonstrating Mix-BEATS' strong generalization.
+
+## 3.3 TSFM Baselines
+
+We considered several TSFMs as a baseline to compare the performance of Mix-BEATS. This includes Tiny Time Mixers (TTMs), Chronos, Lag-Llama and Moirai as mentioned in Section 1. The performance comparison is shown in Table 1. Additionally, we visualize the load forecasting for subsequent windows for building name 304 of Enernoc commercial dataset in Figure 2.
+
+[1 https://ts.gluon.ai/stable/index.html](https://ts.gluon.ai/stable/index.html)
+
+[2 https://auto.gluon.ai/](https://auto.gluon.ai/)
+
+[3 https://github.com/thuml/Time-Series-Library?tab=readme-ov-file](https://github.com/thuml/Time-Series-Library?tab=readme-ov-file)
+
+Figure 2: Load forecasting by Mix-BEATS for subsequent windows for building name 304 of Enernoc commercial dataset with NRMSE value for the each window. (Actual, Predicted, Building name-Window number e.g. 304-47)
+
+<!-- image -->
+
+Figure 3: Hyperparameter Sensitivity Analysis using Patch Size, Sequence Length, Stride, Hidden Dimension
+
+<!-- image -->
+
+## 3.4 Generic Model Baselines
+
+We evaluated several transformer and non-transformer models, including N-BEATS, Autoformer, LightTS, TSMixer, Reformer, Transformer, TiDE, and DLinear, against Mix-BEATS on domainspecific time series datasets (ETTh1, ETTh2, ETTm1, ETTm2, Electricity, Traffic, Weather, and Exchange). Detailed performance comparisons are provided in Appendices C and D.
+
+## 3.5 Ablation Studies
+
+3.5.1 Zero-shot and Fine-tuned Forecasting Results . We evaluated pre-trained models in a zero-shot setting for short-term load forecasting (STLF), assessing their day-ahead forecasting performance across diverse commercial and residential buildings without task-specific fine-tuning. Table 1 compares Mix-BEATS with state-of-the-art TSFMs, including Moirai, Chronos, Lag-Llama, and TTMs.
+
+In the zero-shot setting, Mix-BEATS consistently outperforms other TSFMs on both commercial and residential datasets, demonstrating strong generalization without fine-tuning. For the finetuned setup, we compare Mix-BEATS with fine-tuned Moirai and Lag-Llama. As shown in Table 1, fine-tuning significantly improves performance, especially on residential data. While Mix-BEATS remains competitive on commercial buildings, fine-tuned models like Lag-Llama and Mix-BEATS outperform others in several residential cases. These results highlight the importance of domain adaptation for enhancing foundation model performance in complex, data-rich energy settings. Detailed error analysis is provided in Appendix D.4.
+
+3.5.2 Hyperparameter Sensitivity Analysis and Selection . We conduct a sensitivity analysis to assess the impact of key hyperparameterspatch size (4, 8, 12, 24), sequence length (96, 168, 336, 720), stride (1, 2, 4, 8, 12, 24), and hidden dimension (128, 256, 512, 1024)-on model performance and complexity. As shown in Figure 3, each configuration influences the MSE loss differently. Based on the trade-off between accuracy and compactness, we adopt patch size = 8, sequence length = 168, stride = 24, and hidden dimension = 256 for our final model.
+
+3.5.3 Training and Inference Efficiency Across Models of Varying Sizes: We evaluate the computational efficiency of various models by comparing their training and inference times relative to model size. Mix-BEATS, with only 0.18M parameters, completes training in 34 hours and achieves 0.18 seconds of inference per building. In contrast, larger models like Moirai (14M) and Chronos (46M) take 17 and 13 seconds for inference, respectively. TTMs, with 1M parameters, require 82 hours of training but have a fast inference time of 0.13 seconds. These comparisons highlight the trade-offs between model size, training cost, and inference efficiency, which are critical for real-world deployment in resource-constrained settings.
+
+## 4 Conclusion and Future Work
+
+We propose Mix-BEATS , a hybrid architecture combining NBEATS and TSMixer, for short-term load forecasting (STLF) in smart buildings. The model demonstrated superior performance in both commercial and residential buildings. It outperforms existing models like Chronos and TTMs, achieving the lowest NRMSE in commercial buildings. In residential settings, fine-tuning the TSFM model Moirai led to the best performance, with Mix-BEATS ranking second. Mix-BEATS is also computationally efficient (inference time with 0.18 seconds ) and lightweight ( 0.18M parameters), making it suitable for real-time, edge deployment. However, its performance may degrade in long-term forecasting scenarios due to STLF-specific optimization.
+
+For future work, we aim to scale Mix-BEATS to broader domains by training on diverse datasets and extending its capabilities to classification, long-term forecasting, anomaly detection, and missing data imputation. We also plan to enhance interpretability through block-wise time series decomposition and adapt the model for realtime, multi-resolution forecasting in dynamic environments like smart grids.
+
+## References
+
+- [1] Shalu Agrawal, Sunil Mani, Karthik Ganesan, and Abhishek Jain. 2021. High frequency smart meter data from two districts in India (Mathura and Bareilly). https://doi.org/10.7910/DVN/GOCHJH
+- [2] Abdul Fatir Ansari, Lorenzo Stella, Caner Turkmen, Xiyuan Zhang, Pedro Mercado, Huibin Shen, Oleksandr Shchur, Syama Syndar Rangapuram, Sebastian Pineda Arango, Shubham Kapoor, Jasper Zschiegner, Danielle C. Maddix, Hao Wang, Michael W. Mahoney, Kari Torkkola, Andrew Gordon Wilson, Michael Bohlke-Schneider, and Yuyang Wang. 2024. Chronos: Learning the Language of Time Series.
+- [3] David Campos, Miao Zhang, Bin Yang, Tung Kieu, Chenjuan Guo, and Christian S Jensen. 2023. LightTS: Lightweight time series classification with adaptive ensemble distillation. Proceedings of the ACM on Management of Data 1, 2 (2023), 1-27.
+- [4] David Campos, Miao Zhang, Bin Yang, Tung Kieu, Chenjuan Guo, and Christian S. Jensen. 2023. LightTS: Lightweight Time Series Classification with Adaptive Ensemble Distillation. Proceedings of the ACM on Management of Data 1, 2 (June 2023), 1-27. https://doi.org/10.1145/3589316
+- [5] Si-An Chen, Chun-Liang Li, Nate Yoder, Sercan O Arik, and Tomas Pfister. 2023. Tsmixer: An all-mlp architecture for time series forecasting.
+- [6] Si-An Chen, Chun-Liang Li, Nate Yoder, Sercan O. Arik, and Tomas Pfister. 2023. TSMixer: An All-MLP Architecture for Time Series Forecasting. arXiv:2303.06053 [cs.LG] https://arxiv.org/abs/2303.06053
+- [7] Abhimanyu Das, Weihao Kong, Andrew Leach, Shaan Mathur, Rajat Sen, and Rose Yu. 2024. Long-term Forecasting with TiDE: Time-series Dense Encoder. arXiv:2304.08424 [stat.ML] https://arxiv.org/abs/2304.08424
+- [8] Vijay Ekambaram, Arindam Jati, Nam H Nguyen, Pankaj Dayama, Chandra Reddy, Wesley M Gifford, and Jayant Kalagnanam. 2024. TTMs: Fast Multi-level Tiny Time Mixers for Improved Zero-shot and Few-shot Forecasting of Multivariate Time Series.
+- [9] Patrick Emami, Abhijeet Sahu, and Peter Graf. 2023. Buildingsbench: A largescale dataset of 900k buildings and benchmark for short-term load forecasting. Advances in Neural Information Processing Systems 36 (2023), 19823-19857.
+- [10] Philipp Heer. 2024. NEST Open Building Data for Energy Demand and User Practice. https://doi.org/10.6084/m9.figshare.c.7178787.v1
+- [11] Shafiuzzaman Khadem, Rohit Trivedi, Mohamed Bahloul, Aziz Saif, and Sandipan Patra. 2024. Comprehensive Dataset on Electrical Load Profiles for Energy Community in Ireland. https://doi.org/10.6084/m9.figshare.c.6829134.v1
+- [12] Nikita Kitaev, Łukasz Kaiser, and Anselm Levskaya. 2020. Reformer: The efficient transformer.
+- [13] Guokun Lai, Wei-Cheng Chang, Yiming Yang, and Hanxiao Liu. 2018. Modeling long-and short-term temporal patterns with deep neural networks. , 95104 pages.
+- [14] Christoph Johannes Meinrenken, Noah Rauschkolb, Sanjmeet Abrol, Tuhin Chakrabarty, Victor C Decalf, Christopher Hidey, Kathleen McKeown, Ali Mehmani, Vijay Modi, and Patricia J Culligan. 2020. MFRED (public file, 15/15 aggregate version): 10 second interval real and reactive power in 390 US apartments of varying size and vintage. https://doi.org/10.7910/DVN/X9MIDJ
+- [15] Norizan Mohamed, Maizah Hura Ahmad, Zuhaimy Ismail, and S Suhartono. 2010. Short term load forecasting using double seasonal ARIMA model. , 57-73 pages.
+- [16] Boris N Oreshkin, Dmitri Carpov, Nicolas Chapados, and Yoshua Bengio. 2019. NBEATS: Neural basis expansion analysis for interpretable time series forecasting.
+- [17] Energy Group Prayas. 2021. Processed data. https://doi.org/10.7910/DVN/YJ5SP1
+- [18] Carlos Quesada, Leire Astigarraga, Chris Merveille, and Cruz E Borges. 2024. An electricity smart meter dataset of Spanish households: insights into consumption patterns. Scientific Data 11, 1 (2024), 59.
+- [19] Haroon Rashid, Pushpendra Singh, and Amarjeet Singh. 2019. I-BLEND, a campus scale commercial and residential buildings electrical energy dataset. https: //doi.org/10.6084/m9.figshare.c.3893581.v1
+- [20] Kashif Rasul, Arjun Ashok, Andrew Robert Williams, Hena Ghonia, Rishika Bhagwatkar, Arian Khorasani, Mohammad Javad Darvishi Bayazi, George Adamopoulos, Roland Riachi, Nadhir Hassen, et al. 2024. Lag-llama: Towards foundation models for probabilistic time series forecasting.
+- [21] Kashif Rasul, Arjun Ashok, Andrew Robert Williams, Hena Ghonia, Rishika Bhagwatkar, Arian Khorasani, Mohammad Javad Darvishi Bayazi, George Adamopoulos, Roland Riachi, Nadhir Hassen, Marin Biloš, Sahil Garg, Anderson Schneider, Nicolas Chapados, Alexandre Drouin, Valentina Zantedeschi, Yuriy Nevmyvaka, and Irina Rish. 2024. Lag-Llama: Towards Foundation Models for Probabilistic Time Series Forecasting. arXiv:2310.08278 [cs.LG] https://arxiv.org/abs/2310.08278
+- [22] Gerald Woo, Chenghao Liu, Akshat Kumar, Caiming Xiong, Silvio Savarese, and Doyen Sahoo. 2024. Unified training of universal time series forecasting transformers.
+- [23] Haixu Wu, Jiehui Xu, Jianmin Wang, and Mingsheng Long. 2021. Autoformer: Decomposition transformers with auto-correlation for long-term series forecasting. Advances in neural information processing systems 34 (2021), 22419-22430.
+
+## A Dataset Description
+
+This appendix presents a comprehensive overview of the datasets employed for training and evaluating our proposed model.
+
+## A.1 Commercial Building Datasets
+
+A.1.1 EnerNOC. The EnerNOC dataset provides anonymized electricity usage measurements for 100 commercial and industrial facilities across the United States over the full calendar year of 2012. 4
+
+A.1.2 I-Blend. The I-Blend dataset offers minute-level energy consumption data spanning from 2013 to 2017 for an academic institution in Delhi, India. It covers seven buildings: Academic, Lecture, Library, Facilities, Dining, Boys' Dormitory, and Girls' Dormitory, as documented in [19].
+
+## A.2 Residential Building Datasets
+
+A.2.1 CEEW. This dataset includes 3-minute interval electricity consumption data collected from approximately 100 smart meters installed in residential areas of Bareilly and Mathura districts in Uttar Pradesh, India, during the period of May 2019 to October 2021 [1]. The dataset is categorized by district.
+
+A.2.2 Ireland. Collected as part of the StoreNet project [11], this dataset provides 1-minute resolution smart meter data from residential households in Ireland. It contains various metrics such as active/reactive power, PV generation, import/export, and battery storage status (charging, discharging, and state of charge) for the year 2020.
+
+A.2.3 MFRED. The Multifamily Residential Electricity Dataset (MFRED) captures electricity consumption data for 390 apartments in the Northeastern U.S., recorded at 10-second intervals throughout 2019 [14]. Apartments vary by size and HVAC systems. For privacy, the data is aggregated across groups of 15 units based on annual usage.
+
+A.2.4 NEEA. The Northwest End Use Load Research (EULR) initiative, led by the Northwest Energy Efficiency Alliance, collected 15-minute interval power consumption data from about 150 homes. Although access is restricted, further details are available online. 5
+
+A.2.5 NEST. NEST (Next Evolution in Sustainable Building Technologies) [10] is a research platform that provides high-resolution energy data (1-minute interval) over four years from three buildings. It includes detailed measurements on electricity, heating/cooling, water usage, operational settings, and occupant behavior. Our study focuses on the residential building UMAR from this platform.
+
+A.2.6 Prayas. This dataset comprises 15-minute interval readings from 115 households in Maharashtra and Uttar Pradesh, collected via eMARC meters. It spans January 2018 to June 2020 and includes only data from main line meters [17].
+
+A.2.7 SMART*. SMART* includes whole-house power usage data from 114 single-family residences recorded at 1-minute intervals for the year 2016. 6
+
+4 https://open-enernoc-data.s3.amazonaws.com/anon/index.html
+
+5 https://neea.org/data/nw-end-use-load-research-project/energy-metering-study-
+
+data
+
+6 https://traces.cs.umass.edu/docs/traces/smartstar/
+
+A.2.8 SGSC(Smart Grid Smart City). SGSC, an Australian governmentbacked project (2010-2014), offers half-hourly energy usage data linked with household demographics and appliance usage. The dataset spans roughly 13,735 buildings and includes variables related to climate, tariffs, and peak load events. 7
+
+A.2.9 GoiEner. The GoiEner dataset [18] includes 7.2 GB of smart meter electricity data from Spanish households, collected between late 2014 and mid-2022. The data density increases significantly after January 2018 due to broader smart meter deployment. It represents usage across approximately 25,559 households, with the final month being incomplete.
+
+## A.3 Generic Benchmark Datasets
+
+We extensively evaluate the proposed architecture Mix-BEATS on seven real-world benchmark datasets, covering five mainstream time series forecasting applications: energy , traffic , economics , weather , and disease .
+
+A.3.1 Dataset Descriptions.
+
+- ETT [23]: The ETT (Electricity Transformer Temperature) dataset contains data collected from electricity transformers, including load and oil temperature. The data is recorded every 15 minutes between July 2016 and July 2018.
+- Electricity 8 : This dataset contains the hourly electricity consumption of 321 customers from 2012 to 2014.
+- Exchange [13]: This dataset records the daily exchange rates of eight different countries over the time span from 1990 to 2016.
+- Traffic 9 : Contains hourly road occupancy rates from sensors on San Francisco Bay area freeways.
+- Weather : This dataset includes weather readings recorded every 10 minutes throughout the year 2020. It features 21 meteorological indicators such as air temperature, humidity, wind speed, etc.
+- ILI : The Influenza-like Illness dataset is collected weekly from 2002 to 2021 by the Centers for Disease Control and Prevention (CDC) in the United States. It captures the ratio of ILI patients to the total number of patients.
+
+We follow a standard chronological data split for training, validation, and testing. The ETT dataset is split in a 6:2:2 ratio, while all other datasets follow a 7:1:2 ratio.
+
+## B Details of Time Series Foundation Models (TSFM)
+
+Several recent time series foundation models (TSFMs) offer diverse architectural innovations for large-scale forecasting tasks. Lag-Llama [21] is a decoder-only transformer model tailored for univariate probabilistic forecasting, with 2.45 million parameters and a context length of 1024, trained on over 1 billion observations. Moirai [22], developed by Salesforce AI Research, is an encoderonly architecture with 14 million parameters, pre-trained on the massive LOTSA dataset containing 27 billion time series points across nine domains. It supports a long context window of 5000, allowing broad temporal modeling capabilities. Chronos [2], based on the T5 transformer family, follows an encoder-decoder design with 46 million parameters and a 512-length context, trained on 893K multivariate series for general-purpose sequence modeling. In contrast, N-BEATS [16] is a fully MLP-based model designed for point forecasting, with 2.2 million parameters and an input length of 240, known for its interpretable block-wise architecture. Tiny Time Mixers (TTMs) [8] are lightweight MLP-based models that mix tokens and channels efficiently, using 1 million parameters and a 1536 context window to deliver strong performance with minimal compute. Our proposed Mix-BEATS model is the most lightweight among all, with just 0.18 million parameters and a context length of 168. It integrates the interpretability of N-BEATS with the efficiency of TSMixer layers, enabling accurate point forecasting on the same 282K-series dataset used by N-BEATS and TTMs. Despite its compact size, Mix-BEATS achieves competitive performance and is ideal for edge deployment in real-world smart building applications.
+
+7 https://data.gov.au/data/dataset/smart-grid-smart-city-customer-trial-data
+
+8 Also referred to as ElectricityLoadDiagrams20112014
+
+9 Sourced from the California Department of Transportation
+
+Table 3: Statistics of popular datasets used for benchmarking
+
+| Dataset      |   Variates |   Timesteps | Granularity   |
+|--------------|------------|-------------|---------------|
+| Weather      |         21 |      52,696 | 10min         |
+| Traffic      |        862 |      17,544 | 1hour         |
+| Electricity  |        321 |      26,304 | 1hour         |
+| ETTh1        |          7 |      17,420 | 1hour         |
+| ETTh2        |          7 |      17,420 | 1hour         |
+| ETTm1        |          7 |      69,680 | 15min         |
+| ETTm2        |          7 |      69,680 | 15min         |
+| Illness      |          7 |         966 | 1week         |
+| Exhange-Rate |          8 |        7588 | 1day          |
+
+## C Details of Generic Models
+
+In this section, we briefly describe about the generic models used for evaluation with Mix-BEATS. Autoformer [23], a novel decomposition architecture which capacitates progressive decomposition of complex time series. It incorporates with an Auto-Correlation mechanism based on the series periodicity, that outperforms selfattention in both efficiency and accuracy. The main idea of LightTS [4] is to compresses large ensembles into lightweight models while ensuring competitive accuracy. It uses adaptive ensemble distillation that assigns adaptive weights to different base models such that their varying classification capabilities contribute purposefully to the training of the lightweight model. Then identifying Pareto optimal settings w.r.t. model accuracy and model size, thus enabling users with a space budget to select the most accurate lightweight model. Time-Series Mixer (TSMixer) [6], a novel architecture designed by stacking multi-layer perceptrons (MLPs). It is based on mixing operations along both the time and feature dimensions to extract information efficiently. Reformer [12], a memory-efficient transformer for faster training on long-sequences. It employs two techniques to improve the efficiency of Transformers. First, replacing dot-product attention to locality-sensitive hashing, changing its complexity from O( 𝐿 2 ) to O(L 𝑙𝑜𝑔𝐿 ), where L is the length of the sequence. Then, use of reversible residual layers instead of the standard residuals, which allows storing activations only once in the training process instead of N times, where N is the number of layers.
+
+Time-series Dense Encoder (TiDE) [7], a Multi-layer Perceptron (MLP) based encoder-decoder model, for long-term time-series forecasting that enjoys the simplicity and speed of linear models while also being able to handle covariates and non-linear dependencies.
+
+## D Additional Details
+
+## D.1 Comparison of Generic Models with Mix-BEATS
+
+We evaluate Mix-BEATS alongside the generic baseline models described in Appendix C, using the benchmark datasets detailed in Appendix A.3 and in Table 3. All models are evaluated using a context length of 96 and a forecast horizon of 24, with Mean Squared Error (MSE) as the evaluation metric. Table 4 presents the MSE comparison across all models. Additionally, we visualize the performance of the generic models on the Electricity time-series dataset, using the same context and forecast lengths as shown in Figure 4, to qualitatively assess prediction quality and temporal dynamics.
+
+## D.2 Evaluation Metric
+
+To evaluate forecasting accuracy, we use the Normalized Root Mean Square Error (NRMSE), a standard metric in energy load forecasting that quantifies the deviation between predicted and actual load profiles, as in BuildingsBench [9]. For a 𝐾 -day horizon with 24-hour resolution, NRMSE is defined as:
+
+$$N R M E \coloneqq 1 0 0 \times \frac { 1 } { \bar { x } } \sqrt { \frac { 1 } { 2 4 K } \sum _ { k = 1 } ^ { K } \sum _ { h = 1 } ^ { 2 4 } ( x _ { h , k } - \hat { x } _ { h , k } ) ^ { 2 } } , \quad ( 8 ) \\ \intertext { w h o r } \intertext { s u m s } \intertext { e q n o } \intertext { s u r } \intertext { o n t h e r } \intertext { s u p }$$
+
+where 𝑥 ℎ,𝑘 and ˆ 𝑥 ℎ,𝑘 are the true and predicted loads at hour ℎ on day 𝑘 , and ¯ 𝑥 is the mean of all true values. Normalizing by ¯ 𝑥 enables comparison across buildings, and the factor 100 expresses the error as a percentage.
+
+In addition to NRMSE, we use the Mean Squared Error (MSE) as evaluation for generic forecasting models, including Mix-BEATS and its ablations. The MSE is defined as:
+
+$$M S \coloneqq \frac { 1 } { N } \sum _ { t = 1 } ^ { N } ( x _ { t } - \hat { x } _ { t } ) ^ { 2 } , \\ \intertext { i . a l . } x _ { 1 } + y _ { 1 } = \frac { 1 } { N } \sum _ { t = 1 } ^ { N } ( x _ { t } - \hat { x } _ { t } ) ^ { 2 } ,$$
+
+where 𝑁 is the total number of forecasted points, 𝑥 𝑡 is the true value, and ˆ 𝑥 𝑡 is the model's prediction at time 𝑡 . MSE penalizes large errors more heavily and provides a smooth, differentiable objective function that is well-suited for optimization during model training.
+
+## D.3 Loss Function
+
+For training our forecasting models, we use the Huber loss , which combines the advantages of both Mean Squared Error (MSE) and Mean Absolute Error (MAE). It is less sensitive to outliers compared to MSE, while still maintaining differentiability, making it a robust choice for regression tasks such as time series forecasting.
+
+The Huber loss is defined as:
+
+$$H u b e r ( x , \hat { x } ) = \begin{cases} \frac { 1 } { 2 } ( x - \hat { x } ) ^ { 2 } & \text {if } | x - \hat { x } | \leq \delta , \\ \delta \left ( | x - \hat { x } | - \frac { 1 } { 2 } \delta \right ) & \text {otherwise} , \end{cases} \quad ( 1 0 )$$
+
+Table 4: Performance comparison of various generic models with our model on univariate time series datasets using MSE over a forecast horizon of 24 and a context length of 96.(Bold - Best, Underline - 2nd Best)
+
+| Model Dataset   |   Mix-BEATS |   N-BEATS |   Autoformer |   LightTS |   TSMixer |   Reformer |   Transformer |   TiDE |   DLinear |
+|-----------------|-------------|-----------|--------------|-----------|-----------|------------|---------------|--------|-----------|
+| ETTh1           |       0.040 |     0.063 |        0.062 |     0.057 |     0.057 |      0.031 |         0.057 |  0.043 |     0.033 |
+| ETTh2           |       0.074 |     0.075 |         0.09 |     0.086 |     0.075 |      0.079 |         0.090 |  0.083 |     0.076 |
+| ETTm1           |       0.014 |     0.017 |         0.02 |     0.018 |     0.016 |      0.011 |         0.016 |  0.015 |     0.012 |
+| ETTm2           |       0.020 |     0.021 |        0.039 |     0.027 |     0.023 |      0.024 |         0.021 |  0.035 |     0.029 |
+| Electricity     |       0.211 |     0.202 |        0.347 |     0.250 |     0.206 |      0.256 |         0.223 |  0.361 |     0.312 |
+| Traffic         |       0.173 |     0.179 |        0.274 |     0.323 |     0.239 |      0.183 |         0.150 |  0.341 |      0.33 |
+| Weather         |       0.001 |     0.001 |        0.003 |     0.002 |     0.001 |      0.001 |         0.001 |  0.001 |     0.002 |
+| Exchange        |       0.043 |     0.035 |        0.057 |     0.053 |     0.048 |      0.035 |         0.050 |  0.037 |     0.037 |
+
+<!-- image -->
+
+Figure 4: Visualize Electricity Time-Series using Generic Models with Context Length as 96 and Forecast Length as 24.
+
+Figure 5: Cumulative distribution plots of NRMSE of Mix-BEATS across various building categories: (a) commercial, (b) residential, (c) types within the Enernoc dataset, and (d) regions within the Prayas dataset.
+
+<!-- image -->
+
+where 𝑥 is the ground truth, ˆ 𝑥 is the predicted value, and 𝛿 is the threshold parameter that determines the point at which the loss transitions from quadratic to linear. In our case, we set 𝛿 = 1 . 0.
+
+This formulation allows the model to use a squared loss for small errors (encouraging precision) and switch to a linear penalty for large errors (increasing robustness to outliers), which is particularly useful in practical time series forecasting scenarios.
+
+## D.4 Error Analysis
+
+In addition to comparing models' performance using NRMSE, we also analyzed the error distribution to assess the applicability of the Mix-BEATS for STLF. In the following, we present a detailed analysis of the forecasting errors of the Mix-BEATS, based on energy data from various building types and locations.
+
+In Figure 5a and Figure 5b, we compare the CDF of NRMSE of Mix-BEATS for different datasets of commercial and residential buildings. We observe that the Enernoc dataset has lower error rates than the other datasets of commercial buildings. For residential datasets, the NEEA and Bareilly dataset exhibits lower error than the others. We also analyzed the error distribution across different building types in the Enernoc dataset. From Figure 5c, we can observe the CDF plot of NRMSE across different building types present in Enernoc dataset. Building types Commercial property, and Food sales and storage shows less error over other building types. Also, there is no large variance in error for all the building types which effectively shows that model able to forecast with less error across all the building types. We also analyzed the error distribution across different regions of households in the Prayas dataset. From Figure 5d, we can observe that the CDF plot of NRMSE across different regions present in Prayas dataset. Regions, Pune city and Aurangabad which has more number of households shows less error when compared to other regions. Region Kanpur rural shows high variation in error, which signifies the difference in energy consumption between the urban and rural residential buildings.
+
+Based on this analysis, we can infer that the Mix-BEATS effectively captures energy consumption patterns and generates forecasts with reduced error across all building types and different regions of households.

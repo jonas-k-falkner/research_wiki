@@ -1,0 +1,544 @@
+## Positional Encoding in Transformer-Based Time Series Models: A Survey
+
+Habib Irani and Vangelis Metsis
+
+Computer Science Department, Texas State University San Marcos, TX 78666, USA
+
+habibirani@txstate.edu, vmetsis@txstate.edu
+
+February 19, 2025
+
+ture non-linear and long-range dependencies. As a result, machine learning-based approaches, particularly Recurrent Neural Networks (RNNs) and Convolutional Neural Networks (CNNs), have gained popularity due to their ability to model complex temporal dynamics [4, 24].
+
+RNNs, including their more advanced variants like Long Short-Term Memory (LSTM) and Gated Recurrent Units (GRU), excel at modeling sequential data by maintaining a hidden state that captures information from previous time steps. These architectures offer several advantages for time series analysis: they naturally handle irregular time intervals and missing data points through their sequential processing, excel at capturing local temporal patterns through their recurrent connections, and exhibit a beneficial 'recency bias' where recent time steps are weighted more heavily than distant ones-a characteristic particularly valuable in applications like financial forecasting and weather prediction. However, RNNs suffer from inherent limitations such as vanishing and exploding gradients, making it difficult to learn dependencies over long time horizons [22].
+
+CNNs, on the other hand, have been adapted for time series by applying convolutional filters over the temporal dimension. While effective at capturing local patterns, their fixed receptive fields limit their ability to model long-term dependencies [20]. Moreover, like RNNs, they may struggle with capturing global patterns and relationships between distant time steps.
+
+In recent years, Transformer-based models, originally developed for natural language processing tasks, have shown remarkable promise in addressing these challenges for time series data [23, 28]. Transformers leverage a self-attention mechanism that enables them to capture both local and global dependencies in data without relying on sequential processing [12].
+
+## Abstract
+
+Recent advancements in transformer-based models have greatly improved time series analysis, providing robust solutions for tasks such as forecasting, anomaly detection, and classification. A crucial element of these models is positional encoding, which allows transformers to capture the intrinsic sequential nature of time series data. This survey systematically examines existing techniques for positional encoding in transformer-based time series models. We investigate a variety of methods, including fixed, learnable, relative, and hybrid approaches, and evaluate their effectiveness in different time series classification tasks. Furthermore, we outline key challenges and suggest potential research directions to enhance positional encoding strategies. By delivering a comprehensive overview and quantitative benchmarking, this survey intends to assist researchers and practitioners in selecting and designing effective positional encoding methods for transformer-based time series models. The source code for the methods and experiments discussed in this survey is available on GitHub 1 .
+
+## 1 Introduction
+
+Time series analysis, which involves studying data collected over sequential time intervals, is fundamental across a wide range of domains such as finance, healthcare, and climate science. Traditional approaches, such as Autoregressive Integrated Moving Average (ARIMA) and Seasonal Decomposition of Time Series (STL), have long been the foundation of statistical time series analysis. However, these models are inherently limited in their ability to cap- This architecture allows Transformers to handle long sequences efficiently and mitigates the limitations of recurrence-based models. The self-attention mechanism computes pairwise dependencies between all time steps, providing a global context for each position in the sequence.
+
+[1 https://github.com/imics-lab/ positional-encoding-benchmark](https://github.com/imics-lab/positional-encoding-benchmark)
+
+However, applying Transformer architectures to time series analysis presents unique challenges. Unlike RNNs, Transformers are inherently permutationinvariant and lack a natural understanding of sequence order [25, 7, 29]. They may also struggle with discontinuous time series data and irregular sampling intervals, necessitating specialized adaptations. Furthermore, although their global attention mechanism excels at capturing long-range dependencies, it can sometimes dilute the model's ability to focus on significant local patterns. The absence of a natural recency bias, which can be advantageous in many time series applications, may also require explicit architectural modifications.
+
+Positional encoding mechanisms are therefore crucial to enabling Transformer models to distinguish between different time steps in a sequence and to learn temporal relationships effectively [10]. Initial methods, such as the sinusoidal absolute positional encoding introduced by Vaswani et al. [23], used fixed positional information to capture the order of tokens. However, these techniques often struggle with varying sequence lengths and dynamic temporal relationships, which are common in time series data [19, 14].
+
+Recent advancements in positional encoding have introduced learnable and relative [19] positional encodings, which offer more flexibility in capturing temporal dependencies. Hybrid approaches, which combine absolute and relative positional encoding strategies, have also been proposed to leverage the strengths of both methods. These techniques aim to provide a comprehensive representation of positional information, improving the model's ability to capture complex temporal dependencies while addressing some of the inherent limitations of transformer architectures in time series analysis.
+
+In this survey, we present a systematic analysis of positional encoding methods in transformer-based time series models, categorizing them into three main types: absolute positional encodings, relative positional encodings, and hybrid approaches that combine both techniques. Our methodology encompasses both theoretical analysis and empirical evaluation. We first examine the mathematical foundations and computational characteristics of each encoding method, including their parameter complexity, time complexity, and space requirements. We then evaluate these methods using two distinct transformer architectures: one incorporating batch normalization and another utilizing patch embedding, to assess how architectural choices influence the effectiveness of different positional encoding strategies.
+
+Our experimental evaluation focuses on time series classification tasks and spans eleven diverse datasets, including biomedical signals (EEG, EMG), sensor data, human activity recognition, and financial time series. We prioritize classification over forecasting or anomaly detection because classification tasks provide a more direct measure of a model's ability to capture temporal dependencies and understand global patterns in time series data. Unlike forecasting, which primarily emphasizes recent temporal context, or anomaly detection, which often relies on local pattern recognition, classification requires a comprehensive understanding of temporal relationships across the entire sequence length. This makes classification particularly well-suited for evaluating positional encoding methods' effectiveness in capturing both local and global temporal dependencies. This comprehensive evaluation reveals several key findings: advanced methods like Stochastic Positional Encoding (SPE) and Transformer with Untied Positional Encoding (TUPE) [9] consistently outperform traditional approaches, with performance advantages becoming more pronounced for longer sequences. We also find that the effectiveness of positional encoding methods varies significantly with sequence length, data dimensionality, and application domain. These insights provide valuable guidance for practitioners in selecting appropriate positional encoding methods based on their specific application requirements.
+
+## 2 Literature Review
+
+## 2.1 Time Series Analysis
+
+Transformer models have emerged as a pivotal advancement in time series analysis, owing to their efficacy in capturing intricate temporal dependencies and long-range interactions. Traditional approaches such as recurrent neural networks (RNNs) [6] and convolutional neural networks (CNNs) [11] have been foundational in time series forecasting, yet they face challenges like vanishing gradients in RNNs and limited ability to model long-term dependencies in CNNs. The Transformer architecture, introduced by Vaswani et al. [23], revolutionized sequence modeling by leveraging self-attention mechanisms. Recent comprehensive surveys by Wen et al. [26] and Li et al. [13] highlight the rapid evolution and current state of transformer applications in time series analysis. This innovation enables Trans- formers to effectively weigh the relevance of elements within a sequence, irrespective of their temporal distance, thus overcoming the limitations of traditional models. Beyond natural language processing (NLP), Transformers have been adapted for time series applications, demonstrating superior performance in forecasting and representation learning tasks [14, 31]. In time series analysis, handling extensive sequences and complex temporal relationships is pivotal. While traditional models like ARIMA [1] and Exponential Smoothing [8] are constrained by their linear assumptions, transformers have shown remarkable success in capturing nonlinear patterns effectively. Wu et al. [27] introduced Autoformer, incorporating decomposition transformers with auto-correlation for improved long-term series forecasting. Researchers have tailored Transformer architectures to suit the nuances of time series data, leading to substantial enhancements in forecasting accuracy and computational efficiency [29].
+
+## 2.2 Transformer Model Architectures
+
+In time series analysis, adaptations of Transformers have led to specialized architectures tailored to exploit their strengths. For instance, the Transformerbased framework for multivariate time series representation learning [29] integrates batch normalization to stabilize training, enhancing model performance on complex multivariate datasets. This framework underscores the significance of normalization techniques in fortifying Transformer models for diverse time series tasks. Moreover, inspired by vision Transformers, patch embeddings have been adapted for time series data. This approach, akin to the Vision Transformer (ViT) paradigm [2], segments time series into patches for localized processing. By encapsulating both local and global patterns, patch embeddings facilitate hierarchical pattern recognition, thereby improving model interpretability and performance in time series analysis.
+
+## 2.3 Positional Encoding Methods
+
+A crucial aspect of employing Transformers in time series tasks is the positional encoding mechanism. Initially proposed by Vaswani et al. [23], fixed positional encodings utilize sinusoidal functions to embed positional information, ensuring the model can differentiate between distinct time steps. Subsequent advancements, such as learnable positional encodings and relative positional encodings introduced by Shaw et al. [19], have further enhanced the model's ability to capture temporal relationships effectively. Recent innovations in positional encoding methods have further enriched Transformer-based approaches for time series analysis. For instance, Foumani et al. [5] introduced novel techniques like Time Absolute Position Encoding (tAPE) and Efficient Relative Position Encoding (eRPE), aimed at enhancing temporal dependency modeling in Transformer architectures. These methods aim to improve the model's ability to capture temporal dependencies effectively. Furthermore, the authors developed the ConvTran model, which represents a structural fusion of multiple convolutional layers with a transformer architecture. This hybrid model is specifically designed for the classification of complex multivariate time series data. By combining the strengths of convolutional operations in capturing local patterns with the transformer's global attention mechanism, ConvTran aims to achieve superior performance in handling diverse and dynamic temporal relationships within time series datasets.
+
+This survey aims to systematically compare various positional encoding methods within these Transformer-based architectures, evaluating their impact on time series forecasting and representation learning. By examining the strengths and weaknesses of each approach, we seek to provide insights into the most effective strategies for incorporating positional information in time series Transformers.
+
+Table 1 provides a comprehensive summary of various positional encoding techniques used in transformer-based time series models. The table categorizes these techniques based on three key criteria: (1) the Technique Type, which can be absolute (Abs) or relative (Rel) positional information; (2) the injection technique, which refers to how the positional information is incorporated into the model, either through additive positional embedding (APE) or manipulating attention matrices (MAM); and (3) whether the positional encoding is learnable during training or fixed. This classification helps in understanding the different approaches and their respective methodologies for embedding temporal information into transformer models.
+
+The notations used in Table 2 represent key parameters affecting the computational characteristics of different positional encoding methods. The parameter counts include all learnable parameters across layers, where l represents the number of transformer layers, h is the number of attention heads, and d is the hidden dimension. For methods using relative positioning (RPE, eRPE), we include the full attention matrix parameters. For ConvSPE, K represents the convolutional kernel size that controls the local neighborhood for convolution operations.
+
+Table 1: Summary of Positional Encoding Techniques
+
+| Method                                                 | Technique Type   | Injection Technique             | Learnable/Fixed   | Ref.   |
+|--------------------------------------------------------|------------------|---------------------------------|-------------------|--------|
+| Sinusoidal Positional Encoding (PE)                    | Absolute         | Additive Positional Embedding   | Fixed             | [23]   |
+| Learnable Positional Encoding (LPE)                    | Absolute         | Additive Positional Embedding   | Learnable         | [23]   |
+| Relative Positional Encoding (RPE)                     | Relative         | Manipulating Attention Matrices | Fixed             | [19]   |
+| time Absolute Positional Encoding (tAPE)               | Absolute         | Additive Positional Embedding   | Fixed             | [5]    |
+| efficient Relative Positional Encoding (eRPE)          | Relative         | Manipulating Attention Matrices | Learnable         | [5]    |
+| Transformer with Untied Positional Encoding (TUPE)     | Rel+Abs          | Manipulating Attention Matrices | Learnable         | [9]    |
+| Convolutional Sinusoidal Positional Encoding (ConvSPE) | Relative         | Manipulating Attention Matrices | Learnable         | [15]   |
+| Temporal Positional Encoding (T-PE)                    | Rel+Abs          | Combined techniques             | Learnable+Fixed   | [30]   |
+
+Table 2: Comparison between the number of parameters, time complexity and space complexity of positional encoding methods.
+
+| Method        | Number of Parameters     | Time Complexity   |
+|---------------|--------------------------|-------------------|
+| Sinusoidal PE | 0                        | O ( Ld )          |
+| Learnable PE  | Ld                       | O ( Ld )          |
+| RPE           | 2(2 L - 1) dl            | O ( L 2 d )       |
+| tAPE          | Ld                       | O ( Ld )          |
+| eRPE          | ( L 2 + L ) l            | O ( L 2 d )       |
+| TUPE          | 2 dl                     | O ( Ld + d 2 )    |
+| ConvSPE       | 3 Kdh + dl               | O ( LKR )         |
+| T-PE          | 2 d 2 l/h +(2 L +2 l ) d | O ( L 2 d )       |
+
+## 3 Formulation and Analysis of Positional Encoding Methods
+
+This section offers a fundamental explanation of selfattention and a summary of existing positional encoding models. It's important to distinguish between positional encoding, which refers to the approach used to incorporate positional information (e.g., absolute or relative), and positional embedding, which denotes the numerical vector associated with that encoding.
+
+This section analyzes positional encoding architectures, examining their mathematical foundations, implementation frameworks, and operational characteristics.
+
+## 3.1 Problem definition and notation
+
+Given a time series dataset X consisting of n samples, X = { x 1 , x 2 , . . . , x n } , where each sample x i = { x i 1 , x i 2 , . . . , x iL } represents a d x -dimensional time series of length L , such that x i ∈ R L × d x . Additionally, let Y = { y 1 , y 2 , . . . , y n } denote the corresponding set of labels, where y t ∈ { 1 , 2 , . . . , c } and c is the number of classes. The objective is to train a neural network classifier to map the input dataset X to its corresponding label set Y .
+
+Figure 1: Scaled Dot-Product Attention and Multi-Head Attention mechanisms. On the left, the Scaled DotProduct Attention computes attention scores by scaling the dot product of query and key matrices and applying a softmax function, which is then used to weight the value matrix. On the right, the Multi-Head Attention mechanism processes multiple scaled dot-product attention operations in parallel, concatenates their outputs, and passes them through a final linear layer to generate the output. This allows the model to capture diverse contextual relationships in the data.
+
+<!-- image -->
+
+## 3.2 Self-Attention Mechanism
+
+The self-attention mechanism is a key component of Transformer models, enabling them to capture longrange dependencies in sequential data. Given an input sequence X ∈ R L × d x , the self-attention mechanism computes a weighted representation of each element in the sequence by attending to all other elements, as illustrated in Fig. 1.
+
+First, three linear projections are applied to the input sequence to obtain the query ( Q ), key ( K ), and value ( V ) matrices:
+
+$$Q = X W _ { Q } , \ \ K = X W _ { K } , \ \ V = X W _ { V } ,$$
+
+where W Q , W K , W V ∈ R d x × d k are learnable weight matrices, and d k is the dimension of the query and key vectors.
+
+Next, the attention scores are computed by taking the scaled dot product between the query and key matrices:
+
+$$A t t e n t i o n ( Q , K , V ) = s o f t m a x \left ( \frac { Q K ^ { \top } } { \sqrt { d _ { k } } } \right ) V ,$$
+
+where 1 √ d k is a scaling factor to prevent the dot product from growing too large, and the softmax function ensures that the attention scores sum to 1.
+
+The output of the self-attention mechanism is a weighted sum of the value vectors, where the weights are determined by the attention scores. This process allows the model to focus on the most relevant parts of the sequence when generating each element of the output.
+
+To enhance the model's capacity, self-attention can be computed in multiple parallel attention heads. Each head learns a distinct representation by using different sets of projection matrices:
+
+$$M u l t i H e a d ( Q , K , V ) = \\ C o n c a t ( h e a d _ { 1 } , h e a d _ { 2 } , \dots , h e a d _ { h } ) W _ { O } ,$$
+
+where each head i = Attention ( Q i , K i , V i ), h is the number of attention heads, and W O ∈ R hd k × d x is a learnable output projection matrix.
+
+Transformers lack an inherent notion of sequence order, as self-attention operates on sets of inputs without considering their positions. To address this, positional encoding is introduced to incorporate positional information into the model, allowing it to understand the order of elements in a sequence.
+
+Let the input sequence be X ∈ R L × d x , where L is the sequence length and d x is the feature dimension. Positional encoding adds a unique vector to each position in the sequence, resulting in a new representation X ′ :
+
+$$X ^ { \prime } = X + P ,$$
+
+where P ∈ R L × d x is the positional encoding matrix.
+
+## 3.3 Absolute Positional Encoding
+
+Absolute positional encoding assigns a unique positional vector to each time step in the sequence. The most common approach is using sinusoidal functions, introduced by Vaswani et al. [23]. This method allows the model to embed positional information without requiring it to learn these representations during training, making it computationally efficient for long sequences.
+
+## 3.3.1 Fixed Absolute Positional Encoding
+
+The fixed absolute positional encoding is defined as follows:
+
+$$P E _ { ( p o s , 2 i ) } & = \sin \left ( \frac { \ p o s } { 1 0 0 0 0 ^ { 2 i } } \right ) \\ P E _ { ( p o s , 2 i + 1 ) } & = \cos \left ( \frac { \ p o s } { 1 0 0 0 0 ^ { \frac { 2 i } { d } } } \right ) \\$$
+
+where pos is the position (time step) in the sequence, i is the dimension, and d is the dimensionality of the positional encoding.
+
+The use of sinusoidal functions ensures that the encodings for nearby positions are similar, which can help the model learn relationships between closely spaced time steps. However, this approach has limitations when dealing with sequences of varying lengths or non-uniform time intervals, which are common in time series data.
+
+## 3.3.2 Learnable Positional Encoding
+
+Learnable positional encoding provides more flexibility by allowing the model to learn the positional representations during training. This can be advantageous for time series tasks where the relationships between time steps may be complex or nonlinear. The learnable positional encoding is typically defined as:
+
+$$P E _ { l e a r n a b l e } ( p o s ) = W _ { p o s }$$
+
+where W pos is an d model -dimensional vector representing the learnable positional encoding parameters for position pos .
+
+During the forward pass of the neural network, the learnable positional encoding is added to the input embeddings x :
+
+$$x = x + P E _ { l e a r n a b l e } [ \colon x . s i z e ( 1 ) , \colon ]$$
+
+where x represents the input tensor at a given position and x. size(1) denotes the length of the sequence up to the current position. This addition enables the model to learn position-specific transformations that can capture dependencies and patterns within sequences.
+
+The flexibility and adaptability of learnable positional encoding make it a powerful tool for enhancing the modeling of temporal dependencies and patterns in time series data within transformer architectures.
+
+Then, the self-attention mechanism is modified as follows:
+
+$$\text {Attention} ( Q , K , V ) = \\ \text {softmax} \left ( \frac { ( Q + P E ) \cdot ( K + P E ) ^ { T } } { \sqrt { d _ { k } } } \right ) V$$
+
+where Q , K , and V are the query, key, and value matrices, respectively, PE represents the positional encoding matrix, and d k is the dimensionality of the key vectors [23].
+
+## 3.4 Relative Positional Encoding
+
+In relative positional encoding, the attention mechanism is adjusted to incorporate the relative positions between time steps, making it more flexible in capturing dependencies between time steps regardless of their absolute positions in the sequence.
+
+The attention score with relative positional encoding is computed as:
+
+$$e _ { i j } = \frac { ( x _ { i } W _ { Q } ) ( x _ { j } W _ { K } + a _ { i j } ^ { K } ) ^ { T } } { \sqrt { d _ { z } } }$$
+
+$$e _ { i j } = \frac { e _ { i j } = \frac { } { \sqrt { d _ { z } } } } { \sqrt { d _ { z } } } \\ e _ { i j } = \frac { ( x _ { i } W _ { Q } ) ( x _ { j } W _ { K } ) ^ { T } + ( x _ { i } W _ { Q } ) ( a _ { i j } ^ { K } ) ^ { T } } { \sqrt { d _ { z } } }$$
+
+$$a _ { i j } ^ { K } = W _ { K } ^ { r } r _ { i - j }$$
+
+where x i and x j are the input representations at positions i and j , W Q and W K are the learnable projection matrices for queries and keys, and a K ij is the relative positional encoding defined as a K ij = W r K r i -j , where r i -j is the learnable relative positional embedding for the distance i -j .
+
+This formulation allows the model to better capture temporal dependencies that depend on the relative position between time steps, which is particularly useful for tasks such as time series forecasting or classification when dealing with varying sequence lengths [19, 18].
+
+As illustrated in Fig. 3, positional encoding methods can be combined to leverage the advantages of both absolute and relative approaches. This combined architecture integrates absolute positional information through additive embeddings while incorporating relative position information in the attention computation.
+
+## 3.5 Time Absolute Position Encoding (tAPE)
+
+The time Absolute Position Encoding (tAPE) improves upon the traditional sinusoidal-based absolute position encoding, which was originally designed for language models. In high-dimensional embeddings, such as 512 or 1024, the dot product between sinusoidal positional embeddings at different positions decays smoothly with increasing distance, maintaining what is referred to as distance awareness . However, for lower-dimensional embeddings (e.g., 64 or 128), this property diminishes, leading to irregularities in capturing positional relationships.
+
+In the original transformer, the frequency term is defined as:
+
+$$\omega _ { k } = 1 0 0 0 0 ^ { - 2 k / d _ { m o d e l } }$$
+
+tAPE modifies this by introducing sequence length consideration:
+
+$$\omega _ { k } ^ { n e w } = k \times \frac { d _ { m o d e l } } { L }$$
+
+where:
+
+d model is the embedding dimension, L is the sequence length, ω k is the original frequency term and ω k new is the adjusted frequency term
+
+The positional encoding is then computed as:
+
+$$P E _ { p o s , 2 i } & = \sin ( p o s \times \omega _ { k } n e w ) \\ P E _ { p o s , 2 i + 1 } & = \cos ( p o s \times \omega _ { k } n e w )$$
+
+tAPE introduces a modification that incorporates the sequence length into the frequency terms of the sine and cosine functions. This ensures a smoother and more regular dot product between positional embeddings, regardless of sequence length. By adjusting the frequency scaling with the embedding dimension, tAPE retains distance awareness even for lowerdimensional embeddings, making it more effective for time series tasks.
+
+## 3.6 Efficient Relative Position Encoding (eRPE)
+
+The efficient Relative Position Encoding (eRPE) modifies traditional relative position encodings by adding the relative positional bias after the softmax operation in the attention mechanism. This approach sharpens the positional embeddings, making them more effective for time series classification (TSC), where capturing key relative positions is crucial for identifying temporal patterns.
+
+The attention score in eRPE is computed as:
+
+$$\alpha _ { i } = \sum _ { j \in L } \left ( \underbrace { \exp ( e _ { i , j } ) } _ { j \in L } \, A i , j + w _ { i - j } \right ) x _ { j } \\$$
+
+where:
+
+w is a learnable parameter vector of size 2 L -1 i -j + L indexes the relative position between positions i and j L is the maximum sequence length The relative position bias w i -j + L is added after the softmax operation
+
+To implement eRPE efficiently, for a sequence length L , a trainable parameter w of size 2 L -1 is created, representing the possible distances between positions. The relative scalar w i -j + L for two positions i and j is added to the attention scores post-softmax, ensuring sharper position distinctions. This method also optimizes GPU usage through efficient indexing operations, making it scalable for longer time series.
+
+Figure 2: Comparison of Absolute and Relative Positional Encoding in Self-Attention. Absolute positional encoding is typically applied by adding fixed positional vectors to the input embeddings and modifying the queries and keys. In contrast, relative positional encoding directly incorporates relative positional information into the attention score calculation. The function A represents the attention mechanism, where absolute modifies the input embeddings, while relative positional encoding adjusts the attention scores to capture positional dependencies more effectively.
+
+<!-- image -->
+
+## 3.7 Transformer with Untied Positional Encoding (TUPE)
+
+The Transformer with Untied Positional Encoding (TUPE) [9] introduces a novel approach by explicitly separating content and positional information in the attention computation, unlike traditional methods that simply add positional embeddings to input embeddings. The attention score in TUPE is computed as:
+
+$$\alpha _ { i j } = \frac { 1 } { \sqrt { 2 d } } ( x _ { i } ^ { l } W ^ { Q , l } ) \cdot ( x _ { j } ^ { l } W ^ { K , l } ) ^ { T } + \text {reset} _ { \theta } ( \beta _ { i j } , i , j )$$
+
+where β ij = 1 √ 2 d ( p i U Q )( p j U K ) T represents position-to-position interactions. This separation prevents interference between content and positional patterns, allowing each component to be learned independently. For time series data, this is particularly advantageous as it enables the model to capture both temporal patterns (through positional correlations) and feature relationships (through content correlations) without mutual interference.
+
+## 3.8 Convolutional Sinusoidal Positional Encoding (ConvSPE)
+
+Convolutional Stochastic Positional Encoding (convSPE) [15] enables relative positional encoding through a convolution-based approach that maintains linear complexity. The method begins by sampling a random matrix Z d ∈ R M × R with i.i.d. standard Gaussian entries, then applies learnable convolutional filters Φ Q and Φ K to obtain query and key encodings:
+
+$$Q _ { d } = Z _ { d } * \Phi ^ { Q } , \ K _ { d } = Z _ { d } * \Phi ^ { K }$$
+
+where ∗ denotes convolution. The convolution operation naturally induces relative position awareness through the sliding window mechanism. The theoretical foundation ensures that for large R , the crosscovariance structure approximates the desired positional attention kernel:
+
+$$P _ { d } \approx \frac { \bar { Q } _ { d } \bar { K } _ { d } ^ { T } } { R }$$
+
+This formulation maintains linear complexity while effectively capturing relative positions through the convolutional structure, making it particularly suitable for long time series sequences.
+
+## 3.9 Temporal Positional Encoding (T-PE)
+
+The Temporal Positional Encoding (T-PE) method combines two components to capture both positional Input APE
+
+V
+
+d×L
+
+K
+
+d×L
+
+Q
+
+d×L
+
+P
+
+L×d
+
+Figure 3: A combined approach to positional encoding: Absolute + Relative. This is one method to integrate both absolute and relative positional encodings, aiming to capture both global and local positional dependencies within the attention mechanism.
+
+and temporal dependencies in time series data. The geometric component applies enhanced sinusoidal positional encoding across multiple layers of the transformer to maintain positional information throughout the network:
+
+$$P E _ { i , 2 k } & = \sin \left ( \frac { i } { 1 0 0 0 0 ^ { \frac { 2 k } { d } } } \right ) , \\ P E _ { i , 2 k + 1 } & = \cos \left ( \frac { i } { 1 0 0 0 0 ^ { \frac { 2 k } { d } } } \right )$$
+
+The semantic component adjusts attention scores by incorporating token similarity between positions i and j :
+
+$$S ( i , j ) = \exp \left ( - \frac { \| x _ { i } - x _ { j } \| ^ { 2 } } { 2 \sigma ^ { 2 } } \right )$$
+
+The final positional encoding is a combination of both components:
+
+$$T { \bar { \ } P } E ( i ) = P E ( i ) + S ( i , j )$$
+
+This combined approach enables the model to capture both global and local temporal dependencies, improving performance in time series tasks.
+
+## 4 Experimental Setup
+
+The experimental setup involves comparing different positional encoding methods in two distinct Transformer-based architectures for time series data. The Time Series Transformer [29], shown in Figure 4a, processes the raw multivariate time series data directly. For a time series with L timesteps and d channels, it treats each timestep as a token, resulting in L tokens of dimension d that are fed into the transformer layers. This architecture incorporates normalization layers after both the attention and feedforward components to stabilize training and address internal covariate shifts. In contrast, the patch embedding transformer [2], illustrated in Figure 4b, first
+
+Dot Product
+
+Q.KT
+
+Scale
+
+Q. KT + Q.P
+
+L×L
+
+√d
+
+Concatenate
+
+L×L
+
+L×L
+
+RPE
+
+Q.P
+
+Softmax
+
+Q.KT
+
+√d
+
+σ(
+
+L×L
+
+σ
+
+Q.KT
+
+d×L
+
+Ouput
+
+<!-- image -->
+
+- b Patch Embedding Transformer
+
+Figure 4: Transformer architectures for time series classification.
+
+transforms the input data using convolutional operations to create overlapping patches. Each patch spans multiple timesteps but maintains the full channel dimension, effectively reducing the sequence length while enriching the feature representation of each token. This results in L/p tokens (where p is the patch size) with increased feature dimensionality before being processed by the transformer layers. The detailed algorithms for both architectures are presented in Algorithm 1 and Algorithm 2, respectively. These architectures were chosen to evaluate positional encoding methods under different sequence processing paradigms: direct temporal processing in the Time Series Transformer versus hierarchical feature extraction through patch embedding.
+
+## 4.1 System Configuration
+
+We conducted all experiments on a high-performance Linux server with the following specifications: an AMD EPYC 7513 32-Core Processor (2 sockets, 128 threads), one NVIDIA RTX A5000 GPUs (24GB GDDR6 each, CUDA version 12.2, Driver version 535.113.01), 503GB of RAM, and a dual storage system consisting of an 892.7GB NVMe SSD and a 10.5TB HDD. The operating system used was Ubuntu 20.04.6 LTS (Kernel 5.4.0-200-generic). All implementations were carried out using Python 3.8.10 and PyTorch 2.4.1+cu121.
+
+## 4.2 Datasets
+
+A comprehensive set of time series datasets from various domains is employed to evaluate the positional encoding methods' effectiveness across diverse applications. The selected datasets include:
+
+```
+Algorithm 1: Time Series Transformer Input: Time series data X ∈ R N × D Output: Class probabilities y ∈ R C 1 TimeSeriesInputEncoder: 2 Linear Projection: Map input time series X to embeddings E ∈ R N × D e . 3 BatchNorm1d: Normalize embeddings across the batch. 4 Positional Encoding: Inject positional information into embeddings E . 5 TransformerEncoder (4 Layers): 6 for l = 1 to 4 do 7 Layer l : 8 Multi-Head Attention: Compute attention-weighted representations. 9 BatchNorm1d: Normalize outputs of attention along the feature dimension. 10 Feed-Forward Network: Transform representations with a fully connected network. 11 BatchNorm1d: Normalize outputs of the FFN. 12 Linear (Classifier): 13 Output final class probabilities y .
+```
+
+## Algorithm 2: Transformer with Patch Embedding
+
+```
+Input: Time series data X ∈ R N × D Output: Class probabilities y ∈ R C 1 TimeSeriesPatchEmbedding: 2 Conv1d Layer: Convert input time series X into patches P ∈ R N p × D p . 3 Positional Encoding: Inject positional information into patches P . 4 TransformerEncoder (4 Layers): 5 for l = 1 to 4 do 6 Layer l : 7 Multi-Head Attention: Compute attention-weighted representations. 8 Feed-Forward Network: Transform representations with a fully connected network. 9 Linear (Feed-Forward): 10 Transform encoded features to a higher-dimensional space. 11 Linear (Classifier): 12 Output final class probabilities y .
+```
+
+- Sleep: EEG (Electroencephalogram) signals with 178 time steps per instance. The dataset contains 478,785 training instances and 90,315 test instances, classified into five different stages of sleep.
+- ElectricDevices: Electrical consumption data of household devices with 96 time steps. It contains 8,926 training instances and 7,711 test instances across seven device classes [3].
+- FaceDetection: EEG signals collected during face detection tasks, with 62 time steps per instance. The dataset has 5,890 training instances and 3,524 test instances for a binary classification task.
+- MelbournePedestrian: Traffic data capturing pedestrian flow in Melbourne. Each instance contains 24 time steps, with a 10-class classification task, comprising 1,194 training instances and 2,439 test instances.
+- SharePriceIncrease: Financial time-series data with 60 time steps per instance, used to predict whether a company's share price will increase. The dataset has 965 training instances and 965 test instances, with two classes.
+- LSST: Astronomical time-series data from the Large Synoptic Survey Telescope, containing 36 time steps per instance. The dataset includes 2,459 training instances and 2,466 test instances for a 14-class classification task of celestial objects.
+- RacketSports: Human activity recognition data from racket sports like tennis and badminton. Each instance contains 30 time steps, with 151 training instances and 152 test instances across four activity classes.
+- SelfRegulationSCP1: EEG data related to self-regulation through slow cortical potentials (SCPs), consisting of 896 time steps per instance. The dataset contains 268 training instances and 293 test instances for binary classification.
+- UniMiB-SHAR: Sensor data for human activity recognition, with 151 time steps per instance. The dataset comprises 4,601 training instances, 1,454 validation instances, and 1,524 test instances across nine activity classes [16].
+- RoomOccupancy (Sensors): Time-series data from non-intrusive environmental sensors, such as temperature, light, sound, and CO 2 , used
+
+to estimate the precise number of occupants in a room. The dataset has 10,129 instances with 18 features and is classified into four classes [17].
+
+- EMGGestures (EMG): Electromyographic (EMG) signals recorded using the MYO Thalmic bracelet during various gesture executions. Each instance consists of 30 time steps with 9 features per time step. The dataset is classified into eight distinct gesture classes. The dataset is primarily used for human activity recognition in health and medicine-related applications [21].
+
+The characteristics of these datasets are summarized in Table 3, which provides a comprehensive overview of their key properties including training and test set sizes, sequence lengths, number of classes, and channels.
+
+## 4.3 Evaluation Procedure
+
+The experiments are designed to assess how well each positional encoding technique captures temporal dependencies and patterns in the data and how it affects the overall model performance on each architecture. The evaluation procedure includes:
+
+1. Model Training: Each model is trained on the training portion of the datasets using standard optimization techniques and hyperparameters.
+2. Model Evaluation: The trained models are evaluated on the validation and test sets to measure their performance according to the specified metrics.
+3. Comparative Analysis: The results are compared across different models to determine the effectiveness of each positional encoding method.
+
+The experiments aim to provide insights into the strengths and weaknesses of each positional encoding technique and identify the scenarios where each method performs best.
+
+## 5 Results
+
+Our experimental evaluation encompasses eight distinct positional encoding methods tested across eleven diverse time series datasets using two transformer architectures. The methods range from traditional approaches (PE, LPE) to relative encodings (RPE, eRPE) and advanced techniques (T-PE, SPE, TUPE), evaluated on both time series transformer and transformer with patch embedding architectures. The classification accuracies are presented in Tables
+
+4 and 5, with performance visualizations provided through heatmaps in Figures 6b and 6a.
+
+## 5.1 Overall Performance
+
+The experimental results demonstrate a consistent superiority of advanced positional encoding methods across both architectural configurations. SPE achieves the highest average ranking (1.727 for time series transformer, 2.090 for patch embedding), closely followed by TUPE (1.909 and 2.272) and T-PE (2.636 and 2.363). This performance hierarchy remains remarkably stable across both architectures, though the patch embedding architecture exhibits more balanced performance among the topperforming methods, as shown in Figures 5a and 5b.
+
+## 5.2 Sequence Length Analysis
+
+The effectiveness of positional encoding methods shows a strong correlation with sequence length. For sequences exceeding 100 time steps, such as SelfRegulationSCP1 (896 steps) and Sleep (178 steps), advanced methods demonstrate substantial improvements, achieving 5-6% higher accuracy compared to fixed encoding approaches. Medium-length sequences (50-100 steps) show moderate improvements of 3-4%, while shorter sequences (less than 50 steps) exhibit smaller but consistent gains of 2-3%.
+
+## 5.3 Dataset-Specific Performance
+
+## 5.3.1 Biomedical Signals
+
+In EEG datasets (Sleep, FaceDetection, SelfRegulationSCP1), TUPE demonstrates optimal performance, achieving accuracies of 88.8%, 70.5%, and 90.7% respectively under the time series transformer architecture. SPE shows comparable performance levels, particularly excelling in EMG data with 77.1% accuracy. Both methods demonstrate superior capability in capturing the long-range dependencies characteristic of biomedical signals.
+
+## 5.3.2 Environmental and Sensor Data
+
+For sensor-based datasets (ElectricDevices, RoomOccupancy), SPE exhibits superior performance (75.5% and 95.1% respectively). While TUPE maintains competitive accuracy, relative encoding methods show improved performance in local pattern recognition. The performance advantage of advanced methods is particularly pronounced in datasets characterized by complex temporal dependencies.
+
+Table 3: Characteristics of time series datasets used in the experiments.
+
+| Dataset             |   Train Size |   Test Size |   Length |   Classes |   Channels | Type      |
+|---------------------|--------------|-------------|----------|-----------|------------|-----------|
+| Sleep               |      478,785 |      90,315 |      178 |         5 |          1 | EEG       |
+| ElectricDevices     |        8,926 |       7,711 |       96 |         7 |          1 | Device    |
+| FaceDetection       |        5,890 |       3,524 |       62 |         2 |        144 | EEG       |
+| MelbournePedestrian |        1,194 |       2,439 |       24 |        10 |          1 | Traffic   |
+| SharePriceIncrease  |          965 |         965 |       60 |         2 |          1 | Financial |
+| LSST                |        2,459 |       2,466 |       36 |        14 |          6 | Other     |
+| RacketSports        |          151 |         152 |       30 |         4 |          6 | HAR       |
+| SelfRegulationSCP1  |          268 |         293 |      896 |         2 |          6 | EEG       |
+| UniMiB-SHAR         |        4,601 |       1,524 |      151 |         9 |          3 | HAR       |
+| RoomOccupancy       |        8,103 |       2,026 |       30 |         4 |         18 | Sensor    |
+| EMGGestures         |        1,800 |         450 |       30 |         8 |          9 | EMG       |
+
+## 5.4 Architectural Impact
+
+While both architectures maintain similar method rankings, their performance characteristics exhibit notable differences. The time series transformer architecture shows more distinct performance gaps between method tiers, while the patch embedding architecture demonstrates closer competition among advanced methods. This suggests that architectural choice significantly influences the relative advantages of different encoding strategies, though the superiority of advanced methods remains consistent.
+
+## 5.5 Dimensionality and Class Complexity
+
+Performance patterns vary significantly with input dimensionality and class complexity. Higherdimensional datasets (more than 5 channels) show more consistent improvements across methods, while lower-dimensional data exhibits more variable benefits. Classification tasks with more classes (exceeding 7) demonstrate smaller performance gaps between methods, though the ranking hierarchy remains stable.
+
+The comprehensive results establish the robust superiority of advanced positional encoding methods, particularly in complex time series tasks with longer sequences or higher dimensionality. The consistent performance patterns across different architectures and dataset characteristics suggest the broader applicability of these advanced encoding strategies in time series analysis.
+
+## 6 Discussion
+
+## 6.1 Impact of Sequence Characteristics
+
+Our comprehensive analysis reveals that the effectiveness of positional encoding methods is fundamentally influenced by sequence characteristics, particu- b Time Series Transformer larly sequence length and temporal complexity. The superior performance of advanced methods (SPE, TUPE) becomes increasingly pronounced with sequence length, demonstrating up to 5.8% improvement in sequences exceeding 100 time steps, compared to modest gains of 2-3% in shorter sequences. This pattern strongly suggests that sophisticated encoding strategies are particularly crucial for applications involving extended temporal dependencies, such as EEG analysis and complex sensor data processing.
+
+<!-- image -->
+
+Figure 5: Average rank of various combinations of absolute and relative position encodings across different transformer architectures.
+
+The relationship between sequence length and encoding method effectiveness can be attributed to two key factors. First, longer sequences present more opportunities for capturing complex temporal dependencies, allowing advanced methods to leverage their sophisticated encoding mechanisms more effectively. Second, the increased dimensionality of longer sequences provides a richer feature space for learning position-aware representations, enabling methods like TUPE and SPE to better differentiate between tem- poral patterns at various scales.
+
+Table 4: Accuracy comparison of Positional Encoding Methods in Time Series Transformer
+
+| Dataset                       |   Fixed |   Learnable |   Relative |   tAPE |   eRPE |   T-PE |   SPE |   TUPE |
+|-------------------------------|---------|-------------|------------|--------|--------|--------|-------|--------|
+| Sleep (EEG)                   |   0.854 |       0.862 |      0.867 |  0.871 |  0.875 |  0.881 | 0.883 |  0.888 |
+| ElectricDevices (Device)      |   0.682 |       0.697 |      0.723 |  0.718 |  0.731 |  0.741 | 0.755 |  0.743 |
+| FaceDetection (EEG)           |   0.627 |       0.654 |      0.672 |  0.633 |  0.686 |  0.694 | 0.698 |  0.705 |
+| MelbournePedestrian (Traffic) |   0.675 |       0.704 |      0.729 |  0.701 |  0.742 |  0.748 | 0.754 |  0.762 |
+| SharePriceIncrease (Finance)  |   0.725 |       0.748 |      0.739 |  0.744 |  0.772 |  0.779 | 0.785 |  0.778 |
+| LSST (Other)                  |   0.581 |       0.596 |      0.613 |  0.609 |  0.632 |  0.629 | 0.628 |  0.623 |
+| RacketSports (HAR)            |   0.742 |       0.762 |      0.775 |  0.761 |  0.804 |  0.811 | 0.813 |  0.819 |
+| SelfRegulationSCP1 (EEG)      |   0.849 |       0.857 |      0.871 |  0.853 |  0.891 |  0.898 | 0.901 |  0.907 |
+| UniMib (HAR)                  |   0.841 |       0.855 |      0.865 |  0.852 |  0.876 |  0.882 | 0.879 |  0.878 |
+| RoomOccupancy (Sensors)       |   0.912 |       0.922 |      0.931 |  0.928 |  0.942 |  0.947 | 0.951 |  0.948 |
+| EMGGestures (EMG)             |   0.713 |       0.709 |      0.735 |  0.721 |  0.751 |  0.763 | 0.771 |  0.766 |
+| Avg Rank                      |   7.909 |       6.454 |      5.272 |  6.363 |  3.727 |  2.636 | 1.727 |  1.909 |
+
+Table 5: Accuracy comparison of Positional Encoding Methods in Time Series Transformer with Patch Embedding
+
+| Dataset                       |   Fixed |   Learnable |   Relative |   tAPE |   eRPE |   T-PE |   SPE |   TUPE |
+|-------------------------------|---------|-------------|------------|--------|--------|--------|-------|--------|
+| Sleep (EEG)                   |   0.841 |       0.852 |      0.858 |  0.851 |  0.864 |  0.872 | 0.876 |  0.879 |
+| ElectricDevices (Device)      |   0.673 |       0.694 |      0.761 |  0.693 |  0.762 |  0.763 | 0.811 |  0.779 |
+| FaceDetection (EEG)           |   0.618 |       0.642 |      0.671 |  0.653 |  0.678 |  0.686 | 0.674 |  0.695 |
+| MelbournePedestrian (Traffic) |   0.668 |       0.702 |      0.724 |  0.682 |  0.733 |  0.742 | 0.753 |  0.745 |
+| SharePriceIncrease (Finance)  |   0.715 |       0.742 |      0.754 |  0.735 |  0.774 |  0.781 | 0.785 |  0.774 |
+| LSST (Other)                  |   0.573 |       0.582 |      0.596 |  0.584 |  0.611 |  0.602 | 0.601 |  0.595 |
+| RacketSports (HAR)            |   0.733 |       0.756 |      0.767 |  0.761 |  0.801 |  0.792 | 0.775 |  0.805 |
+| SelfRegulationSCP1 (EEG)      |   0.836 |       0.844 |      0.829 |  0.842 |  0.856 |  0.871 | 0.883 |  0.875 |
+| UniMib (HAR)                  |   0.832 |       0.844 |      0.854 |  0.833 |  0.864 |  0.871 | 0.867 |  0.865 |
+| RoomOccupancy (Sensors)       |   0.905 |       0.911 |      0.918 |  0.922 |  0.929 |  0.931 | 0.934 |  0.937 |
+| EMGGestures (EMG)             |   0.697 |       0.692 |      0.722 |  0.713 |  0.741 |  0.752 | 0.746 |  0.742 |
+| Avg Rank                      |   7.818 |       6.454 |      5.272 |  6.363 |  3.363 |  2.363 | 2.090 |  2.272 |
+
+## 6.2 Architectural Considerations
+
+The comparative analysis of transformer architectures reveals distinctive performance patterns that provide insights into the interaction between architectural choices and positional encoding strategies. While both architectures maintain similar method rankings, time series transformer architecture demonstrates more pronounced performance gaps between method tiers. This suggests that the normalization process amplifies the benefits of advanced encoding strategies, possibly by stabilizing the learning of complex positional patterns.
+
+Conversely, the patch embedding architecture shows more balanced performance among top methods, particularly benefiting multivariate datasets where local feature interactions are crucial. This ar- chitectural characteristic suggests that patch embedding's inherent ability to capture local patterns complements the global temporal dependencies encoded by advanced positional encoding methods, resulting in more uniform performance improvements across different encoding strategies.
+
+## 6.3 Dataset-Specific Effectiveness
+
+Dataset characteristics significantly influence encoding method performance, revealing important patterns for practical applications. In biomedical signals, particularly EEG datasets, TUPE and SPE consistently excel, suggesting these methods' superior capability in capturing complex physiological patterns. Their effectiveness likely stems from their ability to model both local temporal dynamics and long-range dependencies characteristic of biological signals.
+
+For environmental and sensor data, SPE's supe- rior performance (up to 95.1% accuracy) indicates its effectiveness in handling regular sampling patterns and clear temporal structures. This suggests that SPE's encoding strategy is particularly well-suited for datasets with consistent temporal patterns and well-defined periodicities. The performance advantages in these domains demonstrate the importance of matching encoding strategies to specific data characteristics.
+
+Figure 6: Heatmaps illustrating the accuracy (%) of various positional encoding methods across different datasets. Each cell represents the accuracy for a specific dataset and positional encoding method, with darker colors indicating higher accuracy.
+
+<!-- image -->
+
+## 6.4 Method Selection Guidelines
+
+Our findings establish clear guidelines for method selection based on application characteristics, which we organize into three key considerations:
+
+First, sequence length emerges as a primary factor in method selection. For sequences exceeding 100 time steps, the substantial performance gains of advanced methods (TUPE, SPE) clearly justify their increased computational complexity. However, for shorter sequences, the more modest performance improvements suggest that simpler methods may offer a better complexity-performance trade-off.
+
+Second, data complexity significantly influences method effectiveness. Higher-dimensional data consistently benefits more from advanced encoding strategies, likely due to their superior ability to capture complex inter-dimensional temporal relationships. Similarly, binary classification tasks show larger relative improvements with sophisticated methods, possibly due to their enhanced ability to learn discriminative temporal features.
+
+Third, computational requirements must be carefully considered. While advanced methods demonstrate superior performance, they also incur higher computational costs. This trade-off becomes more favorable for longer sequences where the performance gains are more substantial. For applications with real-time requirements or resource constraints, the selection of encoding methods should balance performance improvements against computational efficiency.
+
+These insights provide valuable guidance for practitioners in selecting appropriate positional encoding methods based on their specific application requirements. The clear patterns in method effectiveness across different data characteristics enable informed decisions that optimize the performance-complexity trade-off for particular use cases.
+
+## 6.5 Future Research Directions
+
+Our analysis suggests several promising directions for future research. First, the development of adaptive encoding methods that automatically adjust their complexity based on sequence characteristics could provide optimal performance across varying data conditions. Second, investigating the integration of domain-specific temporal priors into encoding strategies could enhance performance for specific applications. Finally, exploring the relationship between positional encoding and attention mechanisms could lead to more efficient architectures for time series analysis.
+
+## 7 Conclusion
+
+In this survey, we have presented a comprehensive analysis of positional encoding methods in transformer-based time series models, examining their effectiveness across various time series tasks and data types. Through extensive experimentation with eight distinct encoding methods across eleven diverse datasets, we demonstrated that advanced methods like TUPE and SPE consistently outperform traditional approaches while maintaining computational efficiency. Our findings establish clear relationships between sequence characteristics and encoding method effectiveness, providing valuable guidance for practitioners in selecting appropriate methods based on their specific application requirements. These insights lay the foundation for future research in developing more efficient and adaptive positional encoding strategies for time series analysis.
+
+## References
+
+- [1] George EP Box, Gwilym M Jenkins, Gregory C Reinsel, and Greta M Ljung. Time series analysis: forecasting and control . John Wiley &amp; Sons, 2015.
+- [2] Jean-Baptiste Cordonnier, Aravindh Mahendran, Alexey Dosovitskiy, Dirk Weissenborn, Jakob Uszkoreit, and Thomas Unterthiner. Differentiable patch selection for image recognition. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 2351-2360, 2021.
+- [3] Hoang Anh Dau, Eamonn Keogh, Kaveh Kamgar, Chin-Chia Michael Yeh, Yan Zhu, Shaghayegh Gharghabi, Chotirat Ann Ratanamahatana, Chen Yanping, Bing Hu, Nurjahan Begum, Anthony Bagnall, Abdullah Mueen, and Gustavo Batista. The UCR Time Series Classification Archive, 2018.
+- [4] Hassan Ismail Fawaz, Germain Forestier, Jonathan Weber, Lhassane Idoumghar, and Pierre-Alain Muller. Deep learning for time series classification: A review. Data Mining and Knowledge Discovery , 33(4):917-963, 2019.
+- [5] Navid Mohammadi Foumani, Chang Wei Tan, Geoffrey I Webb, and Mahsa Salehi. Improving position encoding of transformers for multivariate time series classification. Data Mining and Knowledge Discovery , 38(1):22-48, 2024.
+- [6] Sepp Hochreiter and J¨ urgen Schmidhuber. Long short-term memory. Neural computation , 9(8):1735-1780, 1997.
+- [7] Zhiheng Huang, Davis Liang, Peng Xu, and Bing Xiang. Improve transformer models with bet-
+8. ter relative position embeddings. arXiv preprint arXiv:2009.13658 , 2020.
+- [8] Rob J Hyndman and George Athanasopoulos. Forecasting: principles and practice . OTexts, 2018.
+- [9] Guolin Ke, Di He, and Tie-Yan Liu. Rethinking positional encoding in language pre-training. arXiv preprint arXiv:2006.15595 , 2020.
+- [10] Guolin Ke, Di He, and Tie-Yan Liu. Rethinking positional encoding in language pre-training. International Conference on Learning Representations (ICLR) , 2021.
+- [11] Yann LeCun, Yoshua Bengio, et al. Convolutional networks for images, speech, and time series. The handbook of brain theory and neural networks , 3361(10):1995, 1995.
+- [12] Haoyang Li, Xin Jin, Yutong Xuan, Xuan Zhou, Weiying Chen, Yuanyuan Xie Wang, and Xinyu Yan. Enhancing the locality and breaking the memory bottleneck of transformer on time series forecasting. In Advances in Neural Information Processing Systems , pages 5243-5253, 2019.
+- [13] Shaohan Li, Xiaoping Jin, Yong Xuan, Xiang Zhou, Wenhu Chen, Yu-Xiang Wang, and Xifeng Yan. Time series forecasting with transformers: A survey. arXiv preprint arXiv:2307.08701 , 2023.
+- [14] Bryan Lim, Sercan ¨ O Arık, Nicolas Loeff, and Tomas Pfister. Temporal fusion transformers for interpretable multi-horizon time series forecasting. International Journal of Forecasting , 37(4):1748-1764, 2021.
+- [15] Antoine Liutkus, Ondˇ rej Cıfka, Shih-Lun Wu, Umut Simsekli, Yi-Hsuan Yang, and Gael Richard. Relative positional encoding for transformers with linear complexity. In International Conference on Machine Learning , pages 70677079. PMLR, 2021.
+- [16] Daniela Micucci, Marco Mobilio, and Paolo Napoletano. Unimib shar: A dataset for human activity recognition using acceleration data from smartphones. Applied Sciences , 7(10):1101, 2017.
+- [17] Krilova N, Kastalskiy I, Kazantsev V and1' Makarov, and Lobov S. EMG Data for Gestures. UCI Machine Learning Repository, 2018. DOI: https://doi.org/10.24432/C5ZP5C.
+
+- [18] Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi Zhou, Wei Li, and Peter J Liu. Exploring the limits of transfer learning with a unified textto-text transformer. Journal of machine learning research , 21(140):1-67, 2020.
+- [19] Peter Shaw, Jakob Uszkoreit, and Ashish Vaswani. Self-attention with relative position representations. arXiv preprint arXiv:1803.02155 , 2018.
+- [20] Shih-Cheng Shih, Fan-Keng Sun, and Hung-Yi Lee. Temporal pattern attention for multivariate time series forecasting. In Proceedings of the 33rd Conference on Neural Information Processing Systems (NeurIPS) , 2019.
+- [21] Adarsh Pal Singh and Sachin Chaudhari. Room Occupancy Estimation. UCI Machine Learning Repository, 2018. DOI: https://doi.org/10.24432/C5P605.
+- [22] Haoyang Song, Deepthi Rajan, Jayaraman J Thiagarajan, and Andreas Spanias. Attend and diagnose: Clinical time series analysis using attention models. In Proceedings of the ThirtySecond AAAI Conference on Artificial Intelligence . AAAI Press, 2018.
+- [23] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, glyph[suppress] Lukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in neural information processing systems , 30, 2017.
+- [24] Zhiguang Wang, Weizhong Yan, and Tim Oates. Time series classification from scratch with deep neural networks: A strong baseline. In International Joint Conference on Neural Networks (IJCNN) , pages 1578-1585. IEEE, 2017.
+- [25] Qingsong Wen, Tian Zhou, Chaoli Zhang, Weiqi Chen, Ziqing Ma, Junchi Yan, and Liang Sun. Transformers in time series: A survey. arXiv preprint arXiv:2202.07125 , 2022.
+- [26] Qingsong Wen, Tian Zhou, Chaoli Zhang, Weiqi Chen, Ziqing Ma, Junchi Yan, and Liang Sun. Transformers in time series: A survey. International Journal of Machine Learning and Cybernetics , 2023.
+- [27] Haixu Wu, Jiehui Xu, Jianmin Wang, and Mingsheng Long. Autoformer: Decomposition transformers with auto-correlation for long-term series forecasting. Advances in Neural Information Processing Systems , 34:22419-22430, 2021.
+- [28] Ailing Zeng, Yutong Fu, Chenghao Shang, and Jiashi Cheng. Are transformers effective for time series forecasting? arXiv preprint arXiv:2303.16640 , 2023.
+- [29] George Zerveas, Srideepika Jayaraman, Dhaval Patel, Anuradha Bhamidipaty, and Carsten Eickhoff. A transformer-based framework for multivariate time series representation learning. In Proceedings of the 27th ACM SIGKDD conference on knowledge discovery &amp; data mining , pages 2114-2124, 2021.
+- [30] Jianqi Zhang, Jingyao Wang, Wenwen Qiang, Fanjiang Xu, Changwen Zheng, Fuchun Sun, and Hui Xiong. Intriguing properties of positional encoding in time series forecasting. arXiv preprint arXiv:2404.10337 , 2024.
+- [31] Haoyi Zhou, Shanghang Zhang, Jieqi Peng, Shuai Zhang, Jianxin Li, Hui Xiong, and Wancai Zhang. Informer: Beyond efficient transformer for long sequence time-series forecasting. In Proceedings of the AAAI conference on artificial intelligence , volume 35, pages 11106-11115, 2021.

@@ -1,0 +1,429 @@
+## Counterfactual Explanations for Machine Learning on Multivariate Time Series Data
+
+Emre Ates ∗ , Burak Aksar ∗ , Vitus J. Leung † , and Ayse K. Coskun ∗
+
+∗ Dept. of Electrical and Computer Eng.
+
+Boston University
+
+Boston, MA, USA
+
+{ ates,baksar,acoskun } @bu.edu
+
+Email:
+
+† Sandia National Laboratories
+
+Albuquerque, NM, USA
+
+Email: vjleung@sandia.gov
+
+Abstract -Applying machine learning (ML) on multivariate time series data has growing popularity in many application domains, including in computer system management. For example, recent high performance computing (HPC) research proposes a variety of ML frameworks that use system telemetry data in the form of multivariate time series so as to detect performance variations, perform intelligent scheduling or node allocation, and improve system security. Common barriers for adoption for these ML frameworks include the lack of user trust and the difficulty of debugging. These barriers need to be overcome to enable the widespread adoption of ML frameworks in production systems. To address this challenge, this paper proposes a novel explainability technique for providing counterfactual explanations for supervised ML frameworks that use multivariate time series data. Proposed method outperforms state-of-the-art explainability methods on several different ML frameworks and data sets in metrics such as faithfulness and robustness. The paper also demonstrates how the proposed method can be used to debug ML frameworks and gain a better understanding of HPC system telemetry data.
+
+Index Terms -explainability, interpretability, machine learning, time series, high performance computing, monitoring
+
+## I. INTRODUCTION
+
+Multivariate time series data analytics have been gaining popularity due to the recent advancements in internet of things technologies and omnipresence of real-time sensors [1]. Health care, astronomy, sustainable energy, and geoscience are some domains where researchers utilize multivariate time series along with machine learning based analytics to solve problems such as seismic activity forecasting, hospitalization rate prediction, and many others [2]. Large-scale computing system management has also been increasingly leveraging time series analytics for improving performance, efficiency, or security. For example, high performance computing (HPC) systems produce terabytes of instrumentation data per day in the form of logs, metrics, and traces, and HPC monitoring frameworks organize systemwide resource utilization metrics as multivariate time series. Thousands of metrics can be collected per node and each metric-representing different resource statistics such as network packet counts, CPU utilization, or memory statistics-is sampled on intervals of seconds to minutes [3]-[5]. Analyzing this data is invaluable for management and debugging [3], [6],
+
+[7], but extensive manual analysis of these big data sets is not feasible.
+
+Researchers have recently started using machine learning (ML) to help analyze HPC system telemetry data and gain valuable insights. ML methods can process large amounts of data and, in addition, frameworks using ML methods benefit from the flexibility of the models that generalize to different systems and potentially previously unseen cases. ML frameworks have been shown to diagnose performance variations [8]-[11], improve scheduling [12], [13] or improve system security by detecting unwanted or illegal applications on HPC systems [14] using multivariate time series data.
+
+While many advantages of ML are well-studied, there are also common drawbacks that ML frameworks need to address before they can be widely used in production. These frameworks commonly have a taciturn nature, e.g., reporting only the final diagnosis when analyzing performance problems in HPC systems such as ' network contention on router-123 ,' without providing reasoning relating to the underlying data. Furthermore, the ML models within these frameworks are black boxes which may perform multiple data transformations before arriving at a classification, and thus are often challenging to understand. The black-box nature of these frameworks causes a multitude of drawbacks, including making it challenging to debug mispredictions, degrading user trust, and reducing the overall usefulness of the systems.
+
+To address the broad ML explainability problem, a number of methods that explain black-box classifiers have been proposed by researchers [15]. These methods can be divided into local and global explanations, based on whether they explain a single prediction or the complete classifier. Local explanations can also be divided into sample-based explanations that provide different samples as explanations and feature-based explanations that indicate the features that impact the decision the most. However, most of existing explainability methods are not designed for multivariate time series data, and they fail to generate sufficiently simple explanations when tasked with complex multivariate time series data, such as in explaining ML frameworks for analyzing HPC systems.
+
+Why do existing explainability methods fail to provide satisfactory explanations for high-dimensional multivariate time series data? One differentiating factor is the complexity of the data. Figure 1 shows a sample from HPC domain, where 199 metrics are collected through the system telemetry during an application run. Existing sample-based methods provide samples from the training set or synthetically generate samples [16], [17]. These methods are designed with the assumption that one sample is self-explanatory and users can visually distinguish between two samples; however, providing another HPC time series sample with hundreds of metrics similar to the one shown in Fig. 1 is most often not an adequate explanation. On the other hand, existing feature-based methods [18], [19] provide a set of features and expect the users to know the meaning of each feature, as well as normal and abnormal values for them, which is often not possible in many domains, including HPC.
+
+Fig. 1. A 45-second time window sample from a single node of a multi-node application execution on Voltrino, a Cray XC30m supercomputer with 56 nodes. Existing explainability techniques do not address the problem of the inherent complexity of HPC time series data. Sample-based techniques assume that users can interpret the difference between two samples and feature-based methods assume users understand the meaning of every feature (thus, they do not limit the number of features in explanations).
+
+<!-- image -->
+
+In this paper, we introduce a novel explainability method for time series data that provides counterfactual explanations for individual predictions. The counterfactual explanations consist of hypothetical samples that are as similar as possible to the sample that is explained, while having a different classification label, i.e., 'if these particular metrics were different in the given sample, the classification label would have been different.' The format of the counterfactual explanation is identical to the format of the training data, but only pinpointing the metrics with the replaced time series. The counterfactual explanations are generated by selecting a small number of time series from the training set and substituting them in the sample under investigation to obtain different classification results. In this way, end users can understand the expected behavior by examining a limited number of substituted metrics. These explanations can be then used to debug misclassifications, understand how the classifier makes decisions, provide adaptive dashboards that highlight important metrics from ongoing application runs, and extract knowledge on the nature of normal or anomalous behavior of a system.
+
+Our specific contributions are as follows:
+
+- Demonstration of existing general-purpose explainability methods and how they are inadequate to explain ML frameworks that work with multivariate time series data, particularly focusing on ML frameworks for HPC system analytics ( S VI-A),
+- design of a formal problem statement for multivariate time series explainability and a proof of NP -hardness of the problem ( S III, Appendix),
+- design of a heuristic algorithm for the time series explainability problem ( S IV),
+- demonstration of the application of the proposed explainability method to several ML frameworks that work with multivariate data sets using four different data sets ( S V, VI),
+- comparison of our method with state-of-the-art explainability methods using a set of novel and standard metrics. Our method generates comprehensible explanations for the different time series data sets we use (i.e., several HPC telemetry data sets and a motion classification data set) and performs better than baselines in terms of faithfulness and robustness ( S VI).
+
+## II. RELATED WORK
+
+Explainability has been the topic of much research in the last few years. We use the helpful classification of Arya et al. when discussing the existing literature [15]. We focus on explainable models and local sample- and feature-based explanations for black-box models.
+
+Explainable models learn a model that is inherently understandable by untrained operators. They include simple models like logistic regression and decision trees and newer models like CORELS, which learns minimal rule lists that are easy to understand [20]. Our experiences with using CORELS with HPC time series data in Sec. VII show that CORELS fails to learn a usable model, and decision trees using HPC data become too complex to be understood by human operators.
+
+Sample-based explanations provide samples that explain decisions by giving supportive or counter examples, or prototypes of certain classes. Koh and Liang use influence functions to find training set samples that are most impactful for a specific decision [16]. Contrastive explanations method (CEM) provides a synthetic sample with a different classification result that is as similar to the input sample as possible, while using autoencoders to ensure the generated sample is realistic [17]. Sample-based methods do not address the inherent complexity of multivariate time series data, since they focus on tabular data or images where the test sample and the explanation sample are easy to compare manually. Data with thousands of time series per sample is challenging for users to compare and contrast without additional computing.
+
+Feature-based explanations highlight certain features that are impactful during classification. Global feature-based explanations for some classifiers such as random forests and logistic regression use the learned weights of the classifiers [21]. Local feature-based explanations include LIME, which fits a linear model to classifier decisions for samples in the neighborhood of the sample to be explained [18]. SHAP derives additive Shapley values for each feature to represent the impact of that feature [19]. These feature-based models do not support using time series directly; however, many ML frameworks use feature transformations and feature-based explanations can explain these models' classifications in terms of the features they use. In this case, bridging the gap between feature-based explanations and the complete framework is left to the user. This task can become unfeasible for untrained users since complex features can be used such as kurtosis or B-splines [22].
+
+Time series specific explanations have also been foci of research. Schegel et al. evaluate different general purpose explainability methods on time series [23]. Gee et al. propose a method to learn prototypes from time series [24]. All of these methods operate on univariate time series and do not address the problem of explaining multivariate time series. Assaf and Roy propose a method to extract visual saliency maps for multivariate time series [1]; however, their method is specific to deep neural networks. Furthermore, saliency maps lose their simplicity when scaled to hundreds or thousands of time series.
+
+Counterfactual explanations have been used to explain ML models. Wachter et al. are among the first to use the term 'counterfactual' for ML explanations [25]. Counterfactual explanations have also been used in the domains of image [26], document [27] and univariate time series [28] classification. DiCE is an open source counterfactual explanation method for black-box classifiers [29]. To the best of our knowledge, there are no existing methods to generate counterfactual explanations for high-dimensional multivariate time series.
+
+## III. COUNTERFACTUAL TIME SERIES EXPLANATION PROBLEM
+
+Our goal is to provide counterfactual explanations for ML methods that operate on time series data. We define the counterfactual time series explanation problem as follows. Given a black-box ML framework that takes multivariate time series as input and returns class probabilities, the explanations show which time series need to be modified, and how, to change the classification result of a sample in the desired way, e.g., 'if MemFree::meminfo (a feature in an HPC performance analytics framework) was not decreasing over time, this run would not be classified as a memory leak (an anomaly affecting performance of an HPC system).' For a given sample and a class of interest, our counterfactual explanation finds a small number of substitutions to the sample from a distractor 1 chosen from the training set that belongs to the class of interest, such that the resulting sample is predicted as the class of interest. We assume a black box model for the classifier, thus having no access to the internal weights or gradients. We next define our problem formally.
+
+1 The distractor is a sample chosen from the training set that our methods 'distracts' the classifier with, resulting in a new classification result.
+
+## A. Problem Statement
+
+In this paper, we represent multivariate time series classification models using f ( x ) = y : R m × t → R k where the model f takes m time series of length t and returns the probability for k classes. We use the shorthand f c ( x ) as the probability for class c ∈ [1 , k ] . Our goal is to find the optimum counterfactual explanation for a given test sample x test and class of interest c . We define an optimum counterfactual explanation as a modified sample x ′ that is constructed using x test such that f c ( x ′ ) is maximized. The class of modifications that we consider to construct x ′ are substitutions of entire time series from a distractor sample x dist , chosen from the training set, to x test . Our second objective is to minimize the number of substitutions made to x test in order to obtain x ′ .
+
+The optimum counterfactual explanation can be constructed by finding x dist among the training set and A which minimizes
+
+$$L \left ( f , c , A , x ^ { \prime } \right ) = \left ( 1 - f _ { c } ( x ^ { \prime } ) \right ) ^ { 2 } + \lambda | | A | | _ { 1 } , \quad \left ( 1 \right )$$
+
+where
+
+$$x ^ { \prime } = ( I _ { m } - A ) x _ { t e s t } + A x _ { d i s t } ,$$
+
+λ is a tuning parameter, I m is the m × m identity matrix, and A is a binary diagonal matrix where A j,j = 1 if metric j of x test is going to be swapped with that of x dist , 0 otherwise.
+
+We prove in the Appendix that the problem of finding a counterfactual explanation, x dist and A , that maximize f c ( x ′ ) is NP -hard. Because of this, it is unlikely that a polynomialtime solution for our explainability problem exists; therefore, we focus on designing approximation algorithms and heuristics that generate acceptable explanations in a practical duration.
+
+## B. Rationale for Chosen Explanation
+
+Explainability techniques targeting multivariate time series frameworks need to consider several properties that generalpurpose explainability techniques do not consider. In most domains, such as HPC, time series data is more complex than traditional machine learning data sets by several aspects. A single sample is most often not explainable because of the volume of data contained, as shown in Fig. 1. Therefore, sample-based methods often fail to provide comprehensible explanations. Furthermore, each metric in the time series requires research to understand. For example, in an HPC telemetry system, performance counters with the same name can have different meanings based on the underlying CPU model. Furthermore, the values of metrics may not be meaningful without comparison points. In order to address these challenges, our explainability approach is simultaneously sampleand feature-based. We provide a counterfactual sample from the training set, and indicate which of the many time series in the sample need to be modified to have a different classification result. This results in an explanation that is easy to understand by human operators, since it requires interpreting only a minimal number of metrics. To help users interpret metric values, we provide examples of the same metric for both the distractor and x test .
+
+Many existing explainability techniques rely on synthetic data generation either as part of their method or as the end result [17]-[19], [25]. These explanations assume that the synthetic modifications lead to meaningful and feasible time series. Generating synthetic time series data is challenging for a domain like HPC performance analytics because many of the time series collected through the system telemetry represent resource utilization values that have constraints; e.g., the rate of change of certain performance counters and the maximum/minimum values of these counters are bounded by physical constraints of the CPUs, servers, and other components in the HPC system.
+
+In our method, we choose x dist from the training set as part of the explanation, in contrast to providing synthetic samples, which guarantees that the time series in the explanation are feasible and realistic, because they were collected from the same system. Choosing a distractor x dist from the training set also enables administrators to inspect the logs and other information besides time series that belong to the sample.
+
+We keep the number of distractors to 1, instead of substituting individual time series from various distractors, in order to guarantee a possible solution. As long as arg max j ∈ [1 ,k ] f j ( x dist ) = c , a solution with || A || 1 ≤ m exists. Furthermore, in cases where administrators need to inspect logs or other related data, keeping the distractor count small helps improve the usability of our method.
+
+## IV. OUR METHOD: COUNTERFACTUAL EXPLANATIONS
+
+What are some algorithms that can be used to obtain counterfactual explanations? We present a greedy search algorithm that generates counterfactual explanations for a blackbox classifier and a faster optimization of this algorithm.
+
+As we described in Sec. III, our goal is to find counterfactual explanations for a given test sample x test . Recall that a counterfactual explanation is a minimal modification to x test such that the probability of being part of the class of interest is maximized. Our method aims to find the minimal number of time series substitutions from the chosen distractor x dist instance that will flip the prediction.
+
+We relax the loss function L in Eqn. (1), using
+
+$$L \left ( f , c , A , x ^ { \prime } \right ) = \left ( \left ( \tau - f _ { c } ( x ^ { \prime } ) \right ) ^ { + } \right ) ^ { 2 } + \lambda ( | | A | | _ { 1 } - \delta ) ^ { + } , \quad ( 3 )$$
+
+where x ′ is defined in Eqn. (2), τ is the target probability for the classifier, δ is the desired number of features in an explanation and x + = max(0 , x ) , which is the rectified linear unit (ReLU). ReLU is used to avoid penalizing explanations shorter than δ . Running optimization algorithms until f c ( x ′ ) becomes 1 is usually not feasible and the resulting explanations do not significantly change; thus, we empirically set τ = 0 . 95 . We set δ = 3 , as it is shown to be a suitable number of features in an explanation [30].
+
+Our explainability method operates by choosing multiple distractor candidates and, then, finding the best A for each distractor. Among the different A matrices, we choose the matrix with the smallest loss value. We present our method for choosing distractors, and two different algorithms for choosing matrix A for a given distractor.
+
+## A. Choosing Distractors
+
+After finding the best A for each x dist , we return the best overall solution as the explanation. As we seek to find the minimum number of substitutions, it is intuitive to start with distractors that are as similar to the test sample as possible. Hence, we use the n nearest neighbors of x test in the training set that are correctly classified as the class of interest for the distractor. Especially for data sets where samples of the same class can have different characteristics, e.g., runs of different HPC applications undergoing the same type of performance anomaly, choosing a distractor similar to x test would intuitively yield minimal and meaningful explanations.
+
+To quickly query for nearest neighbors, we keep all correctly classified training set instances in a different KD-Tree per class. The number of distractors to try out is given by the user as an input to our algorithm, depending on the running time that is acceptable for the user. If the number of training instances is large, users may choose to either randomly sample or use algorithms like k -means to reduce the number of training instances before constructing the KD-tree. The distance measure we use is Euclidean distance, and we use the KD-tree implementation in scikit-learn [31].
+
+## B. Sequential Greedy Approach
+
+The greedy algorithm for solving the hitting set problem is shown to have an approximation factor of log 2 | U | , where U is the union of all the sets [32]. Thus, one algorithm we use to generate explanations is the Sequential Greedy Approach , shown in Algorithm 1. We replace each feature in x test by the corresponding feature from x dist . In each iteration, we choose the feature that leads to the highest increase in the prediction probability. After we replace a feature in x test , we continue the greedy search with the remaining feature set until the prediction probability exceeds τ , which is the predefined threshold for the probability values.
+
+## Algorithm 1 Sequential Greedy Search
+
+Require: Instance to be explained x test , class of interest c , model f , distractor x dist , stopping condition τ Require: f c ( x dist ) ≥ τ Ensure: f c ( x ′ ) ≥ τ 1: AF ← 0 m × m // AF is final A 2: loop 3: x ′ ← ( I m - AF ) x test + AFx dist 4: p ← f c ( x ′ ) 5: if p ≥ τ then return AF end if 6: for i ∈ [0 , m ] do 7: A ← AF 8: A i,i = 1 9: x ′ ← ( I m - A ) x test + Ax dist 10: improvement ← f c ( x ′ ) - p 11: end for 12: Set AF i,i = 1 for i that gives best improvement 13: end loop
+
+## C. Random-Restart Hill Climbing
+
+Although the greedy method is able to find a minimal set of explanations, searching for the best explanation by substituting the metrics one by one can become slow for data sets with many metrics. For a faster algorithm, we apply derivative-free optimization algorithms to minimize the loss L (in Eqn. (3)).
+
+For optimizing running time, we use a hill-climbing optimization method, which attempts to iteratively improve the current state by choosing the best successor state under the evaluation function. This method does not construct a search tree to search for available solutions and instead it only looks at the current state and possible states in the near future [33]. It is easy for hill-climbing to settle in local minima, and one easy modification is random restarting , which leads to a so-called Random Restart Hill-Climbing , shown in Algorithm 2.
+
+This algorithm starts with a random initialization point for A , and evaluates L for random neighbors of A until it finds a better neighbor. If a better neighbor is found, the search continues from the new A . In our implementation, we use the Python package mlrose [34].
+
+In some cases, hill climbing does not find a viable set A that increases the target probability. We check for this possible scenario by pruning the output, i.e., removing metrics that do not impact target probability. Then, if no metrics are left, we use greedy search ( S IV-B) to find a viable solution.
+
+## D. How to Measure Good Explanations
+
+The goal of a local explanation is to provide more information to human operators to let them understand a particular decision made by an ML model, learn more about the model, and hypothesize about the future decisions the model may make. However, in analogy to the Japanese movie Rashomon, where characters provide vastly different tellings of the same incident, the same classification can have many possible
+
+## Algorithm 2 Random Restart Hill Climbing
+
+Require: Instance to be explained x test , class of interest c , model f , distractor x dist , loss function L ( f, c, A, x ′ ) , max attempts, max iters
+
+```
+1: for i ∈ [0 , num restarts ] do 2: Randomly initialize A ; attempts ← 0 ; iters ← 0 3: x ′ ← ( I m -A ) x test + Ax dist 4: l ← L ( f, c, A, x ′ ) 5: while attempts ≤ max attempts and iters ≤ max iters do 6: iters ++ 7: A tmp ← RandomNeighbor( A ) 8: x ′ ← ( I m -A tmp ) x test + A tmp x dist 9: if L ( f, c, A tmp , x ′ ) ≤ l then 10: attempts ← 0; A ← A tmp ; l ← L ( f, c, A, x ′ ) 11: else 12: attempts ++ 13: end if 14: end while 15: end for
+```
+
+explanations [35]. Thus, it is necessary to choose the best one among possible explanations.
+
+There is no consensus on metrics for comparing explainability methods in academia [36], [37]. In this work, we aim to provide several tenets of good explanations with our explainability method.
+
+Faithfulness to the original model: An explanation is faithful to the classifier if it reflects the actual reasoning process of the model. It is a first-order requirement of any explainability method to accurately reflect the decision process of the classifier and not mislead users [18]. However, most of the time it is challenging to understand the actual reasoning of complicated ML models. To test the faithfulness of our method, we explain a simple model with a known reasoning process and report the precision and recall of our explanations.
+
+Comprehensibility by human operators: Understanding an explanation should not require specialized knowledge about ML. According to a survey by Miller [30], papers from philosophy, cognitive psychology/science and social psychology should be studied by explainable artificial intelligence researchers. In the same survey, it is stated that humans prefer only 1 or 2 causes instead of an explanation that covers the actual and full list of causes. This is especially important for multivariate data sets such as HPC time series data, since each time series represents a different metric and each metric typically requires research to understand the meaning. Thus, to evaluate comprehensibility, we compare the number of time series that are returned in explanations by different explainability methods.
+
+Robustness to changes in the sample: A good explanation would not only explain the given sample, but provide similar explanations for similar samples [38], [39], painting a clearer picture in the minds of human operators. Of course, if similar samples cause drastic changes in model behavior, the explanations should also reflect this. A measure that have been used to measure robustness is the local Lipschitz constant L [38], which is defined as follows for a given x test instance:
+
+$$\mathcal { L } ( x _ { t e s t } ) = \max _ { x _ { j } \in \mathcal { N } _ { k } ( x _ { t e s t } ) } \frac { \| \xi ( x _ { t e s t } ) - \xi ( x _ { j } ) \| _ { 2 } } { \| x _ { t e s t } - x _ { j } \| _ { 2 } } ,$$
+
+where ξ ( x ) is the explanation for instance x , and N k ( x ) is the k -nearest neighbors of x test in the training set. We use nearest neighbors, instead of randomly generated samples, because it is challenging to generate realistic random time series. The maximum constant is chosen because the explanations should be robust against the worst-case. Intuitively, the Lipschitz constant measures the ratio of change of explanations to changes in the samples. We change explanations to 1 × m binary matrices (1 if metric is in explanation, 0 otherwise) to be able to subtract them.
+
+Generalizability of explanations: Each explanation should be generalizable to similar samples; otherwise, human operators using the explanations would not be able to gain an intuitive understanding of the model. Furthermore, for misclassifications, it is more useful for the explanations to uncover classes of misclassifications instead of a single mishap.
+
+We measure generalizability by applying an explanation's substitutions to other samples. If the same metric substitutions from the same distractor can flip the prediction of other samples, that means the explanation is generalizable.
+
+## V. EXPERIMENTAL SETUP
+
+This section describes the time series data sets and ML frameworks we use to evaluate our explainability method as well as the baseline explainability methods we implement for comparisons.
+
+## A. Data Sets
+
+We use four high-dimensional multivariate time series data sets: three HPC system telemetry data sets and a motion classification data set.
+
+For all data sets, we normalize the data such that each time series is between 0 and 1 across the training set. We use the same normalization parameters for the test set. We use normalized data to train classifiers, and provide normalized data to the explainability methods. However, the real values of metrics are meaningful to users (e.g., CPU utilization %), so we provide un-normalized data in the explanations given to users and our figures in the paper.
+
+HPAS data set: We use the HPC performance anomaly suite (HPAS) [5] to generate synthetic performance anomalies on HPC applications and collect time series data using LDMS [3]. We run our experiments on Voltrino at Sandia National Laboratories, a 24-node Cray XC30m supercomputer with 2 Intel Xeon E5-2698 v3 processors and 125 GB of memory per node [40]. We run Cloverleaf, CoMD, miniAMR, miniGhost, and miniMD from the Mantevo Benchmark Suite [41], proxy applications Kripke [42] and SW4lite [43], and MILC which represents part of the codes written by the MIMD Lattice Computation collaboration [44]. We run each application on 4 nodes, with and without anomalies. We use the cpuoccupy, memorybandwidth, cachecopy, memleak, memeater and netoccupy anomalies from HPAS.
+
+Each sample has 839 time series, from the /proc fi lesystem and Cray network counters. We take a total of 617 samples for our data set, and we divide this into 350 training samples and 267 test samples. One sample corresponds to the data collected from a single node of an application run. After this division, we extract 45 second time windows with 30 second overlaps from each sample.
+
+Cori data set: We collect this data set from Cori [45] to test our explainability method with data from large-scale systems and real applications. The goal of this data set is to use monitoring data to classify applications. Cori is a Cray XC40 supercomputer with 12,076 nodes. We run our applications in compute nodes with 2 16-core Intel Xeon E5-2698 v3 processors and 128 GB of memory. We run 6 applications on 64 nodes for 15-30 minutes. The applications are 3 real applications, LAMMPS [46], a classical molecular dynamics code with a focus on materials modeling, QMCPACK [47], an open-source continuum quantum Monte Carlo simulation code, HACC [48], an open-source code uses N-body techniques to simulate the evolution of the universe; 2 proxy applications, NEKBone and miniAMR from ECP Proxy Apps Suite [49]; and HPCG [50] benchmark which is used to rank the TOP500 computing systems.
+
+We collect a total of 9216 samples and we divide this into 7373 training and 1843 test samples. Each sample represents the data collected from a single node of an application run and has 819 time series collected using LDMS from the /proc filesystem and PAPI [51] counters.
+
+Taxonomist data set: This data set, released by Ates et al. [52], was collected from Voltrino, a Cray XC30m supercomputer, using LDMS. The data set contains runs of 11 different applications with various input sets and configurations, and the goal is again to classify the different applications.
+
+We use all of the data, which has 4728 samples. We divide it into 3776 training samples and 952 test samples. Each sample has 563 time series. Each sample represents the data collected from a single node of an application run.
+
+NATOPS data set: This data set is from the motion classification domain, released by Ghouaiel et al. [53] 2 . We chose this data set because of the relatively high number of time series per sample, compared to other time series data sets commonly used in the ML domain.
+
+The NATOPS data contains a total of 24 time series representing the X, Y and Z coordinates of the left and right hand, wrist, thumb and elbows, as captured by a Kinect 2 sensor. The human whose motions are recorded repeats a set of 6 Naval Air Training and Operating Procedures Standardization (NATOPS) motions meaning 'I have command,' 'All clear,' 'Not clear,' 'Spread wings,' 'Fold wings,' and 'Lock wings.' We keep the original training and test set of 180 samples each, with 50 second time windows.
+
+## B. Machine Learning Techniques
+
+We evaluate our explainability techniques by explaining 3 different ML pipelines that represent different anlaytics frameworks proposed by researchers.
+
+Feature Extraction + Random Forest: This technique represents a commonly used pipeline to classify time series data for failure prediction, diagnose performance variability, or classify applications [8], [9], [11], [14], [55]. For example, Tuncer et al. [8] diagnose performance anomalies at runtime by collecting time series data with different types of anomalies, and train a random forest to classify the type, or absence, of anomalies using statistical features extracted from time series.
+
+This method is not explainable because the random forests produced can be very complex. For example, the random forest we trained with the HPAS data set had 100 trees and over 50k nodes in total. Operators that try to understand a prediction without explainability methods would have to inspect the decision path through each decision tree to understand the mechanics of the decision, and understanding high-level characteristics such as 'how can this misclassification be fixed?' is near-impossible without explainability techniques.
+
+2 We use the version found in UCR time series classification repository [54]
+
+We extract 11 statistical features including the minimum, maximum, mean, standard deviation, skew, kurtosis, 5 th , 25 th , 50 th , 75 th and 95 th percentiles from each of the time series. Then, we train scikit-learn's random forest classifier based on these features [31].
+
+Autoencoder: Borghesi et al. have proposed an autoencoder architecture for anomaly detection using HPC time series data [10], [56]. The autoencoder is trained using only 'healthy' telemetry data, and it learns a compressed representation of this data. At runtime, data is reconstructed using the autoencoder and the mean error is measured. A high error means the new data deviates from the learned 'healthy' data; thus, it can be classified as anomalous. We implement the architecture described by Borghesi et al. and use it for our evaluation. In order to convert the mean error, which is a positive real number, to class probabilities between 1 and 0, we subtract the chosen threshold from the error and use the sigmoid function. This autoencoder model is a deep neural network, and deep neural networks are known to be one of the least explainable ML methods [57].
+
+Feature Extraction + Logistic Regression: The logistic regression classifier is inherently interpretable, so we use this pipeline for sanity checks of our explanations in experiments where we need a ground truth for explanations. For input feature vector x the logistic regression model we use calculates the output y using the formula:
+
+$$y = S ( w \cdot x ) ,$$
+
+where S ( z ) = 1 1+ e -z is the sigmoid function. Thus, the classifier only learns the weight vector w during training 3 . Furthermore, it is possible to deduce that any feature x i for which the corresponding weight w i is zero has no effect on the classification. Similarly, features can be sorted based on their impact on the classifier decision using | w i | . We use the same features as the random forest pipeline.
+
+## C. Baseline Methods
+
+We compare our explainability method with popular explainability methods, LIME [18], SHAP [19], as well as Random, which picks a random subset of the metrics as the explanation.
+
+1) LIME: LIME stands for local interpretable modelagnostic explanations [18]. LIME operates by fitting an interpretable linear model to the classifiers predictions of random data samples. The samples are weighted based on their distance to the test sample, which makes the explanations local. When generating samples, LIME generates samples within the range observed in the training set. In our evaluation, we use the open-source LIME implementation [58].
+
+LIME does not directly apply to time series as it operates by sampling the classifier using randomly generated data. Randomly generating complex multivariate time series data such as HPC telemetry data while still obeying the possible constraints in the data as well as maintaining representative behavior over time is a challenging open problem. In our evaluation, we apply LIME to frameworks that perform feature extraction, and LIME interprets the classifier that takes features as input.
+
+3 Other formulations of logistic regression include a b term such that y = S ( w · x + b ) , but we omit this for better interpretability.
+
+Fig. 2. The explanation of our method for correctly classified time window with the 'memleak' label. Our method provides two metrics as an explanation to change classification label from 'memleak' to 'healthy.' The metrics are shown in the y -axes and the metric names are above the plots. The first metric indicates that the classifier is looking for repeated memory allocations in runs with memory leak. The second metric indicates that the classifier is looking for repeated successful huge page allocations in runs with memory leak. The second metric may indicate that the data set we use is biased and does not include runs with high memory fragmentation.
+
+<!-- image -->
+
+Another challenge with LIME is that it requires the number of features in the explanation as a user input. Generally, it is hard for users to know how many features in an explanation are adequate. In our experiments, we use the number of metrics in our method's explanation as LIME's input.
+
+2) SHAP: The Shapley additive explanations (SHAP), presented by Lundberg and Lee [19], propose 3 desirable characteristics of explanations: local accuracy, missingness, and consistency. They define additive SHAP values, i.e., the importance values can be summed to arrive at the classification. SHAP operates by calculating feature importance values by using model parameters; however, since we do not have access to model parameters, we use KernelSHAP which estimates SHAP values without using model weights.
+
+We use the open-source KernelSHAP implementation [59], which we refer to as SHAP in the remainder of the paper. SHAP also suffers from one of the limitations of LIME; it is not directly applicable to time series, so we apply SHAP to frameworks that perform feature extraction. SHAP does not require the number of features in the explanation as an input.
+
+## VI. EVALUATION
+
+In this section, we evaluate our explainability method and compare it with other explainability methods based on qualitative comparisons and the metrics described in Sec. IV-D. We aim to answer several questions: (1) Are the explanations minimal? (2) Are the explanations faithful to the original classifier? (3) Are the explanations robust, or do we get different explanations based on small perturbations of the input? (4) Are the explanations generalizable to different samples? (5) Are the explanations useful in understanding the classifier?
+
+Fig. 3. The explanation of SHAP for a correctly classified time window with the 'memleak' label. SHAP provides 187 features (only 10 shown), where non-zero SHAP values are expected to explain the characteristics of the 'memleak' anomaly. It is very challenging to understand how many features are sufficient for an explanation, whether these features are relevant to 'memleak' or other anomalies, or how to interpret the feature values in the explanation.
+
+<!-- image -->
+
+## A. Qualitative Evaluation
+
+Our first-order evaluation is to use our explanation technique and the baselines to explain a realistic classifier. Similar to the framework proposed by Tuncer et al. [8], [9], we use the random forest classifier with feature extraction and the HPAS dataset, which includes different types of performance anomalies. We choose 'memleak' anomaly from HPAS data set, which makes increasing memory allocations without freeing to mimic memory leakage. Our goal is to better understand the classifier's understanding of the 'memleak' anomaly. After training the random forest pipeline, we choose a correctly classified time window with the memleak label as x test , and the 'healthy' class as the class of interest. We run our method, LIME, and SHAP with the same x test and compare the results.
+
+Our explanation contains two time series, and is shown in Fig. 2. The first metric to be substituted is pgalloc\_normal from /proc/vmstat , which is a counter that represents the number of page allocations. Because of our preprocessing, the plot shows the number of page allocations per second. It is immediately clear that the nodes with memory leaks perform many memory allocations and act in a periodic manner.
+
+The second metric in Fig. 2 is htlb\_buddy\_alloc\_suc-cesses , which also belongs to the same time window. This metric shows the number of successful huge page allocations. Memory leaks do not need to cause huge page allocations, since memory leaks in a system with fragmented memory might cause failed huge page allocations. This indicates that our training set is biased towards systems with less fragmented memory, most probably because our benchmarks are all shortlived.
+
+The SHAP explanation, in Fig. 3, contains 187 features with very similar SHAP values. Even though we can sort the features by importance, it is difficult to decide how many features are sufficient for a good explanation. Also, SHAP provides a single explanation for one sample, regardless of which class we are interested in, so the most important features are features that are used to differentiate this run from other CPU-based anomalies, which may not be relevant if our goal is to understand memory leak characteristics. Finally, it is left to the user to interpret the values of different features, e.g., the 75 th percentile of pgalloc\_normal was 5,127; however, this does not inform the user of normal values for this metric, or whether it was too high or too low.
+
+Fig. 4. The explanation of LIME for correctly classified time window with the 'memleak' label. LIME provides features that positively (green) and negatively (red) affect the decision. Although the first two features are derived from the metrics in our explanation, it is not straightforward to interpret the values of the features, especially the negative ones. The number of features is an input from the user.
+
+<!-- image -->
+
+The LIME explanation is shown in Fig. 4. Green values indicate that the features were used in favor of memory leak, and red values were opposing memory leak. We keep the number of features in the explanation at the default value of 10. The first two features are derived from the metrics in our explanation, and a threshold is given for the features, e.g., the 95 th percentile of page allocations is over 83, which causes this run to be likely to be a memory leak. Interpreting features such as percentiles, standard deviation and thresholds on their values is left to the user. Furthermore, the effect of the red features is unclear, as it is not stated which class the sample would be if it is not labeled as leak.
+
+It is important to note that both LIME and SHAP use randomly generated data for the explanations. In doing so, these methods assume that all of the features are independent variables; however, many features are in fact dependent, e.g., features generated from the same metric. Without knowledge of this, these random data generation methods may test the classifier with synthetic runs that are impossible to get in practice, e.g., synthetic runs where the 75 th percentile of the one metric is lower than the 50 th percentile of the same metric. Our method does not generate synthetic data, and uses the whole time series instead of just the features, so it is not affected by this.
+
+## B. Comprehensibility
+
+We measure comprehensibility using the number of metrics in the explanation. Our method returns 2 time series for the qualitative evaluation example in Fig. 2, and in most cases the number of time series in our explanations is below 3; however, for some challenging cases it can reach up to 10. SHAP returns 187 features in Fig. 3, and SHAP explanations typically have hundreds of features for HPC time series data. LIME requires the number of features as an input; however, does not provide any guidelines on how to decide this value.
+
+Fig. 5. Precision and recall of the explanations for a classifier with known feature importances. Our proposed explainability method (OptimizedSearch and Greedy), and SHAP have perfect precision. LIME has lower precision for Cori and Taxonomist data sets, which indicates that although some features have no impact on the classifier decision, they are included in the LIME explanations. The low recall indicates that not every feature is used in every local decision.
+
+<!-- image -->
+
+## C. Faithfulness Experiments
+
+We test whether the explainability methods actually reflect the decision process of the models, i.e., whether they are faithful to the model. For every data set, we train a logistic regression model with L 1 regularization. We change the L 1 regularization parameter until less than 10 features are used by the classifier. The resulting classifier uses 5 metrics for HPAS and Cori data, 9 for NATOPS and 8 for Taxonomist. Because we know the used features, we can rank the explanations based on precision and recall.
+
+- Recall: How many of the metrics used by the classifier are in the explanation?
+- Precision: How many of the metrics in the explanation are used by the classifier?
+
+We acquire explanations for each sample in the test set, and show the average precision and recall in Fig. 5. To ensure that the other explainability methods are not at a disadvantage, we first run the greedy search method and get the number of metrics in the explanation. Then, we get the same number of metrics from each method. In this way, as an example, LIME is not adversely affected by providing 10 features in the explanation even though only 7 are used by the classifier.
+
+The results show that both our method and SHAP have perfect precision. Recall values of the explanations are lower than 1 because not every feature in the classifier is effective for every decision. Notably, LIME has low precision for the Cori and Taxonomist data sets, which indicates that there may be features in LIME explanations that are actually not used by the classifier at all. This outcome could be due to the randomness in the data sampling stage of LIME.
+
+## D. Robustness Experiments
+
+For robustness, we calculate the Lipschitz constant (4) for each test sample and show average results in Fig. 6. According to the results, our method is the most robust explainability technique. One reason is that our method does not involve random data generation for explanations, which reduces the randomness in the explanations. It is important for explanations to be robust, which ensures that users can trust the ML models and explanations. For the NATOPS data set, the greedy method has better robustness compared to optimized search, because the greedy method inspects every metric before generating an explanation, thus finds the best metric, while the optimized search can stop after finding a suitable explanation even if there can be better solutions.
+
+Fig. 6. Robustness of explanations to changes in the test sample. Our proposed explainability method (OptimizedSearch and Greedy) is the most robust to small changes in the input, resulting in more predictable explanations and better user experience. Lipschitz constant is normalized to be comparable between different data sets, and a lower value indicates better robustness.
+
+<!-- image -->
+
+## E. Generalizability Experiments
+
+We test whether our explanations for one x test are generalizable to other samples. We use the HPAS data set and random forest classifier with feature extraction. There are 3 classes that are confused with each other. For each misclassified test instance, we get an explanation and apply the same metric substitutions using the same distractor to other test samples with the same (true class, predicted class) pair.
+
+We report the percentage of misclassifications that the explanation applies to (i.e., successfully flips the prediction for) in Fig. 7. According to our results, on average, explanations for one mispredicted sample are applicable to over 40% of similarly mispredicted samples. This shows that users do not need to manually inspect the explanation for every misprediction, and instead they can obtain a general idea of the classifiers error characteristics from a few explanations, which is one of the goals of explainability.
+
+## F. Investigating Misclassifications
+
+As a demonstration, we debug a misclassified sample using our explainability method. This is a typical scenario that would be encountered if ML systems are deployed to production. We train the autoencoder-based anomaly detection framework [10],
+
+Fig. 7. The ratio of test samples that our explanations are applicable to, among samples with the same misclassification characteristics. For the cpuoccupy runs that are misclassified as cachecopy, every explanation is applicable to every other sample with the same misclassification.
+
+<!-- image -->
+
+Fig. 8. Our explanation for a 'network' anomaly misclassified as 'healthy.' The metrics are shown in the y -axes and the metric names are above the plots. The explanation indicates that the anomaly needs higher network traffic to be classified correctly. 4 of the 6 metrics in the explanation are omitted because they appear identical to the metrics shown.
+
+<!-- image -->
+
+[56] using healthy data from the HPAS data set. Among the runs with the network anomaly, the run shown in Fig. 8 is misclassified. We explain this misclassification using our explanation method: we choose the misclassified run as x test and the anomalous class as the class of interest (the autoencoder has two classes: anomalous and healthy). We cannot apply the LIME and SHAP baselines as the autoencoder directly takes time series as input.
+
+The explanation includes 6 network metrics from Table I. Metrics 6 and 2 are shown in Fig. 8. Field 3 describes if the metric counts the number of flits or packets. Blocked means a flit was available at the input but arbitration caused the selection of another input. Metrics 1 and 2 count traffic being forwarded by the network interface card (NIC) to the processor, 3 and 4 count the processor memory read and write traffic resulting from requests received over the network, metric 5 counts traffic injected by the NIC into the network, and metric 6 counts reads of processor memory initiated by the NIC's block transfer engine to fetch data included in the put requests it is generating [60].
+
+The explanation indicates that the intensity of the network anomaly in this run needs to be higher, i.e., more network traffic is needed, for this to be classified as a network anomaly. Furthermore, since 6 metrics all need to be modified for the prediction to flip, it can be seen that the autoencoder has learned the parallel behavior of these metrics. For example, if the number of packets is changed independent of the number of flits, the classifier does not change its prediction. It is highly unlikely that randomly generated samples would capture the correlated behavior of these two metrics.
+
+TABLE I NETWORK METRIC NAMES IN EXPLANATION. FULL NAMES ARE 'AR NIC (FIELD 1) EVENT CNTR (FIELD 2) (FIELD 3)'
+
+|   Metric | Field 1     | Field 2   | Field 3   |
+|----------|-------------|-----------|-----------|
+|        1 | RSPMON PARB | PI        | FLITS     |
+|        2 | RSPMON PARB | PI        | PKTS      |
+|        3 | RSPMON PARB | AMO       | FLITS     |
+|        4 | RSPMON PARB | AMO       | PKTS      |
+|        5 | NETMON ORB  | EQ        | FLITS     |
+|        6 | RSPMON PARB | BTE RD    | BLOCKED   |
+
+## VII. CONCLUSION AND FUTURE WORK
+
+This paper, for the first time, investigated explainability for ML frameworks that use multivariate time series data sets, with a focus on the HPC domain. Multivariate time series data is widely used in many scientific and engineering domains, and ML-based HPC analysis and management methods that show a lot of promise to improve HPC system performance, efficiency, and resilience. Being explainable is an important requirement for any ML framework that seeks widespread adoption.
+
+We defined the counterfactual time series explainability problem and presented a heuristic algorithm that can generate feasible explanations. We also demonstrated the use of our explanation method to explain various frameworks, and compared with other explainability methods. We identify the following open problems for future exploration.
+
+Minimizing probabilities Our problem statement maximizes the prediction probability for the target class. For binary classification, this is equivalent to minimizing the probability for the other class, but for multi-class classification, there can be differences between minimizing and maximizing. We found that in practice both false positives and true positives can be explained by maximizing one class' probability, but a similar explainability method could be designed to minimize class probabilities and get new explanations.
+
+Approximation algorithms We have presented a heuristic algorithm; however, we have not provided any bounds on the optimality of our algorithm. Finding approximation algorithms with provable bounds is an open problem, as such algorithms may yield better explanations in a shorter time.
+
+Explainable models During our experiments, we conducted a preliminary experiment using CORELS, which is an interpretable model that learns rule lists [20]. We trained CORELS using the HPAS data set to classify the time windows between the 5 anomalies and the healthy class. Regardless of our experimentation with different configuration options, the model in our experiments took over 24 hours to train and the resulting rule list classified every time window as healthy regardless of the input features. Challenges in this direction include designing inherently explainable models that can give good accuracy for multivariate time series data.
+
+Production systems The challenges faced when deploying ML frameworks on HPC systems can lead to important research questions, and it has been shown that user studies are critical for evaluating explainability methods [61]. We hope to work with administrators and deploy ML frameworks with our explainability method to production HPC systems and observe how administrators use the frameworks and explanations, and find the strengths and weaknesses of different approaches.
+
+## APPENDIX
+
+## PROOF FOR NP -HARDNESS OF THE COUNTERFACTUAL TIME SERIES EXPLAINABILITY PROBLEM
+
+In order to prove the NP -hardness of the counterfactual time series explainability problem, we first consider a simplified problem of explaining a binary classifier f by finding a minimum A such that f ( x ′ ) = 1 for a fixed x dist . The proof we use is similar to the proof by Karlsson et al. [28].
+
+Lemma 1. Given a random forest classifier f that takes m time series of length 1 as input, a test sample x test , and a distractor x dist , the problem of finding a minimum set of substitutions A such that f ( x ′ ) = 1 is NP -hard.
+
+Proof. We consider the hitting set problem as follows: Given a collection of sets Σ = { S 1 , S 2 , . . . , S n ⊆ U } , find the smallest subset H ⊆ U which hits every set in Σ . The hitting set problem is NP -hard [62]. We enumerate U such that each elements maps to a number between 0 and m , U = [0 , m ] .
+
+Assume there is an algorithm to solve our problem that runs in polynomial time. We construct a special case of our problem that can be used to solve the hitting set problem described above. Assume the time series are all of length 1 and can have values 0 or 1. Construct a random forest classifier R ( x ) = y : R m × 1 → R of n trees R = { T 1 , T 2 , . . . , T n } , m = | U | . Each tree T i then classifies the multivariate time series as class 1 if any time series of the corresponding subset S i ⊆ [0 , m ] is 1, and classifies as class 0 otherwise. R ( x ) thus returns the ratio of trees that classify as 1, or the ratio of sets that are covered. For x test , we use a multivariate time series of all 0s (which will be classified as class 0), and as the distractor x dist we use all 1s, classified as class 1.
+
+̸
+
+Our algorithm finds a minimum set of substitutions A such that R ( x ′ ) = 1 . We can transform A to the solution of the hitting set problem H by adding the j th element of U to H if A jj = 1 . Thus, H ⊆ U has minimum size and hits each subset S j , i.e., H ∩ S j = ∅ for all j ∈ [0 , n ] . Thus, we can use our algorithm to solve the hitting set problem. Since the hitting set problem in NP -hard, the existence of such a polynomial-time algorithm is unlikely.
+
+Theorem 1. Given classifier f , class of interest c , test sample x test , and the training set X for the classifier, the counterfactual time series explainability problem of finding x dist and A that maximize f c ( x ′ ) is NP -hard.
+
+Proof. Lemma 1 shows the NP -hardness for a special case of our problem with random forest classifiers, binary time series, binary classification and without the added problem of choosing a distractor x dist . Based on this, the general case with real-valued time series and more complicated classifiers is also NP -hard.
+
+## ACKNOWLEDGMENT
+
+This work has been partially funded by Sandia National Laboratories. Sandia National Labs is a multimission laboratory managed and operated by National Technology and Engineering Solutions of Sandia, LLC., a wholly owned subsidiary of Honeywell International, Inc., for the U.S. Department of Energy's National Nuclear Security Administration under Contract DE-NA0003525.
+
+## REFERENCES
+
+- [1] R. Assaf and A. Schumann, 'Explainable deep neural networks for multivariate time series predictions,' in Proceedings of the International Joint Conference on Artificial Intelligence, IJCAI , 7 2019, pp. 6488-6490.
+- [2] Z. Che, S. Purushotham, K. Cho, D. Sontag, and Y. Liu, 'Recurrent neural networks for multivariate time series with missing values,' Scientific Reports , vol. 8, no. 1, p. 6085, Apr 2018. [Online]. Available: https://doi.org/10.1038/s41598-018-24271-9
+- [3] A. Agelastos, B. Allan, J. Brandt, P. Cassella, J. Enos, J. Fullop, A. Gentile, S. Monk, N. Naksinehaboon, J. Ogden et al. , 'The lightweight distributed metric service: A scalable infrastructure for continuous monitoring of large scale computing systems and applications,' in Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis (SC) , 2014, pp. 154-165.
+- [4] A. Bartolini, A. Borghesi, A. Libri, F. Beneventi, D. Gregori, S. Tinti, C. Gianfreda, and P. Alto` e, 'The D.A.V .I.D.E. big-data-powered fine-grain power and performance monitoring support,' in International Conference on Computing Frontiers , ser. CF'18, 2018, p. 303-308.
+- [5] E. Ates, Y. Zhang, B. Aksar, J. Brandt, V. J. Leung, M. Egele, and A. K. Coskun, 'HPAS: An HPC performance anomaly suite for reproducing performance variations,' in Proceedings of the 48th International Conference on Parallel Processing , ser. ICPP 2019, no. 40, 2019.
+- [6] P. Bodik, M. Goldszmidt, A. Fox, D. B. Woodard, and H. Andersen, 'Fingerprinting the datacenter: Automated classification of performance crises,' in Proceedings of the 5th European Conference on Computer Systems , 2010, pp. 111-124.
+- [7] R. Izadpanah, N. Naksinehaboon, J. Brandt, A. Gentile, and D. Dechev, 'Integrating low-latency analysis into HPC system monitoring,' in Proceedings of the 47th International Conference on Parallel Processing , ser. ICPP 2018, 2018.
+- [8] O. Tuncer, E. Ates, Y. Zhang, A. Turk, J. Brandt, V. J. Leung, M. Egele, and A. K. Coskun, 'Diagnosing performance variations in HPC applications using machine learning,' in International Supercomputing Conference (ISC-HPC) , 2017, pp. 355-373.
+- [9] O. Tuncer, E. Ates, Y. Zhang, A. Turk, J. Brandt, V. J. Leung, M. Egele, and A. K. Coskun, 'Online diagnosis of performance variation in HPC systems using machine learning,' IEEE Transactions on Parallel and Distributed Systems , vol. 30, no. 4, pp. 883-896, April 2019.
+- [10] A. Borghesi, A. Bartolini, M. Lombardi, M. Milano, and L. Benini, 'A semisupervised autoencoder-based approach for anomaly detection in high performance computing systems,' Engineering Applications of Artificial Intelligence , vol. 85, p. 634-644, Oct 2019.
+- [11] J. Klinkenberg, C. Terboven, S. Lankes, and M. S. M¨ uller, 'Data miningbased analysis of HPC center operations,' in 2017 IEEE International Conference on Cluster Computing (CLUSTER) , 2017, pp. 766-773.
+- [12] C.-T. Yang, K.-C. Lai, and H.-Y. Tung, 'On construction of a wellbalanced allocation strategy for heterogeneous multi-cluster computing environments,' The Journal of Supercomputing , vol. 56, no. 3, pp. 270299, Jun 2011.
+- [13] Q. Xiong, E. Ates, M. C. Herbordt, and A. K. Coskun, 'Tangram: Colocating HPC applications with oversubscription,' in IEEE High Performance Extreme Computing Conference , 2018, pp. 1-7.
+- [14] E. Ates, O. Tuncer, A. Turk, V. J. Leung, J. Brandt, M. Egele, and A. K. Coskun, 'Taxonomist: Application detection through rich monitoring data,' in Euro-Par 2018: Parallel Processing , M. Aldinucci, L. Padovani, and M. Torquati, Eds. Cham: Springer International Publishing, 2018, pp. 92-105.
+- [15] V. Arya, R. K. E. Bellamy, P.-Y. Chen, A. Dhurandhar, M. Hind, S. C. Hoffman, S. Houde, Q. V. Liao, R. Luss, A. Mojsilovi´ c, S. Mourad, P. Pedemonte, R. Raghavendra, J. Richards, P. Sattigeri, K. Shanmugam, M. Singh, K. R. Varshney, D. Wei, and Y. Zhang, 'One explanation does not fit all: A toolkit and taxonomy of AI explainability techniques,' arXiv: 1909.03012 [cs.AI], 2019.
+- [16] P. W. Koh and P. Liang, 'Understanding black-box predictions via influence functions,' in Proceedings of the International Conference on Machine Learning , D. Precup and Y. W. Teh, Eds., vol. 70. PMLR, Aug 2017, pp. 1885-1894.
+
+[17]
+
+- A. Dhurandhar, P.-Y. Chen, R. Luss, C.-C. Tu, P. Ting, K. Shanmugam, and P. Das, 'Explanations based on the missing: Towards contrastive explanations with pertinent negatives,' in Advances in Neural Information
+
+Processing Systems 31 , S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett, Eds. Curran Associates, Inc., 2018, pp. 592-603.
+
+- [18] M. T. Ribeiro, S. Singh, and C. Guestrin, ''Why should I trust you?': Explaining the predictions of any classifier,' in Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining , ser. KDD '16, 2016, p. 1135-1144.
+- [19] S. M. Lundberg and S.-I. Lee, 'A unified approach to interpreting model predictions,' in Advances in Neural Information Processing Systems 30 , I. Guyon, U. V. Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, and R. Garnett, Eds. Curran Associates, Inc., 2017, pp. 4765-4774.
+- [20] E. Angelino, N. Larus-Stone, D. Alabi, M. Seltzer, and C. Rudin, 'Learning certifiably optimal rule lists,' in Proceedings of the 23rd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining , ser. KDD '17, 2017, p. 35-44.
+- [21] A. Palczewska, J. Palczewski, R. Marchese Robinson, and D. Neagu, 'Interpreting random forest classification models using a feature contribution method,' Advances in Intelligent Systems and Computing , p. 193-218, 2014.
+- [22] M. Endrei, C. Jin, M. N. Dinh, D. Abramson, H. Poxon, L. DeRose, and B. R. de Supinski, 'Energy efficiency modeling of parallel applications,' in Proceedings of the International Conference for High Performance Computing, Networking, Storage, and Analysis , ser. SC'18, 2018.
+- [23] U. Schlegel, H. Arnout, M. El-Assady, D. Oelke, and D. A. Keim, 'Towards a rigorous evaluation of XAI methods on time series,' in 2019 IEEE/CVF International Conference on Computer Vision Workshop (ICCVW) , 2019, pp. 4197-4201.
+- [24] A. H. Gee, D. Garcia-Olano, J. Ghosh, and D. Paydarfar, 'Explaining deep classification of time-series data with learned prototypes,' arXiv:1904.08935 [cs.LG], 2019.
+- [25] S. Wachter, B. Mittelstadt, and C. Russell, 'Counterfactual explanations without opening the black box: Automated decisions and the GDPR,' Harv. JL &amp; Tech. , vol. 31, p. 841, 2017.
+- [26] Y. Goyal, Z. Wu, J. Ernst, D. Batra, D. Parikh, and S. Lee, 'Counterfactual visual explanations,' in Proceedings of the International Conference on Machine Learning , K. Chaudhuri and R. Salakhutdinov, Eds., vol. 97. PMLR, Jun 2019, pp. 2376-2384.
+- [27] D. Martens and F. Provost, 'Explaining data-driven document classifications,' MIS Q. , vol. 38, no. 1, p. 73-100, Mar. 2014.
+- [28] I. Karlsson, J. Rebane, P. Papapetrou, and A. Gionis, 'Explainable time series tweaking via irreversible and reversible temporal transformations,' in IEEE International Conference on Data Mining (ICDM) , 2018, pp. 207-216.
+- [29] R. K. Mothilal, A. Sharma, and C. Tan, 'Explaining machine learning classifiers through diverse counterfactual explanations,' in Proceedings of the Conference on Fairness, Accountability, and Transparency , ser. FAT*'20, 2020, p. 607-617.
+- [30] T. Miller, 'Explanation in artificial intelligence: Insights from the social sciences,' Artificial Intelligence , vol. 267, p. 1-38, Feb 2019.
+- [31] F. Pedregosa, G. Varoquaux, A. Gramfort, V. Michel, B. Thirion, O. Grisel, M. Blondel, P. Prettenhofer, R. Weiss, V. Dubourg, J. Vanderplas, A. Passos, D. Cournapeau, M. Brucher, M. Perrot, and E. Duchesnay, 'Scikit-learn: Machine learning in Python,' Journal of Machine Learning Research , vol. 12, pp. 2825-2830, Oct 2011.
+- [32] K. Chandrasekaran, R. Karp, E. Moreno-Centeno, and S. Vempala, 'Algorithms for implicit hitting set problems,' in Proceedings of the Annual ACM-SIAM Symposium on Discrete Algorithms , ser. SODA'11, 2011, p. 614-629.
+- [33] S. Russell and P. Norvig, Artificial Intelligence: A Modern Approach , 3rd ed. USA: Prentice Hall Press, 2009.
+- [34] G. Hayes, 'mlrose: Machine Learning, Randomized Optimization and SEarch package for Python,' https://github.com/gkhayes/mlrose, 2019, accessed: 18 April 2020.
+- [35] L. Breiman, 'Statistical modeling: The two cultures,' Statistical Science , vol. 16, no. 3, p. 199-215, 2001.
+- [36] Z. C. Lipton, 'The mythos of model interpretability,' Queue , vol. 16, no. 3, p. 31-57, Jun. 2018.
+- [37] P. Schmidt and F. Biessmann, 'Quantifying interpretability and trust in machine learning systems,' arXiv:1901.08558 [cs.LG], Jan 2019.
+- [38] D. Alvarez-Melis and T. S. Jaakkola, 'On the robustness of interpretability methods,' arXiv:1806.08049 [cs.LG], 2018.
+- [39] D. Alvarez Melis and T. Jaakkola, 'Towards robust interpretability with self-explaining neural networks,' in Advances in Neural Information Pro-
+23. cessing Systems 31 , S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett, Eds. Curran Associates, Inc., 2018, pp. 7775-7784.
+- [40] National Technology and Engineering Solutions of Sandia, LLC., 'Advanced systems technology test beds,' https://www.sandia.gov/asc/ computational systems/HAAPS.html, 2020, accessed: April 21, 2020.
+- [41] M. A. Heroux, D. W. Doerfler, P. S. Crozier, J. M. Willenbring, H. C. Edwards, A. Williams, M. Rajan, E. R. Keiter, H. K. Thornquist, and R. W. Numrich, 'Improving performance via mini-applications,' Sandia National Laboratories, Tech. Rep. SAND2009-5574, 2009.
+- [42] A. Kunen, T. Bailey, and P. Brown, 'Kripke-a massively parallel transport mini-app,' Lawrence Livermore National Laboratory, Tech. Rep., 2015.
+- [43] B. Sjogreen, 'SW4 final report for iCOE,' Lawrence Livermore National Laboratory (LLNL), Livermore, CA, Tech. Rep., 2018.
+- [44] The MIMD Lattice Computation (MILC) Collaboration, 'MILC benchmark application,' http://www.physics.utah.edu/ ∼ detar/milc/, 2016.
+- [45] National Energy Research Scientific Computing Center, 'Cori,' https: //docs.nersc.gov/systems/cori/, 2020, accessed: June 5, 2020.
+- [46] S. Plimpton, 'Fast parallel algorithms for short-range molecular dynamics,' Journal of Computational Physics , vol. 117, no. 1, p. 1-19, 1995.
+- [47] J. Kim, A. Baczewski, T. D. Beaudet, A. Benali, M. C. Bennett, M. A. Berrill, N. S. Blunt, E. J. L. Borda, M. Casula, D. M. Ceperley, and et al., 'Qmcpack: An open source ab initio quantum monte carlo package for the electronic structure of atoms, molecules, and solids,' Journal of Physics: Condensed Matter , vol. 30, no. 19, p. 195901, May 2018, arXiv: 1802.06922.
+- [48] S. Habib, V. Morozov, N. Frontiere, H. Finkel, A. Pope, and K. Heitmann, 'Hacc: Extreme scaling and performance across diverse architectures,' in Proceedings of the International Conference on High Performance Computing, Networking, Storage and Analysis , 2013, pp. 1-10.
+- [49] 'ECP proxy applications.' [Online]. Available: https://proxyapps. exascaleproject.org/
+- [50] J. Dongarra, M. A. Heroux, and P. Luszczek, 'A new metric for ranking high-performance computing systems,' National Science Review , vol. 3, no. 1, p. 30-35, Mar 2016.
+- [51] D. Terpstra, H. Jagode, H. You, and J. Dongarra, 'Collecting performance data with papi-c,' in Tools for High Performance Computing 2009 , M. S. M¨ uller, M. M. Resch, A. Schulz, and W. E. Nagel, Eds., 2010, p. 157-173.
+- [52] E. Ates, O. Tuncer, A. Turk, V. J. Leung, J. Brandt, M. Egele, and A. K. Coskun, 'Artifact for Taxonomist: Application Detection through Rich Monitoring Data,' https://doi.org/10.6084/m9.figshare.6384248.v1, Aug 2018.
+- [53] N. Ghouaiel, P.-F. Marteau, and M. Dupont, 'Continuous pattern detection and recognition in stream - a benchmark for online gesture recognition,' International Journal of Applied Pattern Recognition , vol. 4, no. 2, 2017.
+- [54] A. Bagnall, J. Lines, W. Vickers, and E. Keogh, 'The UEA &amp; UCR time series classification repository,' www.timeseriesclassification.com, 2020.
+- [55] B. Nie, J. Xue, S. Gupta, T. Patel, C. Engelmann, E. Smirni, and D. Tiwari, 'Machine learning models for GPU error prediction in a large scale HPC system,' in IEEE/IFIP International Conference on Dependable Systems and Networks (DSN) , 2018, pp. 95-106.
+- [56] A. Borghesi, A. Bartolini, M. Lombardi, M. Milano, and L. Benini, 'Anomaly detection using autoencoders in high performance computing systems,' Proceedings of the AAAI Conference on Artificial Intelligence , vol. 33, p. 9428-9433, Jul 2019.
+- [57] D. Gunning, 'Explainable artificial intelligence (xai),' DARPA, Tech. Rep., 2017. [Online]. Available: https://www.darpa.mil/attachments/ XAIProgramUpdate.pdf
+- [58] 'Lime: Explaining the predictions of any machine learning classifier,' https://github.com/marcotcr/lime, 2020, accessed: 21 April 2020.
+- [59] 'A game theoretic approach to explain the output of any machine learning model,' https://github.com/slundberg/shap, 2020, accessed: 21 April 2020.
+- [60] [Cray, 'Aries hardware counters (s-0045),' Cray, Tech. Rep., 2018. [Online]. Available: https://pubs.cray.com/bundle/Aries Hardware Counters S-0045-40/page/About Aries Hardware Counter S-0045.html](https://pubs.cray.com/bundle/Aries_Hardware_Counters_S-0045-40/page/About_Aries_Hardware_Counter_S-0045.html)
+- [61] F. Poursabzi-Sangdeh, D. G. Goldstein, J. M. Hofman, J. W. Vaughan, and H. Wallach, 'Manipulating and measuring model interpretability,' arXiv:1802.07810 [cs.AI], 2018.
+- [62] R. M. Karp, Reducibility among Combinatorial Problems . Boston, MA: Springer US, 1972, pp. 85-103.

@@ -1,0 +1,646 @@
+## Long Range Switching Time Series Prediction via State Space Model
+
+1 st Jiaming Zhang 1
+
+Department of Computing Imperial College London
+
+London SW7 2AZ, United kingdom School of Mathematics &amp; Statistics University of Glasgow
+
+Glasgow G12 8QQ, United Kingdom jiaming.zhang@glasgow.ac.uk
+
+2 nd Yang Ding 1 Business School
+
+University of Edinburgh Edinburgh EH8 9JS, United Kingdom
+
+Edinburgh Futures Institute University of Edinburgh
+
+Edinburgh EH3 9EF, United Kingdom
+
+yang.ding@ed.ac.uk
+
+Abstract -In this study, we delve into the Structured State Space Model (S4), Change Point Detection methodologies, and the Switching Non-linear Dynamics System (SNLDS). Our central proposition is an enhanced inference technique and long-range dependency method for SNLDS. The cornerstone of our approach is the fusion of S4 and SNLDS, leveraging the strengths of both models to effectively address the intricacies of long-range dependencies in switching time series. Through rigorous testing, we demonstrate that our proposed methodology adeptly segments and reproduces long-range dependencies in both the 1-D Lorenz dataset and the 2-D bouncing ball dataset. Notably, our integrated approach outperforms the standalone SNLDS in these tasks.
+
+Subsequently, the epochal introduction of the Transformer architecture [4], further heightened the landscape. This groundbreaking neural network showcased its prowess in analysing extensive datasets at scale, thereby automating the creation of Large Language Models (LLMs). In 2020, the stage welcomed the emergence of Diffusion probabilistic models [5], a latent variable framework drawing inspiration from non-equilibrium thermodynamics, further intensifying the competitive arena of generative modelling.
+
+Index Terms -Structured State Space Model, Change Point Detection, Switching Non-linear Dynamics System, Time Series Segmentation
+
+## I. INTRODUCTION
+
+Generative modelling represents a rapidly advancing domain within the realm of artificial intelligence and machine learning. Its core focus lies in crafting models with the ability to generate data resembling real-world instances. The historical trajectory of generative modelling can be traced from its origins in rule-based systems and expert systems to its contemporary manifestation through modern deep learning methodologies.
+
+Initial endeavours during the 1960s and 1970s predominantly revolved around Markov models and Hidden Markov Models (HMMs), which laid the cornerstone for sequence generation. The subsequent era, specifically the 1990s, saw the advent of Long Short-Term Memory (LSTM) [1], a variant of Recurrent Neural Network meticulously designed to address the challenge of learning long-term dependencies in sequence prediction tasks.
+
+However, the transformative breakthroughs of the 2010s catapulted generative modelling into the forefront of research. Variational Autoencoders (VAEs) [2] and Generative Adversarial Networks (GANs) [3] played pivotal roles in driving substantial advancements in diverse fields, including image synthesis and text generation.
+
+1 Jiaming Zhang and Yang Ding contributed to this article equally.
+
+2 Corresponding author.
+
+Nonetheless, effectively modelling long sequences remains a formidable conundrum within the realm of machine learning. Crucial information required for task resolution could potentially be intricately intertwined across observations spanning thousands of temporal steps. Variant of Recurrent Neural Networks (RNNs) ([6], [7], [8]), Convolutional Neural Networks (CNNs) ([9], [10], [11]), and transformers ([4]) have been meticulously devised in an attempt to tackle this challenge. Specifically, numerous advanced transformer techniques have been developed ([12], [13], [13], [15]) to address the standard transformer's quadratic complexity relative to sequence length. Yet, these optimised transformers often struggle on extremely long-range sequence tasks [16].
+
+Albert [17] introduced a novel method employing Structured State Space Sequence (S4) layers. An S4 layer facilitates a nonlinear sequence-to-sequence transformation through a collection of independent single-input single-output (SISO) linear state space models (SSMs), as described by Albert [18]. These SSMs are interconnected using nonlinear mixing layers. The HiPPO framework ([19]) is instrumental in these SSMs, with state matrices initialised in a specific manner. Since the SSMs are linear, each layer can be equivalently implemented as convolutions, enabling efficient parallel processing across sequence lengths. By stacking multiple S4 layers, one can design a deep sequence model. These models have notably outperformed earlier methods, especially in benchmarks like the Long Range Arena (LRA) [16] which aims to challenge long-range sequence models. Additionally, subsequent adaptations have demonstrated impressive results in tasks such as raw audio generation [20] and extended movie
+
+3 rd Yunfeng Gao 2 Business School Guilin University of Electronic Technology Guilin, China yf yfg@163.com clip classifications [21].
+
+A Switching Linear Dynamical System model (SLDS) captures a complex system's non-linear dynamic behaviour by transitioning between a suite of either linear dynamic models or non-linear dynamic models over time. Dong [22] proposed an novel methods Switching Non-Linear Dynamical System model (SNLDS) that can segment time series of highdimensional signals into discrete temporal 'modes' which will helps to determine the discrete hidden state is changed and impacts to the continues hidden state and also the observation.
+
+S4 does not perform well in the switching time series, Although it can capture the whole history of the input signal, but it does not understand when to change the state as S4 is a linear transformation as it cannot hold the switching linear dynamics as it consist by multiple linear or nonlinear dynamics. Also SNLDS does not have the long range dependency property for generative modelling.
+
+Recognising these challenges, our approach synergies the robustness of S4 with the flexibility of switching linear dynamics, culminating in the integrated S4 SNLDS model.
+
+The following sections of the study are organised as follows. Section II consists the background of S4 models, change point detection methods and SNLDS models. Section III provides a novel model S4 split that combines S4 and Change Finder algorithm together with experiments to prove the result. Section IV introduces another model S4 SNLDS that overcome the disadvantage of S4 split and combine S4 and SNLDS together that can generative long range switching data without lost of accuracy. Section V concludes the work done in this study and future work.
+
+## II. BACKGROUND
+
+## A. State Space Models
+
+State Space Models (SSMs) are frameworks used to study deterministic and stochastic dynamical systems. The Kalman filter [23] is a popular SSM used for estimating and predicting system states based on noisy measurements. Hidden Markov Models (HMMs) are a type of SSM that model time series or sequence data assuming a Markov process with hidden or unobserved states. Both the Kalman filter and HMMs provide a way to predict sequential models. SSMs' hidden state and input transition matrices can be learned directly by gradient descent to model sequences of observations [18]. In a seminal work, [17] demonstrated that SSMs can be made into the most potent sequence modelling framework by incorporating algorithmic methods for memorising and computing input sequences.
+
+A continuous time latent space model maps a 1 -dimensional input sequence u ( t ) to a N -dimensional latent state x ( t ) , after which x ( t ) is mapped to a 1 -dimensional output sequence y ( t ) .
+
+$$\dot { x } ( t ) & = A x ( t ) + \mathbf B u ( t ) , & \text {frame} & & \\ y ( t ) & = C x ( t ) + \mathbf D u ( t ) . & & \\$$
+
+Where A ∈ R N × N is a state matrix, B ∈ R N × 1 is the input matrix, C ∈ R 1 × N is the output matrix and D ∈ R is the feed through matrix.
+
+## B. The HiPPO framework
+
+Albert [19] introduced the High-order Polynomial Projection Operators (HiPPO) to address issues such as the vanishing gradient problem and limited memory horizon problem in RNNs. Additionally, the Legendre Memory Units (LMU) [24] has been proposed as a novel memory cell that can dynamically maintain information across long-time windows using relatively few resources, which speeds up a specific linear recurrence using convolutions. It uses mathematical principles to orthogonalise its continuous-time history by solving d coupled ordinary differential equations (ODEs). These ODEs have a phase space that is linearly mapped onto sliding windows of time using Legendre polynomials of degree d -1 . But LMU requires priors on the sequence length or timescale and is ineffective outside this range. Hence, HiPPO framework was inspired by LMU and proposed to improve such problems and generalise the LMU into a theoretical framework for continuous-time memorisation.
+
+The HiPPO framework is a method for projecting functions onto a space of orthogonal polynomials with respect to a given measure. By using this framework, it is possible to analyse a range of different measures and incrementally update the optimal polynomial approximation as the input function is revealed over time. The HiPPO framework can be implemented as Eq. 1, allowing for fast updates and efficient analysis of the input function. The matrix A is then defined as HiPPO matrix.
+
+HiPPO defines a projection operator proj t and a coefficient extraction operator coef t that proj t takes a function f : R → R map it to a polynomial g ∈ G , an N-dimensional subspace of polynomials, that minimises the approximation error, and coef t maps the polynomial g to the coefficients c ( t ) ∈ R N that the basis of the orthogonal polynomials defined with respect to the measure µ . The HiPPO opeartor is then defined as coef ◦ proj , which is an operator that map a function to the optimal projection coefficent, i.e., HiPPO ( f ( t )) = coef ( proj ( f ( t ))) .
+
+The HiPPO framework yields a new memory update mechanism when we initialise HiPPO matrix A into a different form, i.e., HiPPO-LegS matrix 2 scales through time to remember all history, avoiding priors on the timescale, which avoids the memory issues in RNN.
+
+$$A _ { n k } = - \begin{cases} ( 2 n + 1 ) ^ { \frac { 1 } { 2 } } ( 2 k + 1 ) ^ { \frac { 1 } { 2 } } & n > k \\ n + 1 & n = k \\ 0 & n < k \end{cases} ( 2 )$$
+
+## C. Linear State Space Layer
+
+Linear State Space Layer (LSSL) [18] leveraged the HiPPO framework and generalises convolutions to continuous-time, explains common RNN heuristics and shares features of Nerual Differential Equations (NDEs) such as time-scale adaptation. LSSL is defined by Eq. 1.
+
+LSSLs unify the strengths of Continuous-time, RNNs and CNNs models:
+
+- Continuous-time: The LSSL model is formulated as a differential equation, granting it the flexibility to handle even irregularly-spaced data. This adaptability is achieved by discretising the matrix A in accordance with a varying timescale ∆ t .
+- Recurrent: When a specific discrete step-size ∆ t is chosen, the model can be adapted into a recurrent format. This allows for efficient inference by sequentially computing each layer, made possible through the unrolling of the linear recurrence.
+- Convolutional: Linear time-invariant systems, as described by equation (1), can be explicitly mapped to a continuous convolution operation.
+
+To operate on discrete-time sequences sampled with a step size ∆ , SSMs can be computed with the recurrence via Approximations of differential equations and Generalised Bilinear transform (GBT)
+
+$$x _ { k } & = \overline { A } x _ { k - 1 } + \overline { B } u _ { k } \quad \overline { A } = ( I - \Delta / 2 \cdot A ) ^ { - 1 } ( I + \Delta / 2 \cdot A ) , \quad \text {the weak} \\ y _ { k } & = \overline { C } x _ { k } + D u _ { k } \quad \overline { B } = ( I - \Delta / 2 \cdot A ) ^ { - 1 } \Delta B , \overline { C } = C . \quad \text {optimiz} \\ \text {where} \quad & \overline { A } \ \overline { B } \ \overline { R } _ { k } \ \overline { a } _ { k } \ \text {diagonal} \ \sigma t e t \ \ m o t i v { i } \ \text {Thon, unrolling} \quad \text {RNNs.} \ \text { }$$
+
+Where A , B are the discretized state matrix. Then unrolling Eq. 3, we can derive
+
+$$y _ { k } = \overline { C A } ^ { k } \overline { B } u _ { 0 } + \overline { C A } ^ { k - 1 } \overline { B } u _ { 1 } + \cdots + \overline { C A B } u _ { k - 1 } + \overline { B } u _ { k } + \text {D} u _ { k } . \quad \text {Thus} , \\ ( 4 ) \quad \text {existing}$$
+
+This can be written as a convolutional representation y = K ∗ u , where the convolution kernel is
+
+$$\overline { K } \in \mathbb { R } ^ { L } = ( \overline { C B } , \overline { C A B } , \dots , \overline { C A } ^ { L - 1 } \overline { B } ) . \quad ( 5 ) \quad E . \ S 4$$
+
+While the LSSL model offers theoretical advantages, it remains impractical for real-world applications due to the computational and memory burdens imposed by its state representation. To address these challenges, a subsequent model has been proposed, the S4. S4 offers innovative parameterisation and algorithms specifically designed to make state space modelling more computationally efficient and memory-friendly.
+
+## D. Structured state space sequence model
+
+Structured state space sequence model (S4) uses a structural result that puts HiPPO matrix A into a canonical form by conjugation, which is ideally more structured and allows faster computation [17]. Hence S4 reparameterises the structured state HiPPO matrices A (7) by decomposing them as the sum of a low-rank and normal term which is called Normal Plus Low-Rank (NPLR). The HiPPO matrices A can have NPLR representation as
+
+$$A = V \Lambda V ^ { * } - P Q ^ { \top } = V \left ( \Lambda - ( V ^ { * } P ) \left ( V ^ { * } Q \right ) ^ { * } \right ) V ^ { * } \ \left ( 6 \right )$$
+
+for unitary V ∈ C N × N , diagonal Λ , and low-rank factorisation P , Q ∈ R N × r . In here the NPLR matrix A can be conjugated into diagonal plus low-rank (DPLR) form. Then we can use DPLR to reconstruct A as ( Λ -PQ ∗ ) . However, this may suffer from numerical instabilities when the A matrix has positive real value eigenvalues [20], hence we use A = ( Λ -PP ∗ ) . Then we apply Woodbury identity and Cauchy kernel to reduce the computational cost and increase the stability of computing the convolutional kernel ˆ K .
+
+$$\text {the stability of computing the conditional Kronei} \, K . \\ A _ { n k } ^ { ( N ) } = - \begin{cases} \frac { \left ( n + \frac { 1 } { 2 } \right ) ^ { 1 / 2 } \left ( k + \frac { 1 } { 2 } \right ) ^ { 1 / 2 } & n > k \\ \frac { 1 } { 2 } & n = k \\ \left ( n + \frac { 1 } { 2 } \right ) ^ { 1 / 2 } \left ( k + \frac { 1 } { 2 } \right ) ^ { 1 / 2 } & n < k \end{cases} \\ B _ { n } = ( 2 n + 1 ) ^ { \frac { 1 } { 2 } } & ( 8 ) \\$$
+
+The general architecture of S4, a deep neural network (DNN), is similar to that of previous models. Specifically, S4 operates as a sequence-to-sequence mapper with dimensions (batch size, sequence length, hidden dimension), aligning it with existing sequence models like RNNs, CNNs, and Transformers.
+
+However, S4 distinguishes itself as a specialized hybrid of both CNNs and RNNs, inheriting the strengths and mitigating the weaknesses of each. From the RNN perspective, Equation 3 outlines a streamlined structure for S4 that sidesteps the optimization challenges commonly associated with traditional RNNs. On the CNN front, Equation 5 describes an unbounded convolutional kernel for S4, effectively bypassing the context size limitations constraining standard CNNs.
+
+Thus, S4 benefits from the computational efficiency of existing sequence models in training and inference and addresses their individual limitations, making it a robust and versatile model for sequence analysis.
+
+## E. S4D
+
+The implementation of S4 as a deep learning model involves a sophisticated algorithm replete with intricate linear algebraic techniques, making it challenging both to understand and to implement. These complexities stem largely from the model's state matrix, which is parameterised as a Diagonal Plus Low-Rank (DPLR) matrix capable of capturing HiPPO matrices. Given these complexities, a natural problem arises regarding whether there are ways to simplify this parameterisation and its corresponding algorithm. Albert proposed a new method S4D [25] that removing the lowrank term would result in a diagonal state space model (DSS), offering a significantly more straightforward implementation and conceptual understanding. The core result is that instead of using DPLR matrices, S4D uses Vandermonde matrix multiplication to compute the matrix A .
+
+When A is diagonal, the computation is nearly trivial. By Eq. 5, we have
+
+$$\Pr _ { ( 6 ) } \quad & ^ { N - 1 } \, C _ { n } \overline { A } _ { n } ^ { \ell } \overline { B } _ { n } \Longrightarrow \overline { K } = \left ( \overline { B } ^ { \top } \circ C \right ) \cdot \mathcal { V } _ { L } ( \overline { A } ) \\ & \quad \text {where } \mathcal { V } _ { L } ( \overline { A } ) _ { n , \ell } = \overline { A } _ { n }$$
+
+where ◦ is Hadamard product, · is matrix multiplication, and V is known as a Vandermonde matrix.
+
+This outcome enables S4D to feature a straightforward, interpretable convolution kernel K that can be implemented with just two lines of code, i.e.,
+
+## def S4d kerenal (A,B,C, dt , L ) :
+
+Vand = exp ( arange (L ) [ : , None ] * d t * A) return sum ( Vand * B * C( exp ( d t * A) -1) , -1)
+
+Moreover, S4D further simplified the initialisation of HiPPO matrix A into S4D-Inv
+
+$$A _ { n } = - \frac { 1 } { 2 } + i \frac { N } { \pi } \left ( \frac { N } { 2 n + 1 } - 1 \right ) \quad ( 1 0 ) \quad ^ { 3 \colon \, S } S$$
+
+and the corresponding matrix B set to 1 . S4D-Inv is the approximation of the S4 A matrix (7). This is because DSS is a variant of S4, which is a noisy approximation to S4 A matrix (7) [25].
+
+## F. FlashConv
+
+To improve the efficiency of SSMs on GPUs, Daniel proposed a novel method, FlashConv [26]. FlashConv combined the Fast Fourier Transform (FFT), pointwise multiply, and inverse FFT to minimise memory reads/writes. It also employs a block FFT algorithm to leverage specialised matrix multiply units, but it only works for shorter sequence lengths (depending on GPU, here we are using A6000, which can hold up to 6k). For sequences longer than 6k, the computations are too large to fit in GPU, so Daniel proposes a novel State-Passing algorithm that splits the sequence into manageable chunks, allowing for chunk-bychunk computation of the FFT convolution.
+
+For sequences length shorter than 6k, Daniel apples kernel fusion and block FFT techniques to speed up the FFTbased convolution, which called Fused Block FFT convolution. Kernel fusion solves the memory issue in the GPU due to the reading and writing of intermediate results. At the same time, block FFT allows the FFT-based convolution to utilise specialised matrix multiplication units. Kernel fusion using FlashAttention [27] techniques to fuse the entire FFT convolution into a single kernel; this solves the memory issues in GPU. Block FFT means that FFT can be written as a series of block-diagonal matrix multiplications interleaved with permutation.
+
+The State-Passing algorithm can accelerate computing FFT convolution for long sequences as the fused kernel cannot fit into normal GPU memory.
+
+The inherent recurrence in SSM enables us to divide an FFT convolution of a sequence with length N into manageable chunks, each chunks is size N ′ ( N ′ is the largest FFT size that can be accommodated within the GPU SRAM), this approach assumes that N is a multiple of N ′ . Then apply Fused Block FFT convolution to compute each chunks individually and employ a recurrence relation to connect them together coherently. Algorithm 1 shows the State-Passing algorithm for 1D input.
+
+## G. Change-point Detection Method
+
+In statistical analysis and data mining, change-point detection has been used for various purposes, such as step detection, edge detection, and anomaly detection. Sequential Discounting Auto Regression learning (SDAR) algorithm [28]
+
+## Algorithm 1 State-Passing algorithm From [26]
+
+- 1: Input: u ∈ R N , SSM parameterised by matrices A ∈ R m × m , B ∈ R m × 1 , C ∈ R 1 × m , D ∈ R 1 × 1 , chunk size N ′ where N is a multiple of N ′ .
+- 2: Precompute A N ′ , M ux = [ A N ′ -1 B , . . . , B ] ∈ R m × N ′ , M xy = [ C , . . . , CA N ′ -1 ] ∈ R N ′ × m .
+- 3: Split the inputs u 1: N into C = N/N ′ chunks u ( c ) 1: N ′ for c = 1 , . . . , C.
+- 4: Let the initial state be x (0) N ′ = 0 ∈ R m .
+- 5: for 1 ≤ c ≤ C do
+
+$$\begin{array} { r l } { \mathrm e D S S } & { 5 \colon \text {for } 1 \leq c \leq C \text { do} } \\ { S 4 \ A } & { 6 \colon \quad \text {Compute } y ^ { ( c ) } } & { = } & { \mathrm M _ { x y } x _ { N ^ { \prime } } ^ { ( c - 1 ) } \quad + } \\ & { \quad \text {FusedBlockFFTconvolution } ( f , u _ { j } ) + \mathrm D u ^ { ( c ) } \in \mathbb { R } ^ { N ^ { \prime } } . } \\ & { 7 \colon \quad \text {Update state: } x _ { N ^ { \prime } } ^ { ( c ) } = \mathrm A ^ { N ^ { \prime } } x _ { N ^ { \prime } } ^ { ( c - 1 ) } + \mathrm M _ { u x } u ^ { ( c ) } . } \\ & { 8 \colon \text {end for} } \end{array}$$
+
+8:
+
+end for
+
+- 9: Return: y = [ y (1) . . . y ( C ) ]
+
+is an efficient and simple algorithm to identify the outliers from the data. The change finder algorithm employs the SDAR algorithm. It consists of two learning phases, outlier detection and change point detection.
+
+Let a mean of an initial value is zero time series as z t : t = 1 , 2 , . . . , where z ( t ) ∈ R d . An AR model of the k th order is given by
+
+$$z _ { t } = \sum _ { i = 1 } ^ { k } A _ { i } z _ { t - i } + \varepsilon ,$$
+
+where each A i ∈ R d × d , ε ∼ N (0 , Σ) . Let x t : t = 1 , 2 , . . . denote a time series, where
+
+$$x _ { t } = z _ { t } + \mu .$$
+
+Then, let x t -1 t -k = x t -k · · · x t -1 , the conditional probability density function of x t given x t -1 t -k is denoted as
+
+$$\text {written as} \quad p \left ( x _ { t } | x _ { t - k } ^ { t - 1 } \colon \theta \right ) = \frac { 1 } { ( 2 \pi ) ^ { k / 2 } | \Sigma | ^ { 1 / 2 } } \exp \left ( - \frac { 1 } { 2 } \left ( x _ { t } - w _ { t } \right ) ^ { T } \Sigma ^ { - 1 } \left ( x _ { t } - w _ { t } \right ) \right ) ,$$
+
+where
+
+$$w _ { t } = \sum _ { i = 1 } ^ { k } A _ { i } \left ( x _ { t - i } - \mu \right ) + \mu .$$
+
+We set θ = ( A 1 , · · · , A k , µ, Σ) . Let θ t denote an estimate of θ given x t , then p t = p ( ·|· , θ t ) . For an estimation of θ , employ maximum likelihood method to computes the value of θ maximising the following quantity:
+
+$$\sum _ { i = 1 } ^ { t } ( 1 - r ) ^ { t - i } \log p \left ( x _ { i } | x ^ { i - 1 } , \theta \right )$$
+
+in an online manner. This is the SDAR algorithm.
+
+At the first stage, outlier detection, the algorithm constructs constructs a sequence of probability density functions denoted as p t ( x ) : t = 1 , 2 , . . . that characterises the underlying dynamics of the data generation process. We assume that each p t represents a density of stochastic process. For a stochastic process p , the conditional probability density function of x t +1 given the sequence x t = x 1 , x 2 , . . . , x t is denoted by p ( x t +1 | x t ) . Employ SDAR algorithm to estimate the stochastic process p . For each input x t ( t ≥ k + 1) , the algorithm calculate the score of x t using the following formula:
+
+$$S c o r e \left ( x _ { t } \right ) = - \log p _ { t - 1 } \left ( x _ { t } | x ^ { t - 1 } \right ) , \quad \left ( 1 1 \right ) ^ { p \left ( 1 1 \right ) }$$
+
+where Eq. 11 shows how the prediction loss for x t is related relative to a probability density function p t -1 ( ·| x t -1 ) .
+
+Then in the second stage, the change point detection. Let T be a positive constant and { x t } be a data sequence, define y t as the T-averaged score over { Score ( x i ) : i = t -T +1 , . . . , t } as:
+
+$$y _ { t } = \frac { 1 } { T } \sum _ { i = t - T + 1 } ^ { t } S c o r e \left ( x _ { i } \right ) , \quad \quad ( 1 2 ) \quad \begin{matrix} \frac { 1 } { x _ { t - 1 } } & \frac { 1 } { x _ { t } } & \frac { 1 } { x _ { t } - 1 } \\ \end{matrix}$$
+
+where Score ( x i ) is calculated according to Eq. 11 . From this, we generate a time series y t for t = 1 , 2 , . . . . For t ≤ T , we compute y t using dummy values for Score ( x i ) where i ≤ T . This step is essential for mitigating the impact of isolated outliers in the sequence { x t } .
+
+If a change point occurs at time t = t 1 , we expect to observe elevated outlier scores for a period following t 1 . However, if t 1 is merely an isolated outlier rather than a change point, then the elevated score will be limited to t 1 itself. This isolated high score can be smoothed out via the moving average process defined in Eq. 12 .
+
+Subsequently, the SDAR algorithm is employed to learn from the time series { y t } , resulting in a series of AR models denoted as { q t } .
+
+The averaged score over a window of T time steps at time t is defined in Eq. 11 as:
+
+$$S c o r e ( t ) = \frac { 1 } { T } \sum _ { i = t - T + 1 } ^ { t } \left ( - \log q _ { i - 1 } \left ( y _ { i } | y _ { i - k ^ { \prime } } ^ { i - 1 } \right ) \right ) . \quad ( 1 3 ) \quad \text {Gaussian} \\ S ( \cdot ) \text { is } & \quad \mathbb { S } ( \cdot ) \text { is } \\ 0 & \quad \mathbb { P } ( 0 \in \mathbb { P } )$$
+
+This equation averages the log-likelihoods over a window, effectively serving as a smoothed measure of anomaly or fit within the observed time series.
+
+This approach fundamentally reframes change point detection as an outlier detection problem using time series outlier scores, leveraging two moving average processes described in Eq. 12 and Eq. 13. This unifies outlier detection and change point detection within a cohesive framework, emphasising their intrinsic linkage. A higher Score ( t ) suggests a greater likelihood that time point t is a change point.
+
+The two moving average processes primarily serve to mitigate the impact of individual outliers. When T is small, both outliers and change points are detected almost instantaneously upon their occurrence, though distinguishing between the two can pose challenges. Conversely, with a larger T , there's an inherent delay in detecting change points, but this ensures that only the outliers are filtered out, leading to more precise detection of significant change points.
+
+H. Switching Non-linear Dynamics System
+
+The state space model is given by:
+
+$$\begin{array} { c c c } - 1 , & \text {the} & \\ \text {following} & p _ { \theta } ( x , z , s ) = & \\ & & p \left ( x _ { 1 } | z _ { 1 } \right ) p \left ( z _ { 1 } | s _ { 1 } \right ) \left [ \prod _ { t = 2 } ^ { T } p \left ( x _ { t } | z _ { t } \right ) p \left ( z _ { t } | z _ { t - 1 } , s _ { t } \right ) p \left ( s _ { t } | s _ { t - 1 } , x _ { t - 1 } \right ) \right ] \\ & & ( 1 1 ) & \\ & & & ( 1 4 ) & \\ \end{array}$$
+
+where, s t ∈ { 1 , . . . , K } represents the discrete hidden state, z t ∈ R L the continuous hidden state, and x t ∈ R D the observed output. For notation simplicity, we ignore the input u t .
+
+Notably, the discrete state s t does not only depend on the previous discrete state s t -1 , as one would see in a Hidden Markov Model (HMM) but also by the previous observation x t -1 . This feature allows for a more interactive or 'closedloop' state evolution, where the state can respond by signals from the environmental.
+
+While the model is described under the assumption of firstorder Markov dependencies for simplicity, extending it to accommodate higher-order dependencies is straightforward. For example, the continuous hidden state z t could be conditioned on the previous observation x t -1 , and the discrete hidden state s t could depend on the previous continuous state z t -1 . Incorporating such additional dependencies is feasible and readily integrated into the inference framework, as indicated by the dashed lines in Fig. 1.
+
+The conditional probability distributions are defined:
+
+$$\begin{array} { r l } & { \text {earn} } & { p \left ( x _ { t } | z _ { t } \right ) = \mathcal { N } \left ( x _ { t } | f _ { x } \left ( z _ { t } \right ) , R \right ) , } \\ & { \text {dels} } & { p \left ( z _ { t } | z _ { t - 1 } , s _ { t } = k \right ) = \mathcal { N } \left ( z _ { t } | f _ { z } \left ( z _ { t - 1 } , k \right ) , Q \right ) , } \\ & { \text {time} } & { p \left ( s _ { t } | s _ { t - 1 } = j , x _ { t - 1 } \right ) = \text {Cat} \left ( s _ { t } | \mathcal { S } \left ( f _ { s } \left ( x _ { t - 1 } , j \right ) \right ) \right ) , } \end{array}$$
+
+where f x , f z , f s are nonlinear functions (e.g., Multi-Layer Perceptions (MLPs) or RNNs), N ( · , · ) denotes a multivariate Gaussian distribution, Cat( · ) is a categorical distribution, and S ( · ) is a softmax function. Additionally, R ∈ R D × D and Q ∈ R H × H are learned covariance matrices for the Gaussian emission and transition noise, respectively.
+
+Special cases of this model can be described as follows:
+
+Fig. 1. Illustration of the generative model.
+
+<!-- image -->
+
+- Recurrent Switching Linear Dynamical System (SLDS): If both f x and f z are linear functions and the dependence of s t on s t -1 is a first-order Markov process that also depends on z t -1 , then the model is referred to as a recurrent SLDS [29].
+- Switching Linear Dynamical System (SLDS): If f x and f z are linear, but s t does not depend on z t -1 , the model simplifies to a regular SLDS.
+- Switching Nonlinear Dynamical System (SNLDS): If both f x and f z are nonlinear, then the model is characterised as a SNLDS.
+
+These variations allow for a broad range of complexities and behaviours, which can be chosen to match the particularities of the application or the observed data.
+
+## I. Variational inference and learning
+
+Variational inference aims to approximate the conditional density of latent variables based on observed ones. At its core, it addresses this through optimisation. By employing a set of densities over the latent variables, defined by adaptable 'variational parameters', the optimisation process identifies the specific parameter configuration that minimises the KL divergence with the target conditional. This optimised variational density then acts as a stand-in for the precise conditional density.
+
+Let x = x 1: n be a set of observed variables, and z = z 1: m be a set of latent (or hidden) variables. The joint density of these variables is p ( z , x ) .
+
+The conditional probability of the latent variables given the observed variables is defined as:
+
+$$p ( z | x ) = \frac { p ( z , x ) } { p ( x ) } & & ( 1 6 ) & \stackrel { \text {offset} } { \text {the } }$$
+
+where the denominator, p ( x ) , is the evidence. The evidence is computed by marginalising the latent variables z out of the joint distribution p ( z , x ) :
+
+$$p ( x ) = \int p ( z , x ) d z . \quad ( 1 7 ) \quad b y \ t { \ t { \ t { \ t { \ t { z } } } } }$$
+
+However, it is hard to compute p ( x ) as the complexity is not manageable. Therefore we specify a family Q of densities over the latent variables. Each q ( z ) ∈ Q is a candidate approximation to the exact conditional.
+
+The marginal p ( x ) above can be computed as:
+
+$$p ( \mathbf x ) = \iint _ { \dots } \int p \left ( \mathbf x , z _ { 1 } , z _ { 2 } , z _ { 3 } , \dots \right ) d z _ { 1 } d z _ { 2 } d z _ { 3 } \dots \quad \text { (18)} \quad \text {selected} \quad \text {possible}$$
+
+In variational inference, we avoid computing the marginal p ( x ) by employing a tractable distribution q ( z ) to approximate the exact conditional distribution p ( z | x ) :
+
+$$p \left ( z _ { 1 } , z _ { 2 } , \dots | x \right ) \approx q \left ( z _ { 1 } , z _ { 2 } , \dots | \theta \right ) \quad \ \ ( 1 9 ) \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \$$
+
+where θ represents the parameters of the distribution q , learned from the data. We choose q from a family of distributions that are computationally easier to work with, ensuring that key statistical measures like expectation and variance can be calculated directly.
+
+In variational inference, the overarching aim is to identify an approximation q ∗ ( z ) that is closest to the true posterior distribution p ( z | x ) in terms of Kullback-Leibler (KL) divergence. Specifically, the problem at hand is an optimisation challenge, framed as:
+
+$$q ^ { * } ( z ) = \arg \min _ { q ( z ) \in \mathcal { Q } } K L ( q ( z ) \| p ( z | x ) ) .$$
+
+Once found, q ∗ ( · ) is the best approximation of the conditional distribution within the chosen family Q . The computational complexity of this optimisation is dictated by the complexity of the family Q .
+
+Nevertheless, minimising this objective is infeasible due to computing the evidence log p ( x ) in Eq. 17. Recall that KL divergence is
+
+$$K L ( q ( z ) | | p ( z | x ) ) = \mathbb { E } [ \log q ( z ) ] - \mathbb { E } [ \log p ( z | x ) ] ,$$
+
+where all expectations are taken with respect to q ( z ) . Upon expanding the conditional term, we see that the KL divergence is intimately tied to log p ( x ) :
+
+$$\begin{array} { r l } & { \text {process} } & { \quad K L ( q ( z ) | | p ( z | x ) ) = \mathbb { E } [ \log q ( z ) ] - \mathbb { E } [ \log p ( z , x ) ] + \log p ( x ) . } \\ & { \text {imises} } & { \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \quad \qu$$
+
+To circumvent this computational challenge, we optimise an alternative function known as the Evidence Lower Bound (ELBO):
+
+$$E L B O ( q ) = \mathbb { E } [ \log p ( z , x ) ] - \mathbb { E } [ \log q ( z ) ] .$$
+
+The ELBO is the lower bound of the evidence (log p ( x )) after applying Jensen's inequality. Also, the ELBO is related to KL divergence as the ELBO is the negation of the KL divergence offset by the constant term log p ( x ) . Therefore, minimising the KL divergence will be the same as maximising the ELBO regardless of which distribution q we choose from the family Q . However, when q = p ∗ , this resulting maximising ELBO will reduce the KL divergence to zero.
+
+We can have intuitions about the optimal variational density by testing the ELBO. Rewrite the ELBO as a sum of the expected log likelihood of the data and the KL divergence between the prior p ( z ) and q ( z ) ,
+
+$$\begin{array} { l l } \text {simulations} & E L B O ( q ) = \mathbb { E } [ \log p ( z ) ] + \mathbb { E } [ \log p ( x | z ) ] - \mathbb { E } [ \log q ( z ) ] \\ \text {dicate} & = \mathbb { E } [ \log p ( x | z ) ] - K L ( q ( z ) | p ( z ) ) \end{array} ( 2 4 )$$
+
+In summary, maximising the ELBO not only offers a computationally tractable objective but also ensures that the selected q approximates the true posterior as closely as possible within the chosen distributional family.
+
+## J. Rao Blackwellised particle filter
+
+The Rao-Blackwellized Particle Filters (RBPF) leverage the Rao-Blackwell theorem to enhance the sampling efficiency within particle filters by marginalising certain variables. While standard particle filters often falter in high-dimensional spaces due to the need for numerous particles, the integration of RBPFs significantly reduces the requisite particle count.
+
+RBPF is aim to derive an estimator for the conditional distribution p ( y t | z t ) such that less particles will be required to reach the same accuracy as particle filter. The objective remains to estimate the distribution p ( z t | y 1: t ) . The posterior can be expressed as:
+
+$$p \left ( z _ { 0 \colon t } | y _ { 1 \colon t } \right ) = p \left ( z _ { 0 \colon t - 1 } | y _ { 1 \colon t - 1 } \right ) \frac { p \left ( y _ { t } | z _ { t } \right ) p \left ( z _ { t } | z _ { t - 1 } \right ) } { p \left ( y _ { t } | y _ { 1 \colon t - 1 } \right ) } .$$
+
+Here sampling is used due to the difficulty of solving analytically . Break the hidden variables z into two groups: r t and x t such that p ( z t | z t -1 ) = p ( x t | r t -1: t , x t -1 ) p ( r t | r t -1 ) . By breaking them into two groups, they can determine part of the posterior p ( x 0: t | y 1: t , r 0: t ) analytically followed by marginalise out the variables x 0: t . Subsequently, the posterior can be factorised as:
+
+$$p \left ( r _ { 0 \colon t } , x _ { 0 \colon t } | y _ { 1 \colon t } \right ) = p \left ( x _ { 0 \colon t } | y _ { 1 \colon t } , r _ { 0 \colon t } \right ) p \left ( r _ { 0 \colon t } | y _ { 1 \colon t } \right ) .$$
+
+Given that the dimensions of p ( r 0: t | y 1: t ) are more compact than those of the original p ( r 0: t , x 0: t | y 1: t ) , so they can obtain better results.
+
+## III. S4 SPLIT
+
+The existing methods used for forecasting face difficulties when dealing with irregular time series data. This issue is particularly noticeable, in the S4 model. Time series data consists of data points arranged in an order and irregularities can occur due to missing data points, unexpected spikes or anomalies. These irregular patterns disrupt the consistency that models rely on for predictions.
+
+While the S4 model is effective in ways it is especially susceptible to these inconsistencies. When confronted with irregular time series data its internal mechanisms may struggle to identify the underlying patterns or may mistake the irregularities as features. Consequently, its forecasting accuracy can significantly decrease. Therefore there is a need for strategies or improvements to enhance models, like S4 so that they can better handle the challenges presented by irregular time series data.
+
+To address this problem, we introduce a novel model named 'S4 split'. The S4 split is a version of its predecessor, the S4 and it specifically focuses on handling and analysing irregularities that can be found in time series data.
+
+The unique mechanisms and features incorporated into the S4 split model allow it to distinguish between data patterns and irregularities. Unlike the S4 model, which may struggle when faced with inconsistencies the S4 split actively acknowledges and adjusts, for these discrepancies. This is made possible through algorithms and filtering processes integrated into the model.
+
+Moreover, the design philosophy behind the S4 split revolves around segmenting and analysing data in parts. This ensures that even if one segment exhibits irregularities it won't have an impact on predictions. Adopting this approach it offers an adaptable method for forecasting time series data.
+
+Initial tests and comparisons demonstrate that the S4 split performs better than the S4 model, in scenarios involving irregular time series data.
+
+We utilise the Change Finder algorithm to identify change points, allowing us to segment the dataset based on these points. Next, using statistical approaches, we identify and amalgamate similar segments through linear interpolation. This process yields multiple distinct datasets, each reflecting unique statistical characteristics. We then match these new datasets with the most recent data to identify the relevant ones and subsequently train them using the S4 model. Fig. 2 is the flow chart of the S4 split.
+
+## A. Split and merge datasets
+
+To segment the data, we initiate by employing the Change Finder algorithm on the original dataset, yielding a change point Score . The outcome of this process on a random switching dataset is illustrated in Fig. 3. Evaluating the change point Score , we discern the change points, allowing for the dataset to be partitioned accordingly.
+
+Feature extraction plays a role in understanding and analysing data segments. During this process, we focus on each segment individually. Extract statistical measures such as the average (mean) and the spread (standard deviation). These metrics are chosen because they provide information about the dataset's tendency and variability, giving us insights into underlying patterns or trends. The mean represents the value of the data points in a segment giving us an understanding of its central value. Conversely, the standard deviation gives us an idea of how the data points are spread out or tightly clustered around this mean. A higher standard deviation indicates variability, while a lower one suggests consistency. Once we have extracted these features, we meticulously analyse them to draw comparisons between different segments. By examining similarities and differences in their means and standard deviations, we can effectively categorise them based on their characteristics. Segments that exhibit features indicating behavioural patterns are then consolidated together for further analysis.
+
+Fig. 2. Flow chart of S4 split.
+
+<!-- image -->
+
+Fig. 3. Result of change point detection.
+
+<!-- image -->
+
+Our next step is to consolidate those similar segments. Since the datasets are time series, we cannot just stack them together as there will be a gap between each segment. To overcome this problem we use linear interpolation, which is a simple but efficient technique. This approach smoothly connects the end of one segment to the beginning of the subsequent segment ensuring that the chronological order is preserved. Also, applying linear interpolation can prevent no additional information will being captured by the S4 model. This is crucial when the data is subsequently processed by the S4 model, as it ensures that the model isn't thrown off or misinformed by any artificially introduced data points.
+
+## B. S4
+
+After we split and merge datasets, we are ready to feed them into the S4 model. For this purpose, we employ the foundational S4 algorithm developed by Albert [17]. To bolster computational speed while maintaining accuracy, we incorporate techniques from S4D [30] and FlashConv [26] into the S4 framework.
+
+To combine S4D and FlashConv technique into S4, we change the way that how S4 compute the convolution kernel K . More specifically we are using Vandermonde matrix-vector multiplication to compute K and using Fused Block FFT convolution to compute y . Algorithm 2 shows the detailed way to compute S4 layer.
+
+To validate our approach, we juxtaposed our enhanced S4 with the standard S4, applying both to the LRA Tasks. The comparative results of this experimentation can be perused in Table I. We can see that our S4 model are highly competitive on all datasets and achieved an average of near 85% accuracy on the LRA task. Additionally, as illustrated in
+
+## Algorithm 2 S4 layer
+
+| 1:    | Input: u ∈ R N , SSM parameterised by matrices A ∈ R m × m , B ∈ R m × 1 , C ∈ R 1 × m , D ∈ R 1 × 1 , chunk size N ′ where N is a multiple of N ′ .   |
+|-------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 2:    | Precompute A = exp( A Re ) + i · A Im as Vandermonde matrix                                                                                            |
+| 3:    | Precompute A N ′ , M ux = [ A N ′ - 1 B , . . . , B ] ∈ R m × N ′ , M xy = [ C , . . . , CA N ′ - 1 ] ∈ R N ′ × m .                                    |
+| 4:    | Split the inputs u 1: N into C = N/N ′ chunks u ( c ) 1: N ′ for c = 1 , . . . ,C.                                                                     |
+| 5:    | Let the initial state be x (0) N ′ = 0 ∈ R m .                                                                                                         |
+| 6: 7: | for 1 ≤ c ≤ C do Compute y ( c ) = M xy x ( c - 1) N ′ + FusedBlockFFTconvolution ( K ,u j ) + D u ( c ) ∈ R N ′ .                                     |
+| 8:    | Update state: x ( c ) N ′ = A N ′ x ( c - 1) N ′ + M ux u ( c ) . end for ]                                                                            |
+| 9:    | Return: y = [ y (1) . . . y ( C                                                                                                                        |
+| 10:   | )                                                                                                                                                      |
+
+TABLE I PERFORMANCE ON LONG RANGE ARENA (LRA) TASKS. ∗ AAN TASK IS NOT INCLUDED DUE TO COMPUTER ISSUES.
+
+| Model              |   ListOps |   IMDB |   CIFAR |   Pathfinder |   Path-X |   Avg. |
+|--------------------|-----------|--------|---------|--------------|----------|--------|
+| S4 (original) [17] |      59.5 |   86.5 |    88.5 |         94.0 |     96.0 |   84.9 |
+| S4 modified        |      59.3 |   86.7 |    89.5 |         93.6 |     95.4 |   84.7 |
+
+Table II, by leveraging FlashConv, we managed to accelerate S4 performance by 2 × , achieving a significant edge over Transformers with a speed improvement of 5 . 8 × .
+
+For testing the S4 model in LRA task, we use the same hyperparameters setting for the S4 model in [17]. Hyperparameters for all datatsets are reported in Table III. For all the test, we use AdamW optimiser with a constant learning rate. The S4 state size is always fixed to N = 64 . Since LRA tasks are classification, so we add mean pooling after the last layer. All the result were run on 3 A6000 GPU, which has 40 Gb memory.
+
+The S4 model structure here is simple, Fig. 4 shows the S4 structure. This architecture consists of a linear encoder to encode the input at each time step into H features, a S4 block that contain multiple S4 layer and a linear decoder to decode the output of S4 block at each time step back to the input size.
+
+Mean pooling layer and Softmax operation are only used for the classification tasks. The mean pooling layer compresses the output of the last S4 layer across the sequence length dimension, and a single H -dimensional encoding for softmax classification.
+
+To initialise S4, we recall the HiPPO matrix A S4-Inv (10), the correspond matrix B = 1 and C initialise randomly with standard deviation 1 as the initial parameter to feed in.
+
+## C. Experiment
+
+We apply our S4 split model on the simple 1-D switching time series as shown in Fig. 3. The sequence length is 100k with different mean and standard deviation normal distributions. For both reconstruction and prediction task, all the models' hyperparameters are shown in Table IV. All the models uses AdamW optimiser with constant learning rate.
+
+TABLE II SPEED UP ON THE LRA BENCHMARK.
+
+| Model           | Speed up   |
+|-----------------|------------|
+| Transformer [4] | 1 ×        |
+| S4 [17]         | 2 . 9 ×    |
+| S4 modified     | 5 . 8 ×    |
+
+TABLE III THE VALUES OF THE HYPERPARAMETERS USED ON LRA TASKS. BN AND LN REFER TO BATCH NORMALISATION AND LAYER NORMALISATION. [17]
+
+|            |   Depth |   Features | Norm   |   Dropout |   Learning Rate |   Batch Size |   Epochs |   Weight Decay |
+|------------|---------|------------|--------|-----------|-----------------|--------------|----------|----------------|
+| ListOps    |       6 |        128 | BN     |         0 |            0.01 |          100 |       50 |           0.01 |
+| IMDB       |       4 |         64 | BN     |         0 |           0.001 |           50 |       20 |              0 |
+| CIFAR      |       6 |        512 | LN     |       0.2 |           0.004 |           50 |      200 |           0.01 |
+| Pathfinder |       6 |        256 | BN     |       0.1 |           0.004 |          100 |      200 |              0 |
+| Path-X     |       6 |        256 | BN     |         0 |          0.0005 |           32 |      100 |              0 |
+
+Fig. 4. Structure of S4 model.
+
+<!-- image -->
+
+- 1) Reconstruction: We initially focus on a reconstruction task involving a 1-D switching time series. For this task, we train the model on 100k data points with feed in a length of 100k random Gaussian distribution for the input data. The results, which can be observed in Fig. 5 and Table V, demonstrate the effectiveness of S4 Split in handling the switching time series. Notably, S4 Split outperforms the original S4 model by 5 × . This performance gap becomes evident as the pattern generated by S4 diverges significantly from the original data towards the end of the sequence. This also shows that vanilla S4 model does not perform well when the state of x is changing. Furthermore, we have performed a prediction task to further prove our result.
+- 2) Prediction: We performed prediction task on 1-D switching time series. We trained the model on 100k data points, and predict the next 3k data. The prediction methods for S4 is different to the LSTM.
+
+For LSTM, we use the RNN architecture to predict the subsequent data point, and add this points into the original dataset as a new dataset, then use the new dataset to forecast the following data point, and this process is iteratively repeated to continue making predictions.
+
+In contrast to LSTM, both S4 and S4 split are using CNN architecture. The goal is to forecast a continuous range of future data F based on a range of past data P . To accomplish this, we concatenate P and F together and using mask technique to mask the future data, i.e., P × 1 + F × 0 . Since we are using convolution kernel, described by y = K ∗ u , if u = 0 implies y = 0 , which not effect the result. Hence when we training the model, we will mask F parts. This will input a sequence of length P + F and run through S4 model, and results in an output of the same length P + F , where F segment serves as our forecast.
+
+TABLE IV THE VALUES OF THE HYPERPARAMETERS FOR TESTING LSTM, S4 AND S4 SPLIT MODEL. LN REFER TO LAYER NORMALISATION.
+
+|            |   Depth | Norm   |   Dropout |   Learning Rate |   Batch Size |   Epochs |   Weight Decay |
+|------------|---------|--------|-----------|-----------------|--------------|----------|----------------|
+| -rule LSTM |       1 | LN     |         0 |           0.001 |          200 |     3000 |              0 |
+| S4         |       3 | LN     |         0 |           0.001 |          200 |    10000 |              0 |
+| S4 split   |       3 | LN     |         0 |           0.001 |          200 |    10000 |              0 |
+
+TABLE V RECONSTRUCTION ON 1-D SWITCHING TIME SERIES.
+
+Fig. 5. Reconstruction on 1-D switching time series.
+
+| Model    |   MSE |
+|----------|-------|
+| LSTM [4] | 0.007 |
+| S4 [17]  | 0.023 |
+| S4 split | 0.004 |
+
+<!-- image -->
+
+The effectiveness of S4 Split in handling switching time series is further substantiated by the results presented in Fig. 6 and Table VI. S4 Split outperforms the original S4 model by a factor of 4 and surpasses LSTM by a factor of 3.5. Additionally, these results highlight a distinct advantage of using S4: its capacity to handle long-term dependencies. In particular, S4 split and S4 demonstrates superior performance when predicting as far as 10k steps ahead, a feat that LSTM is unable to achieve.
+
+However, This methods only works in offline setting where there will be no change point happens in the prediction part, which is not working in real world data sets like weather forecasting. Hence we need to find another methods that can solve this problem. Therefore we are going to present our new model S4 SNLDS.
+
+Fig. 6. Prediction on 1-D switching time series.
+
+<!-- image -->
+
+TABLE VI PREDICTION ON 1-D SWITCHING TIME SERIES.
+
+| Model    |   MSE (3k) |   MSE (10k) |
+|----------|------------|-------------|
+| LSTM [4] |      0.027 |        0.17 |
+| S4 [17]  |      0.031 |       0.098 |
+| S4 split |      0.008 |       0.024 |
+
+## IV. S4 SNLDS
+
+A Switching Linear Dynamical System model captures a complex system's non-linear dynamic behaviour by transitioning between a suite of either linear dynamic models or non-linear dynamic models over time. For example, an aeroplane flying across the country. The movement of the aircraft consists of linear dynamics and non-linear dynamics. When the fight path is changed from one dynamic to the other, the switch can depend on the system's discrete state or external factors. By identifying these behavioural segments and understanding the underlying switching mechanisms, we can delve deeper into the intricate patterns that bring about complex natural events. Many models are trying to solve such problems. For example, Linderman [29] introduces a class of recurrent state space models adept at encapsulating these inherent relationships. Accompanying this, he presents Bayesian inference and learning techniques that are not only computationally tractable but also scalable to large datasets. Also, Zhe [22] proposes a variational inference algorithm for fitting SNLDS adept at segmenting high-dimensional signal time series into distinct, meaningful temporal segments or 'modes'. Nevertheless, current approaches do not perform well in foresting time series that contain long-range dependencies, and the forecasting accuracy decreases dramatically as the time step increases (detail in Section IV-E). Moreover, Both models use RNN architecture with a limited memory horizon, which will lose information from the early stage. Therefore there is a need for improvements to enhance models, like SNLDS so that they can better handle the challenges presented by long term dependency.
+
+To address this problem, we introduce a novel model, S4 SNLDS, that combines the strength of both S4 and SNLDS, the long-range dependency ability, identifies the switch behaviour and learns the underlying relation between the discrete state and stitches. Moreover, S4 SNLDS adapted the all the benefit from S4 split that can do everything S4 split do.
+
+Lorenz Attractor test and 2-D bouncing ball test demonstrate that S4 SNLDS outperforms SNLDS in both reconstruction and prediction task.
+
+## A. Model Formulation
+
+We use the same state space model as we defined earlier in Section II-H as our generative model. The model consist three part:
+
+- Emission distribution: p ( x t | z t ) shows how to generate the observation by the given continues hidden states.
+- Continues state transition: p ( z t | z t -1 , s t ) shows how to find the continues dynamics transit by the given the discrete mode.
+- Discrete state transition: p ( s t | s t -1 , x t -1 ) shows the discrete state transition is either depends on the hidden dynamics or the observations.
+
+The functional form of the conditional probability distributions for S4 SNLDS are defined as:
+
+$$p \left ( x _ { t } | z _ { t } \right ) & = \mathcal { N } \left ( x _ { t } | S _ { 4 _ { x } } \left ( z _ { t } \right ) , R \right ) , \\ \text {bys} & \quad p \left ( z _ { t } | z _ { t - 1 } , s _ { t } = k \right ) = \mathcal { N } \left ( z _ { t } | S _ { 4 _ { z } } \left ( z _ { t - 1 } , k \right ) , Q \right ) , \quad \text { (25)} \\ \text {tuple} & , \quad p \left ( s _ { t } | s _ { t - 1 } = j , x _ { t - 1 } \right ) = \text {Cat} \left ( s _ { t } | \mathcal { S } \left ( f _ { s } \left ( x _ { t - 1 } , j \right ) \right ) \right ) ,$$
+
+where f s are non-linear functions, S 4 x , S 4 z are S4 blocks which are non-linear functions as well.
+
+Now, by leveraging RBPF, we can analytically marginalising out some of latent variables. We can conditioned on knowing z 1: T and x 1: T , we can marginalise out s 1: T in linear time via the forward-backward algorithm, so we can handle non-linear models. However, it is difficult to compute the optimal distribution p ( z t | z t -1 , x ) , therefore we can use variational inference to approximate this.
+
+## B. Inference
+
+Define the variational posterior:
+
+$$q _ { \phi , \theta } ( z , s | x ) = q _ { \phi } ( z | x ) p _ { \theta } ( s | z , x ) ,$$
+
+where p θ ( s | z , x ) is the exact posterior computed using the forward-backward algorithm. To compute q ϕ ( z | x ) , we first process x 1: T through a RNN mode S4 that HiPPO matrix A can extract features from x 1: T to the states h x t . It can be described as:
+
+$$h _ { t + 1 } ^ { x } & = A ^ { x } h _ { t } ^ { x } + B ^ { x } v _ { t } , v _ { t } \stackrel { i i d } { \sim } \mathcal { N } \left ( 0 , 1 \right ) , \\ x _ { t } & = C ^ { x } h _ { t } ^ { x } .$$
+
+Although this is a linear transformation, we will apply a non-linear activation function to the output; hence, it still is a non-linear function. Similarly, we apply another RNN mode S4 to compute the parameters of q ( z t | z 1: t -1 , x 1: T ) with the state h z t , where the hidden state is computed based on h z t -1 and h x t , i.e., h z t = A z h z t -1 + B z h x t . This gives the following approximate posterior: q ϕ ( z 1: T | x 1: T ) = ∏ t q ( z t | z 1: t -1 , x 1: T ) = ∏ t q ( z t | h z t ) .
+
+Fig. 7 shows the illustration of the inference network.
+
+Fig. 7. Inference network for the S4 SNLDS. Black arrows share parameters θ for generative model. Blue arrows have parameters ϕ for q ϕ ( z | x ) . The diamonds represents deterministic nodes computed with S4s. h x t is a S4 applied to x 1: T and h z t is a S4 applied to h x t -1 and z t -1 .
+
+<!-- image -->
+
+## C. Learning
+
+The evidence lower bound objective (ELBO) of the model can be expressed as:
+
+$$\L _ { E L B O } = & \mathbb { E } _ { q _ { 0 } , \phi ( z , s | x ) } \left [ \log p _ { 0 } ( x , z , s ) - \log q _ { 0 } , \phi ( z , s | x ) \right ] \\ = & \mathbb { E } _ { q _ { 0 } ( z | x ) p _ { 0 } ( s | x , z ) } \left [ \log p _ { 0 } ( x , z ) p _ { 0 } ( s | x , z ) \right ] \\ & - \log q _ { 0 } ( z | x ) p _ { 0 } ( s | x , z ) ] \\ = & \mathbb { E } _ { q _ { 0 } ( z | x ) } \left [ \log p _ { 0 } ( x , z ) \right ] + H \left ( q _ { 0 } ( z | x ) \right ) \\ \text {where} \, & \mathbb { I } _ { 2 } = \left [ \log p _ { 0 } ( x , z ) \right ] \text {, is the model likelihood, and}$$
+
+where the E q ϕ ( z | x ) [log p θ ( x , z )] is the model likelihood, and H ( q ϕ ( z | x )) is the conditional entropy for variational posterior associated with continuous hidden states.
+
+To approximate the entropy of q ϕ ( z | x ) , we have:
+
+$$H \left ( q _ { \phi } ( z | x ) \right ) = H \left ( q _ { \phi } \left ( z _ { 1 } \right ) \right ) + \sum _ { t = 2 } ^ { T } H \left ( q _ { \phi } \left ( z _ { t } | \tilde { z } _ { 1 \colon t - 1 } \right ) \right )$$
+
+where ˜ z t ∼ q ( z t ) is a sample from the variational posterior, which means the gradient can be computed by the backpropagtion from the inference RNN.
+
+The gradient for E q ϕ ( z | x ) [log p θ ( x , z )] wrt θ can be approximated as:
+
+$$\bigtriangledown \quad \nabla _ { \theta } \mathbb { E } _ { q _ { \phi } ( z | x ) } \left [ \log p _ { \theta } ( x , z ) \right ] = \mathbb { E } _ { q _ { \phi } ( z | x ) } \left [ \nabla _ { \theta } \log p _ { \theta } ( x , z ) \right ]$$
+
+Then apply reparameterisation trick for the gradient wrt ϕ :
+
+$$\bigtriangleup _ { b \times } \left ( \nabla _ { \phi } \mathbb { E } _ { q _ { \phi } ( z | x ) } \left [ \log p _ { \theta } ( x , z ) \right ] = \mathbb { E } _ { \epsilon \sim N } \left [ \nabla _ { \phi } \log p _ { \theta } \left ( x , z _ { \phi } ( \epsilon , x ) \right ) \right ] \right )$$
+
+Therefore, the gradient is expressed as:
+
+$$\begin{array} { r l } & { \nabla _ { \theta } \mathcal { L } = \mathbb { E } _ { q _ { \phi } ( z | x ) } \left [ \nabla _ { \theta } \log p _ { \theta } ( x , z ) \right ] , } \\ & { \nabla _ { \phi } \mathcal { L } = \mathbb { E } _ { \epsilon \sim N } \left [ \nabla _ { \phi } \log p _ { \theta } \left ( x , z _ { \phi } ( \epsilon , x ) \right ) \right ] + \nabla _ { \phi } H \left ( q _ { \phi } ( z | x ) \right ) . } \end{array}$$
+
+$$\text {Define } w & = ( x _ { 1 \colon T } , z _ { 1 \colon T } ) . \text { Therefore} \\ \text {parameters} & \quad \nabla \log p ( w ) = \mathbb { E } _ { p ( s | w ) } [ \nabla \log p ( w ) ] , \quad ( \log p ( w ) = \log p ( w , s ) - \\ & \quad \log p ( s | w ) \\ & = \mathbb { E } _ { p ( s | w ) } [ \nabla \log p ( w , s ) ] - \mathbb { E } _ { p ( s | w ) } [ \nabla \log p ( s | w ) ] \\ & = \mathbb { E } _ { p ( s | w ) } [ \nabla \log p ( w , s ) ] - 0$$
+
+since
+
+$$\mathbb { E } _ { p ( s | w ) } [ \nabla \log p ( s | w ) ] = \int p ( s | w ) \frac { \nabla p ( s | w ) } { p ( s | w ) } = \nabla 1 = 0 .$$
+
+Apply Markov property to ∇ log p ( w , s ) , we have
+
+$$\nabla \log p ( w , s ) = & \sum _ { t = 2 } ^ { T } \nabla \log p \left ( x _ { t } | z _ { t } \right ) p \left ( z _ { t } | z _ { t - 1 } , s _ { t } \right ) p \left ( s _ { t } | s _ { t - 1 } , x _ { t - 1 } \right ) + \\ \intertext { o n o d , \text { and } } \nabla \log p \left ( x _ { 1 } | z _ { 1 } \right ) p \left ( z _ { 1 } | s _ { 1 } \right ) p \left ( s _ { 1 } \right ) .$$
+
+Then take the expectation:
+
+$$\nabla \log p ( w ) = & \mathbb { E } _ { p ( s | v ) } [ \nabla \log p ( w , s ) ] \\ = & \sum _ { k } p ( s _ { 1 } = k | w ) \, \nabla \log p ( x _ { 1 } | z _ { 1 } ) \, p ( z _ { 1 } | s _ { 1 } = k ) \, p ( s _ { 1 } = k ) \\ & + \sum _ { t = 2 } ^ { T } p ( s _ { t - 1 } = j , s _ { t } = k | w ) \, \nabla \left [ \log p ( x _ { t } | z _ { t } ) \, p ( z _ { t } | z _ { t - 1 } , s _ { t } = k ) \, p ( s _ { t } = k | s _ { t - 1 } = j , x _ { t - 1 } ) \right ]$$
+
+## D. Entropy regularisation
+
+From prior work [22], they found out that SNLDS used single discrete state, when nonlinear function is applied to model p ( z t | z t -1 , s t ) . To solve this problem, they add an regularising term to the ELBO that penalises the KL divergence between the state posterior at each time step and a uniform prior p prior ( s t = k ) = 1 /K . This is called a cross- entropy regulariser:
+
+$$\mathcal { L } _ { C E } = \sum _ { t = 1 } ^ { T } \mathbb { K } \mathbb { L } \left ( p _ { \text {prior} } \left ( s _ { t } \right ) \left \| p \left ( s _ { t } | z _ { 1 \colon T } , x _ { 1 \colon T } \right ) \right )$$
+
+Hence the overall loss functions is
+
+$$\mathcal { L } ( \theta , \phi ) = \mathcal { L } _ { E L B O } ( \theta , \phi ) - \eta \mathcal { L } _ { C E } ( \theta , \phi ) ,$$
+
+where η &gt; 0 is a scaling factor. Set η to be large at the beginning to ensure that all states are visited.
+
+## E. Lorenz Attractor
+
+SLDS serve as a practical approximation for complex nonlinear dynamical systems. One of their primary advantages is that, once calibrated, they allow us to benefit from extensive research on optimal filtering, smoothing, and control methodologies specifically designed for linear systems. However, as we demonstrate using the example of the Lorenz attractor, traditional SLDS often fall short as generative models, particularly in their ability to interpolate over missing data points.
+
+To address this limitation, the S4 SNLDS enhances the standard model by bridging discrete ,continuous states and output. This modification improves the system's capability to handle data gaps, offering a more robust and reliable modelling framework.
+
+The nonlinear dynamics Lorenz attractor are given by,
+
+$$\frac { d x } { d t } = \left [ \begin{array} { c c } \alpha \left ( x _ { 2 } - x _ { 1 } \right ) \\ x _ { 1 } \left ( \beta - x _ { 3 } \right ) - x _ { 2 } \\ x _ { 1 } x _ { 2 } - \gamma x _ { 3 } \end{array} \right ] .$$
+
+We apply our S4 SNLDS model on the 1-D nonlinear dynamics Lorenz attractor data. We sample 500 steps for the sequence. For reconstruction and Generation task, the S4 SNLDS architecture contains an linear encoder, an inference RNN that contain two RNN S4 with both contain 3 S4 layer, both emission network and discrete state transition network are a 2-layer MLPs, the continuous state transition network used GRU followed by linear transformation and a linear decoder. And the learning rate is constant 10 -4 .
+
+- 1) Reconstruction: We trained both models with 500 data points with feed in a length of 500 random Gaussian distribution data to generate the 500 data points for the 1D nonlinear dynamics Lorenz attractor. The result can be observed in Fig. 8, Fig. 9 and Table VII, demonstrate the effectiveness of S4 SNLDS in handling both the long term dependency and the switching time series. Moreover, S4 SNLDS outperforms the SNLDS model by 3 × , and if we look Fig. 9 closely, we can see SNLDS is cannot detect the changes or delay the changes which shows how well S4 SNLDS performs.
+- 2) Generation: We next explore the Generation task for the 1-D nonlinear Lorenz attractor dynamics. Using the 500 data points mentioned earlier, we initiate the generation process to evaluate the performance of both models, especially in terms of long-range dependencies. After generating an additional 100
+
+TABLE VII RECONSTRUCTION ON 1-D SWITCHING TIME SERIES.
+
+| Model               | MSE         |
+|---------------------|-------------|
+| SNLDS [22] S4 SNLDS | 0.008 0.003 |
+
+<!-- image -->
+
+Fig. 8. Lorenz attractor Reconstruction whole.
+
+Fig. 9. Lorenz attractor Reconstruction last 30 steps.
+
+<!-- image -->
+
+steps, the results are depicted in Fig. 10. For a deeper dive, Fig. 11 presents the outcomes after a 500-step generation.
+
+To understand the impact on accuracy over time, Fig. 12 plots the Mean Squared Error (MSE) against the generation timestep. Observing the trajectories in Fig. 11, we can gauge the S4 SNLDS model's prowess in emulating long-range dynamics inherent to nonlinear systems. Through Fig. 12, we assess the span within which S4 SNLDS can predict accurately. Impressively, in our tests, it remains accurate up to 600 steps, surpassing the SNLDS, which caps at 400 steps.
+
+## F. 2-D bouncing ball
+
+The input data for 2-D bouncing ball experiment is a set of 100000 sample trajectories with 200 time steps. The initial position for the ball are randomly place between board with size 256 × 256 . The velocity of the ball for each trajectories are randomly distributed by a uniform distribution U ([ -5 , 5]) . The training is performed with batch size 64. The test set is on a fixed 100 samples. The continues hidden state z is 10-D, and the discrete hidden state is 8-D. The observations pass through an encoder that contain two fully connected NN with activation function ReLU that contain 1-D convolution with 2 kernels of size 3. Then it goes to RNN inference network that both of the S4 RNN are 6 layers. The emission network is a 4-layer MLP with 3 layer of ReLU activation and a linear output. The Discrete hidden state transition network takes the previous discrete state and the processed observations as input. The continues hidden state transition network is a single layer MLP with ReLU activation function. And the learning rate is constant 10 -4 .
+
+Fig. 10. Lorenz attractor Reconstruction whole.
+
+<!-- image -->
+
+Fig. 11. Lorenz attractor Reconstruction.
+
+<!-- image -->
+
+Fig. 12. MSE against time step for generation task in 1-D nonlinear dynamics Lorenz attractor.
+
+<!-- image -->
+
+We applied both the S4 SNLDS and SNLDS models to this dataset, which presents a more complex challenge due to its intricate dynamics. Fig. 13 illustrates the segmentation results for a selected sample from the test set. Observably, our S4 SNLDS aligns more accurately with the ground truth compared to SNLDS. For a more direct performance comparison, we depicted the trajectory of the bouncing ball from a sample in Fig. 14. As evident, post the second switch, the SNLDS lags in promptly adapting when the state alters, though it eventually redirects towards the correct trajectory.
+
+Fig. 13. Segmentation on bouncing ball for 100 time steps. From top to bottom: ground truth of latent discrete, the posterior marginals of S4 SNLDS and SNLDS. Lighter colour represents higher probability states.
+
+<!-- image -->
+
+Fig. 14. Bouncing sequence. Red dot means the starting point.
+
+<!-- image -->
+
+## V. CONCLUSION
+
+In this paper, we introduced the S4 split method, an advanced approach adept at deciphering the switching behaviour in irregular time series with extended dependencies, notably outperforming the foundational S4 model in forecasting tasks. Nevertheless, the S4 split is confined to offline settings, meaning it doesn't recognise real-time changes during its prediction phase. To bridge this gap, we unveiled the S4 SNLDS model. This hybrid approach melds the strengths of the S4 and SNLDS models, enabling the segmentation of high-dimensional sequences into discrete models. Crucially, it informs the continuous state about potential mode changes.
+
+With its ability to recall the comprehensive input history and its corresponding state - all the while updating as time progresses - the S4 SNLDS stands out.
+
+Our experimentation with the 1-D Lorenz example hints at the potential of S4 SNLDS in diverse scientific contexts, including multi-neuronal spike train analyses. Moreover, the inherent flexibility of the S4 model lends itself to broader applications, such as predicting medical datasets, including ECG data.
+
+## REFERENCES
+
+- [1] S. Hochreiter and J. Schmidhuber. Long short-term memory. Neural computation, 9(8): 1735-1780, 1997.
+- [2] D. P. Kingma and M. Welling. Auto-encoding variational bayes. arXiv preprint arXiv: 1312.6114, 2013.
+- [3] I. Goodfellow, J. Pouget-Abadie, M. Mirza, B. Xu, D. Warde-Farley, S. Ozair, A. Courville, and Y. Bengio. Generative adversarial nets. Advances in neural information processing systems, 27, 2014.
+- [4] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin. Attention is all you need. Advances in neural information processing systems, 30, 2017.
+- [5] J. Ho, A. Jain, and P. Abbeel. Denoising diffusion probabilistic models. Advances in neural information processing systems, 33: 6840-6851, 2020.
+- [6] M. Arjovsky, A. Shah, and Y. Bengio. Unitary evolution recurrent neural networks, 2016.
+- [7] N. B. Erichson, O. Azencot, A. Queiruga, L. Hodgkinson, and M. W. Mahoney. Lipschitz recurrent neural networks, 2021.
+- [8] T. K. Rusch and S. Mishra. Unicornn: A recurrent model for learning very long time dependencies, 2021.
+- [9] S. Bai, J. Z. Kolter, and V. Koltun. An empirical evaluation of generic convolutional and recurrent networks for sequence modeling, 2018.
+- [10] A. van den Oord, S. Dieleman, H. Zen, K. Simonyan, O. Vinyals, A. Graves, N. Kalchbrenner, A. Senior, and K. Kavukcuoglu. Wavenet: A generative model for raw audio, 2016.
+- [11] D. W. Romero, A. Kuzina, E. J. Bekkers, J. M. Tomczak, and M. Hoogendoorn. Ckconv: Continuous kernel convolution for sequential data, 2022.
+- [12] K. Choromanski, V. Likhosherstov, D. Dohan, X. Song, A. Gane, T. Sarlos, P. Hawkins, J. Davis, A. Mohiuddin, L. Kaiser, D. Belanger, L. Colwell, and A. Weller. Rethinking attention with performers, 2022.
+- [13] A. Katharopoulos, A. Vyas, N. Pappas, and F. Fleuret. Transformers are rnns: Fast autoregressive transformers with linear attention, 2020.
+- [14] N. Kitaev, Aukasz Kaiser, and A. Levskaya. Reformer: The efficient transformer, 2020.
+- [15] I. Beltagy, M. E. Peters, and A. Cohan. Longformer: The long-document transformer, 2020.
+- [16] Y. Tay, M. Dehghani, S. Abnar, Y. Shen, D. Bahri, P. Pham, J. Rao, L. Yang, S. Ruder, and D. Metzler. Long range arena: A benchmark for efficient transformers. arXiv preprint arXiv: 2011.04006, 2020.
+- [17] A. Gu, K. Goel, and C. R´ e. Efficiently modeling long sequences with structured state spaces. arXiv preprint arXiv: 2111.00396, 2021.
+- [18] A. Gu, I. Johnson, K. Goel, K. Saab, T. Dao, A. Rudra, and C. R´ e. Combining recurrent, convolutional, and continuous-time models with linear state space layers. Advances in neural information processing systems, 34: 572-585, 2021.
+- [19] A. Gu, T. Dao, S. Ermon, A. Rudra, and C. R´ e. Hippo: Recurrent memory with optimal polynomial projections. Advances in Neural Information Processing Systems, 33: 1474-1487, 2020.
+- [20] K. Goel, A. Gu, C. Donahue, and C. R´ e. It ˆ a s raw! audio generation with state-space models. In International Conference on Machine Learning, pages 7616-7633. PMLR, 2022.
+- [21] M. M. Islam and G. Bertasius. Long movie clip classification with statespace video models, 2023.
+- [22] Z. Dong, B. Seybold, K. Murphy, and H. Bui. Collapsed amortized variational inference for switching nonlinear dynamical systems. In International Conference on Machine Learning, pages 2638-2647. PMLR, 2020.
+- [23] R. E. Kalman. A new approach to linear filtering and prediction problems. 1960.
+- [24] A. Voelker, I. Kajic, and C. Eliasmith. Legendre memory units: Continuous-time representation in recurrent neural networks. Advances in neural information processing systems, 32, 2019.
+- [25] A. Gu, A. Gupta, K. Goel, and C. R´ e. On the parameterization and initialization of diagonal state space models. arXiv preprint arXiv: 2206.11893, 2022.
+- [27] T. Dao, D. Y. Fu, S. Ermon, A. Rudra, and C. R ˜ A ©. Flashattention: Fast and memoryefficient exact attention with io-awareness, 2022.
+- [26] D. Y. Fu, T. Dao, K. K. Saab, A. W. Thomas, A. Rudra, and C. R ˜ A ©. Hungry hungry hippos: Towards language modeling with state space models, 2023.
+- [28] J. Takeuchi and K. Yamanishi. A unifying framework for detecting outliers and change points from time series. IEEE Transactions on Knowledge and Data Engineering, 18(4): 482-492, 2006.
+- [29] S. W. Linderman, A. C. Miller, R. P. Adams, D. M. Blei, L. Paninski, and M. J. Johnson. Recurrent switching linear dynamical systems, 2016.
+- [30] A. Gupta. Diagonal state spaces are as effective as structured state spaces. arXiv preprint arXiv: 2203.14343, 2022.

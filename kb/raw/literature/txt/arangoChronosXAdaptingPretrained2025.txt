@@ -1,0 +1,3071 @@
+## ChronosX: Adapting Pretrained Time Series Models with Exogenous Variables
+
+Sebastian Pineda Arango *2† , Pedro Mercado *1 , Shubham Kapoor 1 , Abdul Fatir Ansari 1 , Lorenzo Stella 1 , Huibin Shen 1 , Hugo Senetaire 3† , Caner Turkmen 1 , Oleksandr Shchur 1 , Danielle C. Maddix 1 , Michael Bohlke-Schneider 1 , Yuyang Wang 1 , Syama Rangapuram 1 .
+
+1 Amazon Web Services 2 University of Freiburg 3 Technical University of Denmark
+
+## Abstract
+
+Covariates provide valuable information on external factors that influence time series and are critical in many real-world time series forecasting tasks. For example, in retail, covariates may indicate promotions or peak dates such as holiday seasons that heavily influence demand forecasts. Recent advances in pretraining large language model architectures for time series forecasting have led to highly accurate forecasters. However, the majority of these models do not readily use covariates as they are often specific to a certain task or domain. This paper introduces a new method to incorporate covariates into pretrained time series forecasting models. Our proposed approach incorporates covariate information into pretrained forecasting models through modular blocks that inject past and future covariate information, without necessarily modifying the pretrained model in consideration. In order to evaluate our approach, we introduce a benchmark composed of 32 different synthetic datasets with varying dynamics to evaluate the effectivity of forecasting models with covariates. Extensive evaluations on both synthetic and real datasets show that our approach effectively incorporates covariate information into pretrained models, outperforming existing baselines.
+
+* Equal contribution. † Work done during internship at AWS. Correspondence: Pedro Mercado pedroml@amazon.de . Code available at https://github.com/amazon-science/chronosforecasting/tree/chronosx.
+
+Proceedings of the 28 th International Conference on Artificial Intelligence and Statistics (AISTATS) 2025, Mai Khao, Thailand. PMLR: Volume 258. Copyright 2025 by the author(s).
+
+## 1 Introduction
+
+One important component for time series forecasting -regardless of the forecasting model class- is exogenous variables, also called covariates. Covariates provide external information to the forecasting model and allow the forecasting model to adjust the forecast based on this additional information. For example, the predicted energy output of a wind farm can be informed by additional weather information like the forecasted wind speed. While it is straightforward to incorporate covariate information into local statistical models and global deep learning (or other machine learning) models, it is less clear how this can be achieved for pretrained forecasting models. Pretrained forecasting models are trained across different datasets from different domains and every dataset might have a different number of variables with different properties, making it difficult to pretrain these models with covariates. Consequently, the majority of pretrained time series models do not support covariate data (Dooley et al., 2023; Goswami et al., 2024; Das et al., 2024; Ansari et al., 2024). One notable exception is Moirai, which introduces one possible way to address this problem with a mechanism called 'any-variate attention' that can pretrain on datasets with a varying number of covariates (Woo et al., 2024). Nevertheless, how to include covariates into pretrained models that do not natively support covariates remains an open question.
+
+In this paper, we present an approach called ChronosX to include covariate data into the pretrained forecasting model Chronos (Ansari et al., 2024). Chronos is a pretrained model that is trained on a time series dataset corpus without covariates. Drawing inspiration from modular deep learning (Pfeiffer et al., 2023), our proposed approach consists of attaching two modules. The first module updates the pretrained token embeddings with past covariates and the second module uses future covariates to adjust the output distribution. These light-weight adapter modules can be quickly trained for a downstream forecasting task even when the underlying pretrained model is frozen. Moreover, we show that the same framework can be extended to other pretrained models to incorporate covariates and showcase this with state-of-the-art pretrained models such as TimesFM (Das et al., 2024) and MOMENT (Goswami et al., 2024).
+
+To validate our approach, we introduce a novel collection of 32 datasets that emulates different kinds of covariates together with several time dynamics. We also demonstrate that ChronosX achieves low forecasting error across 18 real-world datasets with covariates. Furthermore, we show that the adapter approach can be used to finetune a pretrained time series model on a target dataset, which is much faster than full finetuning of the entire pretrained model. In summary, we make the following contributions: 1) We introduce ChronosX , an adapter approach for incorporating covariates into pretrained models for time series forecasting, 2) we show that the same framework can be extended to other pretrained models to ingest covariates and introduce TimesFMX and MOMENTX , 3) we introduce a novel benchmark of 32 synthetic datasets that allows us to evaluate how effective are forecasting models in leveraging covariate information under different dynamics, 4) we demonstrate that ChronosX achieves low forecasting error both for synthetic and real-world datasets with covariates.
+
+## 2 Background and Related Work
+
+Time series forecasting is the task of extrapolating a time series into the future based on its historical values and, optionally, a set of covariates. These covariates are external variables that potentially influence the primary time series and may enhance the forecasting model's accuracy by providing additional context (e.g., weather may influence the sales of fans). In its general form, time series forecasting can be cast as the problem of modeling the conditional distribution,
+
+$$P ( z _ { C + 1 \colon H } | z _ { 1 \colon C } , X _ { 1 \colon H } ; \Phi ) , \quad \quad ( 1 ) \quad \begin{smallmatrix} P ( z _ { C + 1 \colon H } | z _ { 1 \colon C } , X _ { 1 \colon H } ; \Phi ) , & & \\ & & ( 1 ) & \\ & & & \text {in } I \end{smallmatrix}$$
+
+where z 1: C = [ z 1 , . . . , z C ] is the historical context of the primary time series, z C +1: H = [ z C +1 , . . . , z H ] is the future target until horizon H , X 1: H = [ x 1 , . . . , x H ] , are covariates from the historical context until horizon H , and Φ denotes a set of learnable parameters. In this paper, we focus on the case where the primary time series is univariate, z t ∈ R , while the covariates may have multiple dimensions, x t ∈ R c .
+
+A wide variety of time series forecasting models have been proposed in the literature. Based on how they leverage time series data for training, they may be categorized into: local and global models. Local models such as ARIMA (Box et al., 2015) and ETS (Hyndman et al., 2008) are fit individually for each time series. On the other hand, global models such as DeepAR (Salinas et al., 2020), TFT (Lim et al., 2021), PatchTST (Nie et al., 2023), and NHiTS (Challu et al., 2023) are trained across multiple time series from a given dataset, and are able to leverage global patterns present within a dataset.
+
+Pretrained time series models. Recent work (Ansari et al., 2024; Woo et al., 2024; Das et al., 2024; Goswami et al., 2024) on large-scale training of time series models has given rise to a category of global models called pretrained models (also referred to as 'foundation' models). Pretrained models are trained on a large corpus of time series data and can be used for accurate zero-shot forecasting or finetuned on downstream datasets and tasks. Moirai (Woo et al., 2024), MOMENT (Goswami et al., 2024), and TimesFM (Das et al., 2024) are pretrained models based on patching (Nie et al., 2023). Specifically, they convert time series into patches before processing these patches with transformer-based models. Further, TTM (Ekambaram et al., 2024) is a pretrained model built on top of model blocks of TSMixer (Chen et al., 2023), which is an architecture designed by stacking multiple MLPs that allow to extract information efficiently from both time and feature dimensions. On the other hand, Chronos (Ansari et al., 2024) maps time series values into tokens from a fixed vocabulary via scaling and quantization, and trains existing language models architectures on such time series tokens . Ansari et al. (2024) show that this simple tokenization scheme is very effective and Chronos models achieve zero-shot performance comparable to deep learning models with access to training data.
+
+Forecasting with covariates. Covariates are essential to account for external events in forecasting models, such as peak dates in retail, planned strikes that might disrupt traffic, or sports events that generate massive online attendance. Forecasting models incorporate covariates in different ways. For instance, in DeepAR (Salinas et al., 2020) covariates are part of the input to the RNN block, whereas TFT (Lim et al., 2021) explicitly encodes past and future covariates with different encoding networks whose outputs are concatenated. ARIMA uses extra coefficients to account for covariates, and NBEATSx (Olivares et al., 2023) and N-HiTS (Challu et al., 2023) concatenate the primary time series with past and future covariates and compute a fixed input size. Moreover, Ekambaram et al. (2024) introduce TTM-CM, a fine-tuning strategy for TTM based on channel mixing that allows to integrate covariates. To the best of our knowledge, the only pretrained model that natively consumes covariates is Moirai (Woo et al., 2024), which flattens time series and covariates into a single sequence and assigns a variate ID to distinguish between target time series and covariates. In this paper, we introduce ChronosX , an adapter approach inspired by modular deep learning (Pfeiffer et al., 2023), for incorporating covariates into the univariate Chronos (Ansari et al., 2024) model which does not support covariates natively.
+
+Figure 1: Architecture of ChronosX . It consists of two blocks: the first block adds covariates of the past and updates token embeddings. The second block adds future covariates updating the estimated distribution of the pretrained model.
+
+<!-- image -->
+
+## 3 ChronosX : Covariate Integration in Pretrained Models
+
+We now introduce the proposed model to add covariates to pretrained models. We denote by ChronosX the resulting model of adding covariates to the pretrained model Chronos (Ansari et al., 2024). See Figure 1 for an overview of the model architecture.
+
+Chronos is a pretrained model for univariate probabilistic time series forecasting based on the encoderdecoder T5 transformer models. Chronos applies a preprocessing scheme where time series are first mean-scaled and then tokenized through a suitable bin-quantization approach. The resulting tokenization is then passed to generate the corresponding pretrained embedding and fed into the encoder. Chronos uses the categorical distribution over the vocabulary of tokens as output distribution, and is trained to minimize the cross entropy between the distribution of the quantized ground truth label and the predicted distribution. For more details, we refer the reader to (Ansari et al., 2024).
+
+Our novel approach ChronosX adds the information of covariates in two different stages: 1) we add covariates from the past to update the corresponding token embeddings, and 2) we add covariates of the future to adjust the logits. Observe that, depending on the user context, one can choose to either work with covariates of the past, the future, or both. Following a modu- lar deep learning paradigm (Pfeiffer et al., 2023), we propose modules to achieve this while minimizing the modifications to the original model.
+
+ChronosX allows us to freeze any arbitrary portion of the original architecture and just update the proposed modules. In the following sections, we refer as Input Injection Block (IIB) and Output Injection Block (OIB) to the adapters injecting covariates from the past and the future, respectively. See Figure 2 for a depiction of these. Additionally, we will overload the notation and use z for tokenized time series. In what follows we will use fully connected feed-forward networks consisting of two linear transformations with a ReLU activation in between, FFN ( x ) = max (0 , xW 1 + b 1 ) W 2 + b 2 .
+
+Input Injection Block. To add information of covariates from the past we update the token embeddings. Specifically, for every time step z t -1 we pass the corresponding token embeddings and covariates through independent linear layers and apply an FFN to the ReLU of the concatenated mappings. Let h emb ( z t -1 ) ∈ R d model be the pretrained token embedding, the updated embeddings f IIB are defined as
+
+$$f _ { I I B } ( z _ { t - 1 } , x _ { t - 1 } ) = h _ { e m b } ( z _ { t - 1 } ) + g _ { I I B } ( h _ { e m b } ( z _ { t - 1 } ) , x _ { t - 1 } )$$
+
+(2) and g IIB is defined as
+
+$$\begin{array} { r l } & { \mu _ { a } \cdot \quad g _ { I B } ( h _ { e m b } ( z _ { t - 1 } ) , x _ { t - 1 } ) = } \\ & { t \, a l . \quad F F N \left ( R e L U \left ( h _ { e m b } ( z _ { t - 1 } ) W _ { I B } ^ { ( e m b ) } \oplus x _ { t - 1 } W _ { I B } ^ { ( c o v ) } \right ) \right ) ^ { ( 3 ) } } \end{array}$$
+
+with linear mappings W (emb) IIB and W (cov) IIB and ⊕ represents the concatenation operator.
+
+The function g IIB adjusts the embeddings of the tokenized time series value z t -1 by merging information of covariates from the past x t -1 and the corresponding time series embedding h emb ( z t -1 ) .
+
+Figure 2: Input and Output injection blocks used in ChronosX . Observe that IIB and OIB take past and future covariates, respectively. Figure 2a shows that the input injection block takes a pretrained tokenized embedding together with covariates of the past, whereas Figure 2b takes the pretrained logits (expressed as the final hidden state multiplied by a pretrained matrix) together with covariates of the future. The blue color indicates that the module is taken from the pretrained model.
+
+<!-- image -->
+
+Output Injection Block. We leverage information from future covariates x t by adjusting the logits of the pretrained model. These are generated through a matrix multiplication between the last hidden state and a pretrained matrix (Vaswani et al., 2017). The adjusted logits are defined as follows: let h out ( z t -1 ) be the final hidden state corresponding to z t -1 , and W out the pretrained matrix producing the logits in the model, then the adjusted logits f OIB are defined as
+
+$$f _ { O I B } \left ( z _ { t - 1 } , x _ { t } \right ) & = h _ { o u t } ( z _ { t - 1 } ) W _ { o u t } + g _ { O I B } ( h _ { o u t } ( z _ { t - 1 } ) , x _ { t } ) \quad \text {an} \ \exp ( 4 ) \\ & = 0 .$$
+
+where g OIB
+
+$$g _ { O I B } ( h _ { o u t } ( z _ { t - 1 } ) , x _ { t } ) = & \quad \text {pretr} \\ \ F F N \left ( R e L U \left ( h _ { o u t } ( z _ { t - 1 } ) W _ { O I B } ^ { ( o u t ) } \oplus x _ { t } W _ { O I B } ^ { ( c o v ) } \right ) \right ) & \quad \text {tracy} \\$$
+
+with parameter matrices W (out) OIB and W (cov) OIB , and ⊕ represents the concatenation operator. Observe that the inputs considered for this update are covariates from the future and the last hidden state evaluated on time series values from the past.
+
+Modular variants of ChronosX . Due to its modular nature, we can adapt ChronosX depending on the kind of covariates that we want to incorporate. In what follows we will denote by ChronosX the case where both past and future covariates are incorporated, i.e. IIB and OIB are used. Yet, we can extend our model to the case where only covariates of the past are available by only considering the input injection block. Similarly, for the case where we only want to consume future covariates, we can consider only the output injection block. When training ChronosX , we train from scratch the parameters of the Feed-Forward Networks (FFN) and new matrices W (emb) IIB , W (cov) IIB , W (cov) OIB , W (out) OIB . Additionally, we consider a full-finetuned variant ChronosX(FF) where all the parameters, including the pretrained ones, are updated. Whereas in the main paper we will only report results for ChronosX , in the appendix we describe and present evaluations of additional variants. For instance, we study the case where either only past or future covariates are considered.
+
+## 4 Extending Injection Blocks to Other Pretrained Models
+
+In the previous section, we introduced ChronosX , an extension for Chronos to incorporate covariates. Given the modular and minimally-invasive nature of our design, our approach can be extended to other pretrained models. We will showcase this with two pretrained models: MOMENT and TimesFM . Contrary to Chronos which is an encoder-decoder transformer, MOMENT and TimesFM are encoder-only and decoder-only models, respectively. The main differences to consider with respect to Chronos are: i) input patching and ii) point forecasts, which imply minor modifications to our framework. The resulting extensions of pretrained models with covariates will be referred to as TimesFMX and MOMENTX .
+
+Extending on Input Patching. Patching has received a relevant amount of attention in recent years, becoming a standard operation in recent forecasting models (Nie et al., 2023; Goswami et al., 2024; Das et al., 2024). Patching is the operation of breaking a time series into potentially disjoint fixed-length subsequences.
+
+To extend our framework to models that rely on a patched input ˜ z t -1 ∈ R P n × P d , we also create patches for the covariates ˜ x t -1 = Patch( x t -1 ) ∈ R P n × ( P d · c ) , where P d , P n , c denote the patch dimension, the number of patches and the number of covariates. In this manner, we guarantee that both the primary time series input patches and the covariate patches have the same length. Subsequently, we feed these patched inputs into the modules as in Equation 3.
+
+<!-- image -->
+
+Extending on Point Forecast. Our framework can be extended to the case of point forecasts as follows. Instead of considering a categorical distribution, we can take a given point forecast generated by the current model ˆ z t = h out ( z t -1 ) W out and apply the following update rule:
+
+$$f _ { O I B } ( h _ { o u t } ( z _ { t - 1 } ) , x _ { t } , \hat { z } _ { t } ) = \hat { z } _ { t } + \begin{array} { c c } 4 ) & N o i s g \\ \infty & \text {noise} ( \epsilon ) \end{array} \\ \intertext { F F N \left ( R e L U \left ( h _ { o u t } ( z _ { t - 1 } ) W _ { O I B } ^ { ( o u t ) } \oplus x _ { t } W _ { O I B } ^ { ( c o v ) } \oplus \hat { z } _ { t } W _ { O I B } ^ { ( p ) } \right ) \right ) } \intertext { F F N \left ( R e L U \left ( h _ { o u t } ( z _ { t - 1 } ) W _ { O I B } ^ { ( o u t ) } \oplus x _ { t } W _ { O I B } ^ { ( c o v ) } \oplus \hat { z } _ { t } W _ { O I B } ^ { ( p ) } \right ) } \intertext { D E S T I O N \left ( 6 ) }$$
+
+## 5 Synthetic Datasets with Covariates
+
+Although the task of forecasting time series with covariates is a highly relevant task, there is a limited amount of freely available time series datasets with covariates where forecasting models can be evaluated. To overcome this limitation in this paper we introduce a collection of 32 different synthetic datasets of time series with covariates carefully handcrafted to emulate real-life applications where external factors greatly impact the time series.
+
+Each of the datasets contains 100 times series of daily frequency extending over 1827 days 1 . For each dataset, we consider 3 basic elements that allow for the generation of 100 times series with covariates: 1) the main signal ( ˆ z t ), 2) an external covariate ( x t ), and 3) a combination operator ⊙ ∈ { + , ×} . The generation of time series with these three ingredients is defined by z t = ˆ z t ⊙ x t . In what follows we present several variations of these three basic elements with the goal of providing a comprehensive evaluation of suitable forecasting models for time series with covariates.
+
+The time series representing the main signal ˆ z t are divided in two types: Simple and Complex . The simple synthetic type includes single sinusoids and simple sinusoids variants, whereas the complex synthetic type includes diverse sinusoids and noisy sinusoids variants. We now describe each of the four different variants of the main signal ˆ z t with increasing complexity with the form of Eq. (7), mainly: 1) Single sinusoids considers a standard sine curve with fixed zero phase, unit amplitude and period of 7 days corresponding to one week Figure 3: Illustration of the generation of synthetic time series. Different combinations of the 4 possible main signals modified by one of the 4 possible external covariates through a chosen operator ( + or × ), result in realistic synthetic time series with covariates.
+
+1 This corresponds to the number of days in the fictional time series between 01/01/2025 and 31/12/2029.
+
+for the entire dataset; 2) Simple sinusoids is the sum of three sine curves each with a weekly, monthly and yearly period, together with a randomly sampled amplitude and zero phase; 3) Diverse sinusoids is the result of combining three sine curves with randomly sampled phases and amplitudes and with a global trend, and 4) Noisy sinusoids which results from adding gaussian noise ( ϵ ) to diverse sinusoids and allows us to assess model robustness. Please see the Appendix for more details on the process to generate the dataset.
+
+$$\hat { z } _ { t } = \sum _ { i = 1 } ^ { 3 } a _ { i } \sin \left ( f _ { i } t + \phi _ { i } \right ) + b _ { 1 } t + b _ { 2 } + \epsilon \quad ( 7 )$$
+
+We design four different kinds of external covariates : 1) spikes models short time events such as strikes or power failure, 2) steps model longer events with sudden and sustained changes such as discounts in the retail industry, 3) bells represent smoother changes such as festive season, and 4) autoregressive process with randomly generated parameters that model cases where the value of covariates is determined by previous observations. Finally, the combination operator ⊙ is defined either as the addition + or the multiplication × between the main signal ( ˆ z t ) and the covariates ( x t ). An illustration of the generative process for this synthetic datasets along with a few examples of the resulting time series is depicted in fig. 3.
+
+## 6 Experiments and Results
+
+Setup. In all experiments for our models we consider learning rates { 10 -2 , 10 -3 , 10 -4 } and select the one with the best validation error with a validation window of length equal to the prediction length of the dataset in consideration. A detailed description of the hyperparameters is presented in the appendix.
+
+Metrics . We consider the Weighted Quantile Loss (WQL) to evaluate probabilistic forecasts, which measure the alignment of quantile levels of the predictive distribution with respect to the ground truth (Gneiting and Raftery, 2007; Gasthaus et al., 2019; Shchur et al., 2023). In all experiments the WQL is computed on quantile levels {0.1, 0.2, . . . , 0.9}. For methods generating sample forecasts we compute the quantiles based on 100 samples, whereas quantile forecasting methods are trained on the same quantile levels we use
+
+<!-- image -->
+
+- (a) Agg. Rel (WQL) on Simple synthetic datasets.
+- (b) Agg. Rel (WQL) on Complex synthetic datasets.
+
+Figure 4: Evaluations on Simple and Complex datasets as introduced in Section 5. Scores are normalized by Chronos Small . We can see that our proposed models ChronosX and ChronosX(FF) effectively incorporate covariates.
+
+for evaluation. We report the Mean Absolute Scaled Error (MASE), which measures deviations from the median forecast with the ground-truth values (Hyndman and Koehler, 2006). Finally, we follow (Fleming and Wallace, 1986; Ansari et al., 2024; Woo et al., 2024) and report the aggregated WQL and MASE computed as the geometric mean of normalized scores by the corresponding baseline.
+
+## 6.1 Finetuning and Adapters on Synthetic Benchmark Datasets with Covariates
+
+In this section we evaluate how effective different forecasting models are in incorporating external information through covariates under different dynamics.
+
+We take the 32 different datasets as introduced in Section 5 and follow the suggested splits Simple and Complex dataset collections each consisting of 16 datasets, and for each dataset we generate 100 time series of daily frequency with length 1827 and prediction length of 30. Recall that our adapter-based approach ChronosX , and its extensions MOMENTX and TimesFMX , incorporates both past and future covariates. Further, we consider a full finetuning variant per model and denote it by ChronosX(FF) , MOMENTX(FF) , TimesFMX(FF) , which updates all parameters including those of the pretrained model. We also consider baselines that include covariates like DeepAR, PatchTSTx (an extension of PatchTST that supports covariates; see the supplementary appendix for details), NHiTS, and NBEATSx with its interpretable and gen- eral variants, together with AutoArima, which incorporates covariates through residuals. For all methods we standardize the covariates by the mean of absolute values. All scores are normalized by the scores of Chronos Small , which is a variant of Chronos with 46M parameters.
+
+Figures 4a and 4b present the aggregated relative WQL on Simple and Complex synthetic datasets. For both types of datasets, our proposed adapteronly approaches ChronosX , TimesFMX , and MOMENTX , together with their full fine-tuning variants ( ChronosX (FF), TimesFMX (FF), and MOMENTX (FF)) incorporate covariates, as they clearly outperform the zero-shot performance of their pretrained models, i.e. Chronos Small , TimesFM , and MOMENT , respectively. In particular, we can see that ChronosX outperforms Chronos by 22% in both WQL and MASE. Further, we observe that baseline models like TFT, DeepAR and PatchTSTx perform particularly well in Simple datasets, verifying that they effectively incorporate covariates in simple cases, whereas for Complex datasets the errors are larger, yet most of baselines outperform the zero-shot performance of Chronos Small . Moreover, we can see that in general full fine-tuning further improves the performance, which can be observed with ChronosX (FF) and MOMENTX (FF), whereas for TimesFMX (FF) in general it seems that there is a slight decrease in performance with complex synthetic datasets.
+
+Overall, we can see that our proposed benchmark of synthetic datasets is useful to discern the effectivity of Model ChronosX
+
+PatchTSTx
+
+NHiTS
+
+NBEATSx-G
+
+TiDE
+
+Chronos Small
+
+TFT
+
+DeepAR
+
+NBEATSx-I
+
+ChronosX (FF)
+
+DLinear
+
+Moirai (Base)
+
+TimesFMX
+
+AutoARIMA
+
+Moirai (Large)
+
+TimesFM
+
+MOMENTX (FF)
+
+MOMENTX
+
+TimesFMX (FF)
+
+Seasonal Naive
+
+TTM-CM
+
+TTM
+
+MOMENT
+
+0.0
+
+Baselines
+
+Full Finetuned
+
+0.5
+
+1.0
+
+1.5
+
+Agg. Relative WQL
+
+- (a) Agg. Rel. WQL on real datasets with covariates.
+- (b) Agg. Rel. MASE on real datasets with covariates.
+
+<!-- image -->
+
+Figure 5: Evaluations on real datasets with covariates. We report the Aggregated Relative WQL and MASE.
+
+different models to incorporate covariates in time series. In particular, we have seen that most of the baselines here considered incorporate covariates that yield better scores than methods that do not take covariates, and that our covariate extensions for pretrained models are effectively incorporating covariate information
+
+## 6.2 Finetuning and Adapters on Real Datasets with Covariates.
+
+In this section, we evaluate our proposed models on 18 real datasets with covariates taken from diverse sources (Zhou et al., 2021; Makridakis et al., 2022; Godahewa et al., 2021; Woo et al., 2024; Wang et al., 2024). These datasets encompass data from fields such as retail, nature, transport, and mostly energy. Frequencies include hourly, daily, and 15-minute intervals, with forecast horizons up to 30 steps ahead. Please see the appendix for further details.
+
+In Figure 5 we can see that our adapter-based approach ChronosX consistently performs best among pretrained models adapted to include covariates TimesFMX and MOMENTX . Moreover, we can see that adapter-only variants ChronosX , TimesFMX , and MOMENTX perform better than their zero-shot counterparts Chronos , TimesFM , and MOMENT , respectively, further verifying that our models incorporate covariate information. Additionally, we can see that full fine-tuning variants ChronosX (FF), TimesFMX (FF), and MOMENTX (FF) underperform with respect to several of the baselines here considered. This is likely due to the fact that several datasets consist of only one time series, and hence having a model with less trainable parameters provides an advantage in data-sparse regimes. Further, we can see that our model ChronosX performs best in WQL, and in terms of MASE it performs in the top-5 models together with TimesFMX . On the other side, despite the fact that MOMENT underperforms other models in general, we can see that our covariate extensions MOMENTX and MOMENTX (FF) significantly improve its performance, verifying that our adaption of pretrained models to incorporate covariates is effectively consuming this kind of information.
+
+Overall we have shown that our proposed covariate extensions ChronosX , TimesFMX , and MOMENTX effectively incorporate covariate information in real datasets and ChronosX performs best in WQL and is comparable to other models in MASE.
+
+## 6.3 Ablations of Covariate Adapters
+
+In this section we explore the impact of covariates and backbone model sizes in ChronosX.
+
+Impact of covariates in ChronosX . We analyze if the performance improvement of ChronosX is obtained from the covariate information or the extra parameters included by the covariate modules. We run experiments using the Input and Output blocks, but omitting the covariates by dropping the matrices related to covariates, inducing the following variations:
+
+$$f _ { I I B - N C } \left ( z _ { t - 1 } , x _ { t - 1 } \right ) & = h _ { \text {emb} } ( z _ { t - 1 } ) + \\ \text {FFN} \left ( R e L U \left ( h _ { \text {emb} } ( z _ { t - 1 } ) W _ { I I B } ^ { ( \text {emb} ) } \right ) \right ) & \quad ^ { ( 8 ) }$$
+
+0.878
+
+0.926
+
+0.932
+
+0.939
+
+1.000
+
+1.044
+
+1.091
+
+1.094
+
+1.140
+
+1.174
+
+1.204
+
+1.263
+
+1.267
+
+1.272
+
+1.286
+
+1.305
+
+Adapters Only
+
+Pretrained Models
+
+1.571
+
+1.624
+
+1.660
+
+1.702
+
+1.752
+
+1.780
+
+1.812
+
+2.0
+
+<!-- image -->
+
+- (a) WQL on Simple Synthetic Data. (b) WQL on Complex Synthetic Data.
+
+(c) WQL Real Datasets.
+
+Figure 6: Covariate ablation study. ChronosX (NC) and ChronosX (FF) (NC) are variants with no-covariates of our models ChronosX and ChronosX (FF), respectively. Overall model ablations with no-covariates perform worse.
+
+<!-- image -->
+
+Figure 7: Model size ablation. ChronosX (Base) and ChronosX (Large) are variants of ChronosX with backbone models with 200M and 710M parameters. Overall, larger backbone models improve performance with full fine-tuning.
+
+$$f _ { O I B - N C } ( z _ { t - 1 } , x _ { t } ) & = h _ { o u t } ( z _ { t - 1 } ) W _ { o u t } + \\ \ F F N \left ( R e L U \left ( h _ { o u t } ( z _ { t - 1 } ) W _ { O I B } ^ { ( o u t ) } \right ) \right ) & \quad ^ { ( 9 ) } \ \exp e x { 0 } { 1 } \\$$
+
+Evaluations of these ablations are presented in Fig. 6, where the ablations without covariates are denoted ChronosX (NC) and ChronosX (FF) (NC). We can see across synthetic and real datasets that our model ChronosX and its full-finetuned version ChronosX (FF) perform better than its corresponding ablations, ChronosX (NC) and ChronosX (FF) (NC), respectively. Thus, we verify the performance improvement observed by our proposed model ChronosX is due to effectively consuming the information encoded through covariates. Finally, we provide an adapter-only variant that consumes covariates of the future through a linear transformation, denoted by ChronosX (RS)
+
+$$f _ { R S } \left ( z _ { 1 \colon t - 1 } , x _ { t } \right ) = h _ { o u t } ( z _ { 1 \colon t - 1 } ) W _ { o u t } + x _ { t } W _ { O I B } ^ { ( c o v ) } \ \ ( 1 0 ) \quad \begin{matrix} \text {Im} p a t h s c r { I } \end{matrix}$$
+
+We observe that this residual-based model ChronosX (RS) systematically outperforms its adapter-only ablation ChronosX (NC), further verifying the relevance of covariate information to improve performance.
+
+Impact of Backbone Size in ChronosX . In our experiments we have used for our model ChronosX the backbone model Chronos in its small version (46M). In this ablation, we study the effect of using the size variants Base and Large of Chronos , which have 200M and 710M parameters, respectively. The results in Fig. 7 demonstrate that increasing the model capacity is particularly helpful in complex synthetic datasets. For real datasets we can see that full fine-tuning approaches improve their performance with larger backbone models, i.e. ChronosX (FF)(Base) and ChronosX (FF)(Large), whereas adapter-only variants decrease in performance. Hence, we observe that using the backbone size Small , as done with our model ChronosX , provides a good balance between model size and forecast quality.
+
+Impact of Adapters Architecture . Our proposed adapters consider two independent linear layers, followed by a Feed-Forward Network, as explained in Section 3. One linear layer operates on embeddings related to the target time series (token embedding and hidden state), while operates on the covariates. This design al- lows the model to learn interactions independently, and has been explored in previous work (Pineda Arango and Grabocka, 2023). However, to further justify our design, we compare it with three other alternatives. Firstly, we consider ChronosX with one linear layer (OL) that receives the concatenated inputs of the embeddings of the target time series and their respective covariates. We also study ChronosX without the initial linear layers (NL) , and just an activation function before FFN. Finally, we ablate ChronosX without initial linear layers and activations (NL-NR) , just using a FFN. In Table 1, we formalize these variants mathematically both for the input and output modules, following the same notation as in our original formulation. Figure 8 reports the results after evaluating the architectures in our datasets. In general, we observe that our original formulation ChronosX outperforms the other alternatives in real datasets and simple synthetic data. In complex data, ChronosX (OL) obtained the best results among the adapter-only variants, but still is outperformed by ChronosX (FF). Interestingly, we observe that ChronosX (OL) is consistently better than ChronosX (NL) and ChronosX (NL-NR), which highlights the importance of the additional linear layer. ChronosX (NL) outperforms ChronosX (NL-NR) in all datasets, further motivating the use of the activation function before the Feed-Forward Network. Please refer to the Appendix for more details.
+
+Figure 8: Results of ablations of ChronosX with different covariate adapters' architectures, i.e. ChronosX (OL), ChronosX (NL), and ChronosX (NL-NR). Overall, our proposed architecture outperforms these variants.
+
+| Ablation                                           | Input Injection Block g IIB ( h emb ( z t - 1 ) , x t - 1 )                                                                             | Output Injection Block g OIB ( h out ( z t - 1 ) , x t )                                                                    |
+|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| One Linear (OL) No Linear (NL) No Linear - No ReLU | FFN ( ReLU ( ( h emb ( z t - 1 ) ⊕ x t - 1 ) W (OL) IIB )) FFN(ReLU( h emb ( z t - 1 ) ⊕ x t - 1 )) FFN ( h emb ( z t - 1 ) ⊕ x t - 1 ) | FFN ( ReLU ( ( h out ( z t - 1 ) ⊕ x t ) W (OL) OIB )) FFN(ReLU( h out ( z t - 1 ) ⊕ x t )) FFN ( h out ( z t - 1 ) ⊕ x t ) |
+
+Table 1: Definition of three alternative versions of ChronosX : with a single linear layer (OL), without linear layer but with activation (NL), and without linear layer and activation (NL-NR).
+
+<!-- image -->
+
+## 7 Conclusion
+
+In this paper we presented extensions of pretrained time series models to incorporate exogenous variables via modules that inject information from past and future covariates. We showcase our approach with ChronosX and show that the same approach can be applied to other pretrained models with minimal modifications, resulting in extensions like TimesFMX and MOMENTX . We study the cases where we finetune the entire model or we only fit the parameters of the covariate-related modules, and introduced a family of 32 synthetic datasets with covariates to evaluate the efficacy of forecasting models to integrate covariates. We test the adapters in our models ChronosX , TimesFMX , and MOMENTX and demonstrate in synthetic and real datasets that our approach enables pretrained models to capture covariate information and perform favorably when compared to other baselines.
+
+Limitations - Future Work . A limitation of this work is that the adapter approach for integrating covariate data requires training of the adapter module, therefore losing the benefit of pretrained models to perform zero-shot inference (arguable in exchange for lower forecasting error). An interesting research direction is to integrate covariates into pretrained forecasting models in inference akin to in-context learning, using directly the covariate data to reduce the forecast error.
+
+## References
+
+- A. Alexandrov, K. Benidis, M. Bohlke-Schneider, V. Flunkert, J. Gasthaus, T. Januschowski, D. C. Maddix, S. Rangapuram, D. Salinas, J. Schulz, et al. Gluonts: Probabilistic and neural time series modeling in python. The Journal of Machine Learning Research , 21(1):4629-4634, 2020.
+- A. F. Ansari, K. Benidis, R. Kurle, A. C. Turkmen, H. Soh, A. J. Smola, B. Wang, and T. Januschowski. Deep explicit duration switching models for time series. Advances in Neural Information Processing Systems , 34, 2021.
+- A. F. Ansari, L. Stella, A. C. Turkmen, X. Zhang, P. Mercado, H. Shen, O. Shchur, S. S. Rangapuram, S. P. Arango, S. Kapoor, J. Zschiegner, D. C. Maddix, H. Wang, M. W. Mahoney, K. Torkkola, A. G. Wilson, M. Bohlke-Schneider, and B. Wang. Chronos: Learning the language of time series. Transactions on Machine Learning Research , 2024. ISSN 2835-8856. URL https://openreview.net/forum? id=gerNCVqqtR . Expert Certification.
+- G. E. Box, G. M. Jenkins, G. C. Reinsel, and G. M. Ljung. Time series analysis: forecasting and control . John Wiley &amp; Sons, 2015.
+- C. Challu, K. G. Olivares, B. N. Oreshkin, F. G. Ramirez, M. M. Canseco, and A. Dubrawski. Nhits: Neural hierarchical interpolation for time series forecasting. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 37, 2023.
+6. S.-A. Chen, C.-L. Li, S. O. Arik, N. C. Yoder, and T. Pfister. TSMixer: An all-MLP architecture for time series forecast-ing. Transactions on Machine Learning Research , 2023. ISSN 2835-8856. URL https://openreview.net/forum?id=wbpxTuXgm0 .
+- A. Das, W. Kong, R. Sen, and Y. Zhou. A decoderonly foundation model for time-series forecasting. In Forty-first International Conference on Machine Learning , 2024. URL https://openreview.net/ forum?id=jn2iTJas6h .
+- S. Dooley, G. S. Khurana, C. Mohapatra, S. Naidu, and C. White. ForecastPFN: Synthetically-trained zeroshot forecasting. In Advances in Neural Information Processing Systems , 2023.
+- V. Ekambaram, A. Jati, P. Dayama, S. Mukherjee, N. Nguyen, W. M. Gifford, C. Reddy, and J. Kalagnanam. Tiny time mixers (ttms): Fast pre-trained models for enhanced zero/fewshot forecasting of multivariate time series. In A. Globerson, L. Mackey, D. Belgrave, A. Fan, U. Paquet, J. Tomczak, and C. Zhang, editors, Advances in Neural Information Processing Systems , volume 37, pages 74147-74181. Curran Associates, Inc., 2024. URL https://proceedings.
+10. [neurips.cc/paper\_files/paper/2024/file/ 874a4d89f2d04b4bcf9a2c19545cf040-Paper-Conference. pdf .](https://proceedings.neurips.cc/paper_files/paper/2024/file/874a4d89f2d04b4bcf9a2c19545cf040-Paper-Conference.pdf)
+- P. J. Fleming and J. J. Wallace. How not to lie with statistics: the correct way to summarize benchmark results. Communications of the ACM , 29(3):218-221, 1986.
+- F. Garza, M. M. Canseco, C. Challú, and K. G. Olivares. StatsForecast: Lightning fast forecasting with statistical and econometric models. PyCon Salt Lake City, Utah, US 2022, 2022. URL https://github.com/Nixtla/statsforecast .
+- J. Gasthaus, K. Benidis, Y. Wang, S. S. Rangapuram, D. Salinas, V. Flunkert, and T. Januschowski. Probabilistic forecasting with spline quantile function rnns. In K. Chaudhuri and M. Sugiyama, editors, Proceedings of the Twenty-Second International Conference on Artificial Intelligence and Statistics , volume 89 of Proceedings of Machine Learning Research , pages 1901-1910. PMLR, 16-18 Apr 2019. URL https: //proceedings.mlr.press/v89/gasthaus19a.html .
+- T. Gneiting and A. E. Raftery. Strictly proper scoring rules, prediction, and estimation. Journal of the American statistical Association , 102(477):359-378, 2007.
+- R. Godahewa, C. Bergmeir, G. I. Webb, R. J. Hyndman, and P. Montero-Manso. Monash time series forecasting archive. In Neural Information Processing Systems Track on Datasets and Benchmarks , 2021.
+- M. Goswami, K. Szafer, A. Choudhry, Y. Cai, S. Li, and A. Dubrawski. MOMENT: A family of open time-series foundation models. In R. Salakhutdinov, Z. Kolter, K. Heller, A. Weller, N. Oliver, J. Scarlett, and F. Berkenkamp, editors, Proceedings of the 41st International Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 16115-16152. PMLR, 21-27 Jul 2024. URL https://proceedings.mlr.press/v235/ goswami24a.html .
+- R. Hyndman, A. B. Koehler, J. K. Ord, and R. D. Snyder. Forecasting with exponential smoothing: the state space approach . Springer Science &amp; Business Media, 2008.
+- R. J. Hyndman and A. B. Koehler. Another look at measures of forecast accuracy. International journal of forecasting , 22(4):679-688, 2006.
+- J. Lago, G. Marcjasz, B. De Schutter, and R. Weron. Forecasting day-ahead electricity prices: A review of state-of-the-art algorithms, best practices and an open-access benchmark. Applied Energy , 293:116983, 2021. ISSN 03062619. doi: https://doi.org/10.1016/j.apenergy.2021.
+
+116983. [URL https://www.sciencedirect.com/ science/article/pii/S0306261921004529 .](https://www.sciencedirect.com/science/article/pii/S0306261921004529)
+- B. Lim, S. Ö. Arık, N. Loeff, and T. Pfister. Temporal fusion transformers for interpretable multi-horizon time series forecasting. International Journal of Forecasting , 37(4):1748-1764, 2021.
+- S. Makridakis, E. Spiliotis, and V. Assimakopoulos. M5 accuracy competition: Results, findings, and conclusions. International Journal of Forecasting , 38 (4):1346-1364, 2022.
+- Y. Nie, N. H. Nguyen, P. Sinthong, and J. Kalagnanam. A time series is worth 64 words: Long-term forecasting with transformers. In International Conference on Learning Representations , 2023.
+- K. G. Olivares, C. Challú, F. Garza, M. M. Canseco, and A. Dubrawski. NeuralForecast: User friendly state-of-the-art neural forecasting models. PyCon Salt Lake City, Utah, US 2022, 2022. URL https: //github.com/Nixtla/neuralforecast .
+- K. G. Olivares, C. Challu, G. Marcjasz, R. Weron, and A. Dubrawski. Neural basis expansion analysis with exogenous variables: Forecasting electricity prices with nbeatsx. International Journal of Forecasting , 39(2):884-900, 2023.
+- J. Pfeiffer, S. Ruder, I. Vulić, and E. Ponti. Modular deep learning. Transactions on Machine Learning Research , 2023. ISSN 2835-8856. URL https: //openreview.net/forum?id=z9EkXfvxta . Survey Certification.
+- S. Pineda Arango and J. Grabocka. Deep pipeline embeddings for automl. In Proceedings of the 29th ACM SIGKDD Conference on Knowledge Discovery and Data Mining , KDD '23, page 1907-1919, New York, NY, USA, 2023. Association for Computing Machinery. ISBN 9798400701030. doi: 10.1145/ 3580305.3599303. URL https://doi.org/10.1145/ 3580305.3599303 .
+- D. Salinas, V. Flunkert, J. Gasthaus, and T. Januschowski. Deepar: Probabilistic forecasting with autoregressive recurrent networks. International Journal of Forecasting , 36(3):11811191, 2020.
+- O. Shchur, A. C. Turkmen, N. Erickson, H. Shen, A. Shirkov, T. Hu, and B. Wang. Autogluontimeseries: Automl for probabilistic time series forecasting. In International Conference on Automated Machine Learning , pages 9-1. PMLR, 2023.
+- A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin. Attention is all you need. In Advances in Neural Information Processing Systems , 2017.
+- Z. Wang, Q. Wen, C. Zhang, L. Sun, L. V. Krannichfeldt, S. Pan, and Y. Wang. Benchmarks and custom package for energy forecasting, 2024. URL https://arxiv.org/abs/2307.07191 .
+- G. Woo, C. Liu, A. Kumar, C. Xiong, S. Savarese, and D. Sahoo. Unified training of universal time series forecasting transformers. In R. Salakhutdinov, Z. Kolter, K. Heller, A. Weller, N. Oliver, J. Scarlett, and F. Berkenkamp, editors, Proceedings of the 41st International Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 53140-53164. PMLR, 21-27 Jul 2024. URL https://proceedings.mlr.press/v235/ woo24a.html .
+- H. Zhou, S. Zhang, J. Peng, S. Zhang, J. Li, H. Xiong, and W. Zhang. Informer: Beyond efficient transformer for long sequence time-series forecasting. In The Thirty-Fifth AAAI Conference on Artificial Intelligence, AAAI 2021, Virtual Conference , volume 35, pages 11106-11115. AAAI Press, 2021.
+
+## Checklist
+
+1. For all models and algorithms presented, check if you include:
+2. (a) A clear description of the mathematical setting, assumptions, algorithm, and/or model. [Yes] → Refer to Section 3 and Section 6.
+3. (b) An analysis of the properties and complexity (time, space, sample size) of any algorithm. [Yes] → Refer to Section I.1.
+4. (c) (Optional) Anonymized source code, with specification of all dependencies, including external libraries. [No] → Released upon acceptance.
+2. For any theoretical claim, check if you include:
+6. (a) Statements of the full set of assumptions of all theoretical results. [Not Applicable]
+7. (b) Complete proofs of all theoretical results. [Not Applicable]
+8. (c) Clear explanations of any assumptions. [Not Applicable]
+3. For all figures and tables that present empirical results, check if you include:
+10. (a) The code, data, and instructions needed to reproduce the main experimental results (either in the supplemental material or as a URL). [Yes].
+11. (b) All the training details (e.g., data splits, hyperparameters, how they were chosen). [Yes] ← Refer to Section B.
+
+- (c) A clear definition of the specific measure or statistics and error bars (e.g., with respect to the random seed after running experiments multiple times). [Yes] ← Refer to Section H.
+- (d) A description of the computing infrastructure used. (e.g., type of GPUs, internal cluster, or cloud provider). [Yes] → Refer to Section C.
+4. If you are using existing assets (e.g., code, data, models) or curating/releasing new assets, check if you include:
+- (a) Citations of the creator If your work uses existing assets. [Yes] → Refer to Section F.
+- (b) The license information of the assets, if applicable. [Not Applicable]
+- (c) New assets either in the supplemental material or as a URL, if applicable. [Not Applicable]
+- (d) Information about consent from data providers/curators. [Not Applicable]
+- (e) Discussion of sensible content if applicable, e.g., personally identifiable information or offensive content. [Not Applicable]
+5. If you used crowdsourcing or conducted research with human subjects, check if you include:
+- (a) The full text of instructions given to participants and screenshots. [Not Applicable]
+- (b) Descriptions of potential participant risks, with links to Institutional Review Board (IRB) approvals if applicable. [Not Applicable]
+- (c) The estimated hourly wage paid to participants and the total amount spent on participant compensation. [Not Applicable]
+
+## A Appendix Structure
+
+In this appendix, we specify details on different aspects of our work. We address the following items:
+
+- In Appendix B, we detail the hyperparameters used for the main method.
+- In Appendix C, we mention the computing resource used in the experiments.
+- In Appendix D, we describe the Chronos variants.
+- In Appendix E, we give more information about the synthetic dataset creation.
+- In Appendix F, we detail information on the datasets with covariates.
+- In Appendix G, we specify the baselines configurations.
+- In Appendix H, we describe the metrics that we used in our experiments.
+- In Appendix I, we present additional results:
+- -In Appendix I.1, we compare the execution time and the number of parameters for different chronos variants.
+- -Section I.2: full set of evaluations with ChronosX , TimesFMX , and MOMENTX
+- -Section I.3: evaluations on covariate injection on pretrained models with either past covariates, future covariates, or both.
+- -Section I.4: ablations showing that performance improvement is brought by covariates.
+- -Section I.5: ablations showing the performance with larger version of Chronos.
+- -Section I.6: ablations showing the performance of different adapter architectures for covariates.
+- -Section I.7: Probabilistic forecasts visualizations.
+
+## B Hyperparameter Details
+
+For all the experiments, we use the output dimension of the linear layers and the hidden dimension of the Feed Forward Networks is 256. We train the models for 5000 steps, and checkpointing the best observed model every 100 steps. The rest of the training setup such as the optimizer and learning rate scheduler were set following previous work Ansari et al. (2024). For TimesFMX we used a hidden dimension of 256, learning rate 1.e-5, and cosine annealing scheduler as in (Das et al., 2024). For MOMENTX we used a hidden dimension of 64, maximum learning 1.e-4 with one cycle learning rate schedule as in (Goswami et al., 2024). Remaining parameters of TimesFMX a MOMENTX were set up following previous works (Das et al., 2024; Goswami et al., 2024).
+
+## C Compute Resource Information
+
+For the experiments, we use GPU Nvidia A10G. More expensive experiments used NVIDIA Tesla V100. For baselines we used cpu instances with 16 virtual cpus and 32 GiB of memory.
+
+## D Chronos Variants
+
+## D.1 Additional Covariate Modules: Hidden State Only and Covariates Only (Residual) Injection Block.
+
+To understand the impact of the proposed output and input injection blocks, we present the following variants. First, we propose a hidden-state base adapter that does not take covariates into account and works as an alternative to full finetuning without covariates, defined as
+
+$$f _ { H S } ( h _ { o u t } ( z _ { 1 \colon t - 1 } ) ) = \text {FFN} \left ( R e L U \left ( h _ { o u t } ( z _ { 1 \colon t - 1 } ) W _ { O I B } ^ { ( o u t ) } \right ) \right )$$
+
+and second, we present an adapter to incorporate covariates of the future by updating logits through a linear transformation.
+
+$$f _ { \text {RS} } \left ( z _ { 1 \colon t - 1 } , x _ { t } \right ) = h _ { \text {out} } ( z _ { 1 \colon t - 1 } ) W _ { \text {out} } + x _ { t } W _ { \text {OIB} } ^ { ( c o v ) }$$
+
+## D.2 Variants List
+
+Here we explain the baselines, for more information please refer to the section 3. In the notation below, we refer to the IIB (Input Injection Block) as the network that receives the past covariates and updates the token embedding, while the OIB (Output Injection Block) indicates the network that receives the hidden state and the future covariates.
+
+- Chronos is the model with the pretrained weights (not finetuned).
+- Chronos(FF) is the pretrained model full-finetuned on the corresponding dataset.
+- ChronosX , represented as well as ChronosX(IIB+OIB) , is the frozen pretrained model with the additional Input and Output Injection Blocks.
+- ChronosX(FF) , represented as well as ChronosX(FF+IIB+OIB) , is the full-finetuned Chronos model with the additional Input and Output Injection Block.
+- ChronosX(FF+IIB) is the full-finetuned Chronos model with Input Injection Block.
+- ChronosX(FF+OIB) is the full-finetuned Chronos model with Output Injection Block.
+- ChronosX(OIB) is the frozen pretrained model only with Output Injection Block.
+- ChronosX(IIB) is the frozen pretrained model only with Input Injection Block.
+- ChronosX(HS) is the frozen pretrained model only with hidden state, as in Equation 11.
+- ChronosX(RS) is the frozen pretrained model only with modules accepting covariates, as in Equation 12.
+
+## E Synthetic Dataset Creation
+
+We created a suite of 32 synthetic datasets comprising a 100 time series with length L = 1827 and 30 steps for the prediction length, assuming a "fictional" daily frequency. Each dataset is created by combining a main signal ˆ z t with a covariate x t using a combination operator according to Eq. 13.
+
+$$z _ { t } = \hat { z } _ { t } \odot x _ { t } , \ \ t = 1 , \dots , L$$
+
+Once a combination is chosen, we randomly sample the parameters for the main signal appendix E.1 and the covariates appendix E.2 to get 100 different time series. All possible combinations are illustrated in fig. 9 and fig. 10.
+
+## E.1 Main signal generation
+
+The main signal to be affected by the covariates can be generated in different ways. We describe four variants in an increasing order of complexity by changing the set of possible parameters in Eq. 14.
+
+$$\hat { z } _ { t } = \sum _ { i = 1 } ^ { 3 } a _ { i } \sin { ( f _ { i } t + \phi _ { i } ) } + b _ { 1 } t + b _ { 2 } + \epsilon$$
+
+- Single Sinuoid : This represents the simplest time series, keeping the same amplitude, phase and a weekly frequency among time series.
+
+$$\hat { z } _ { t } ^ { ( \text {single} ) } = \sin \left ( 2 \pi \frac { t } { 7 } \right )$$
+
+- Simple Sinusoids : Every time series in the dataset is the superposition of three sinusoids with different frequencies, simulating weekly, monthly and yearly seasonal patterns. For each time series, a different amplitude is sampled from a i ∼ U (1 , 5) .
+
+$$\hat { z } _ { t } ^ { ( \sinusoids ) } = a _ { 1 } \sin \left ( 2 \pi \frac { t } { 7 } \right ) + a _ { 2 } \sin \left ( 2 \pi \frac { t } { 3 0 } \right ) + a _ { 3 } \sin \left ( 2 \pi \frac { t } { 3 6 5 } \right )$$
+
+- Diverse Sinusoids : Every time series is similar to simple sinusoids , but we sample a different phase for every sinusiodal component with a random amplitude a i ∼ U (1 , 5) and a random phase ϕ i ∼ U ( -π, π ) . A trend component is also added with random coefficient b 1 , b 2 ∼ U ( -1 , 1) .
+
+$$\hat { z } _ { t } ^ { ( d i v e r s ) } = a _ { 1 } \sin \left ( 2 \pi \frac { t } { 7 } + \phi _ { 1 } \right ) + a _ { 2 } \sin \left ( 2 \pi \frac { t } { 3 0 } + \phi _ { 2 } \right ) + a _ { 3 } \sin \left ( 2 \pi \frac { t } { 3 6 5 } + \phi _ { 3 } \right ) + b _ { 1 } \frac { t } { 3 6 5 } + b _ { 2 }$$
+
+- Noisy Sinusoids . The Noisy Sinusoid are Diverse sinusoids with noise added at every step. The variance is chosen to be proportional to the scale s = 1 L ∑ L t | ˆ z t | of the main diverse sinusoid ϵ ∼ N ( 0 , s 4 ) .
+
+$$\hat { z } _ { t } ^ { ( n o i s y ) } = \hat { z } _ { t } ^ { ( d i v e r s e ) } + \epsilon$$
+
+## E.2 Covariate
+
+Similarly to the main signal, the parameters of the covariates are randomly chosen depending on the types and the scale of the signal.
+
+- Spikes are used to represent short time events by considering large value for single "active" time steps as in Eq. 15. The N = 500 times steps T = { t 1 , . . . , t N } are uniformly sampled without replacement. The strength of all the spikes is randomly sampled in an interval limited to 5 times the scale γ ∼ U (1 , 5 s ) .
+
+$$x _ { t } = \begin{cases} \gamma & \text {if } t \in \mathbb { T } _ { N } \\ 1 & \text {otherwise} \end{cases}$$
+
+- Steps are used to study the influence of sudden but sustained events. Steps covariates share the same formula as the spikes in Eq. 16 but the generation of the "active" index is different. We consider N = 125 non-overlapping intervals T i = { t i , t i +1 , . . . , t i + δ i } by uniformly sampling the starting steps t i ∼ U (0 , L ) and the associated duration δ i ∼ U (1 , 30) with T i ∩ T j = ∅ . The resulting signal is then composed of a union of the different intervals : T = ∪ N i T i . All steps have the save amplitude γ , randomly sampled in the same manner as the spikes.
+
+$$x _ { t } = \begin{cases} \gamma & \text {if } t \in \mathbb { T } \\ 1 & \text {if otherwise} \end{cases} \quad ( 1 6 )$$
+
+- Bells are considered to represent trends with smoother changes. In this case, the signal is a mixture of gaussian bells as in Eq. 17. We consider mixtures of N = 125 bells with randomly sampled mean ˆ µ i ∼ U (0 , L ) and randomly sampled standard deviation σ i ∼ U (1 , 15) . The scale of the bells is randomly sampled in an interval limited to 5 times the scale γ ∼ U (1 , 5 s ) .
+
+$$x _ { t } = \gamma \sum _ { i } ^ { N } \exp \left ( \frac { - \left \| t - \hat { \mu } _ { i } \right \| ^ { 2 } } { \sigma _ { i } ^ { 2 } } \right )$$
+
+- ARP is created following Eq. 18. Only second order auto-regressive processes are created with coefficients a 1 ∼ U (0 , 1) and a 2 = 1 -a 1 , and noise amplitude equal to one. The scale of the final covariates is randomly sampled in an interval limited to 5 times the scale γ ∼ U (1 , 5 s ) .
+
+$$x _ { t } = a _ { 1 } \cdot x _ { t - 1 } + a _ { 2 } \cdot x _ { t - 2 } + \epsilon$$
+
+Figure 9: This figure provides a single time series example from all possible combinations of covariates and main signal with the add + operator.
+
+<!-- image -->
+
+<!-- image -->
+
+Figure 10: This figure provides a single time series example from all possible combinations of covariates and main signal with the mult × operator.
+
+## F Datasets With Covariates
+
+In this section we present a summary of the datasets with covariates used for evaluations.
+
+Table 2: Real Datasets Descriptors.
+
+| Dataset Name    |   Num. Series |   Num. Covariates | Freq.   |   Prediction Length | Source                                     |
+|-----------------|---------------|-------------------|---------|---------------------|--------------------------------------------|
+| ETT (15 Min.)   |             2 |                 5 | 15min   |                  24 | (Zhou et al., 2021)                        |
+| ETT (Hourly)    |             2 |                 5 | 1H      |                  24 | (Zhou et al., 2021)                        |
+| M5              |         30490 |                12 | 1D      |                  28 | (Makridakis et al., 2022)                  |
+| Electricity-BE  |             1 |                 2 | 1H      |                  24 | (Lago et al., 2021; Olivares et al., 2023) |
+| Electricity-DE  |             1 |                 2 | 1H      |                  24 | (Lago et al., 2021; Olivares et al., 2023) |
+| Electricity-FR  |             1 |                 2 | 1H      |                  24 | (Lago et al., 2021; Olivares et al., 2023) |
+| Electricity-NP  |             1 |                 2 | 1H      |                  24 | (Lago et al., 2021; Olivares et al., 2023) |
+| Electricity-PJM |             1 |                 2 | 1H      |                  24 | (Lago et al., 2021; Olivares et al., 2023) |
+| BDG-2 Hog       |            24 |                 5 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| BDG-2 Bull      |            41 |                 3 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| BDG-2 Cockatoo  |             1 |                 5 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| Covid19Energy   |             1 |                 6 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| GEF12           |            20 |                 1 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| GEF14           |             1 |                 1 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| GEF17           |             8 |                 1 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| PDB             |             1 |                 1 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| Spanish         |             1 |                20 | 1H      |                  24 | (Woo et al., 2024; Wang et al., 2024)      |
+| Rideshare       |           156 |                 8 | 1H      |                  24 | (Godahewa et al., 2021)                    |
+
+Table 3: Baseline models and hyperparameter choices. Hyperparameters not specified are set to defaults in their respective implementations. C stands for context length, d h for hidden layer dimension, n L for number of layers, n H for number of heads, and η for learning rate.
+
+| Model                    | Model Type               | Implementation   | Probabilistic   | Hyperparameters                                                                                                                                              |
+|--------------------------|--------------------------|------------------|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| SeasonalNaive            | Local                    | StatsForecast    | Yes             | N/A                                                                                                                                                          |
+| AutoARIMA                | Local                    | StatsForecast    | Yes             | C = 1000                                                                                                                                                     |
+| DeepAR                   | Task-specific            | GluonTS          | Yes             | d h = 40 ,n L = 2                                                                                                                                            |
+| TFT                      | Task-specific            | GluonTS          | Yes             | d h = 32 ,n H = 4                                                                                                                                            |
+| PatchTST                 | Task-specific            | GluonTS          | Yes             | Patch length: 16, Stride: 8, d h = 32 ,n L = 2 ,n H = 4                                                                                                      |
+| DLinear                  | Task-specific            | GluonTS          | Yes             | Kernel size: 25, d h = 20                                                                                                                                    |
+| TiDE                     | Task-specific            | GluonTS          | Yes             | encoder ( d h = 512 , n L = 2 ), decoder ( d h = 512 , n L = 2 , output dimension: 8), temporal hidden dimension: 128, distribution hid- den dimension: 512. |
+| N-BEATSx-I               | Task-specific            | NeuralForecast   | No              | Input size multiplier: 5, scaler: robust_scaler, stack_types: Inter- pretable                                                                                |
+| N-BEATSx-G               | Task-specific            | NeuralForecast   | No              | Input size multiplier: 5, scaler: robust_scaler, stack_types: Gen- eralized                                                                                  |
+| N-HiTS                   | Task-specific            | NeuralForecast   | No              | Input size multiplier: 5, scaler: robust_scaler                                                                                                              |
+| Moirai-1.0-R             | Pretrained               | Reference        | Yes             | C = 1024 , Patch length: auto, batch size:4                                                                                                                  |
+| TimesFM-1.0-200m-pytorch | Pretrained               | Reference        | No              | C = 512                                                                                                                                                      |
+| MOMENT                   | Pretrained/Task-specific | Reference        | No              | Forecasting head training epochs: 100, C = 512 , η = 10 - 4                                                                                                  |
+| TTM-R2                   | Pretrained               | Reference        | No              | C = 512                                                                                                                                                      |
+| TTM-CM                   | Pretrained/Task-specific | Reference        | No              | C = 512                                                                                                                                                      |
+
+## G Baselines
+
+For task-specific deep learning architectures DeepAR (Salinas et al., 2020), PatchTST (Nie et al., 2023), TFT (Lim et al., 2021) we based evaluations on implementations in GluonTS (Alexandrov et al., 2020). However, NBEATSx-I, NBEATSx-G (Olivares et al., 2023) and NHiTS (Challu et al., 2023) experiments were based on implementations in the NeuralForecast (Olivares et al., 2022) library. The original PatchTST model does not naturally accept additional time features as input, so we extend it in the following way. Similar to target time series, covariates are converted to patches and appended to the target patches. Since PatchTST is encoder only model, we combine past and future covariates (if available) and (left) shift them by prediction length so that the covariates are aligned with the target input. We call this version PatchTSTx.
+
+The baselines DeepAR, PatchTST, TFT, NBEATSx-I, NBEATSx-G, , and N-HiTS were trained and evaluated three times and their performance averaged in order to account for high variance inherent in their optimization.
+
+Statistical baselines SeasonalNaive was used with their default hyperparameters in StatsForecast (Garza et al., 2022), but with season length implied by their frequencies. For example, daily frequency data had season length set to 7, hourly data 24, etc. For this heuristic, we used the helper function get\_seasonality from GluonTS.
+
+Default hyperparameter configurations provided in baseline implementations were kept as is, and no dataset specific or global hyperparameter tuning was performed. GluonTS-based implementations were optimized with a batch size of 128.
+
+## H Evaluation Metrics
+
+For the evaluation metrics we follow the approach exposed in (Ansari et al., 2021). Let { x i = [ x i, 1 , . . . , x i,C + H ] } N i =1 be a dataset with N time series where C and H are the context length and prediction length, respectively.
+
+The mean absolute scaled error (MASE, Hyndman and Koehler (2006)) is defined as:
+
+$$M A S E ( \hat { x } _ { i } , x _ { i } ) = \frac { C - S } { H } \frac { \sum _ { t = C + 1 } ^ { C + H } | \hat { x } _ { i , t } - x _ { i , t } | } { \sum _ { t = 1 } ^ { C - S } | x _ { i , t } - x _ { i , t + S } | } ,$$
+
+where S is a seasonality parameter.
+
+The Weighted Quantile Loss is defined as
+
+$$W Q L = \frac { 1 } { K } \sum _ { j = 1 } ^ { K } W Q L _ { \alpha _ { j } } .$$
+
+where K is the number of quantiles, α is the set of quantile levels to evaluate, and
+
+$$W Q L _ { \alpha } = \frac { 2 \sum _ { i , t } Q L _ { \alpha } ( q _ { i , t } ^ { ( \alpha ) } , x _ { i , t } ) } { \sum _ { i , t } | x _ { i , t } | } .$$
+
+where q ( α ) i = [ q ( α ) i,C +1 , . . . , q ( α ) i,C + H ] are the predicted quantiles at levels α ∈ (0 , 1) , and
+
+$$Q L _ { \alpha } ( q , x ) = \begin{cases} \alpha ( x - q ) , & \text {if } x > q , \\ ( 1 - \alpha ) ( q - x ) , & \text {otherwise} . \end{cases}$$
+
+## I Additional Results
+
+## I.1 Time and Memory Efficiency of Adapters and Finetuning.
+
+We present an empirical analysis of the trade-offs between our models using only adapters and full finetuning against time execution and number of updated parameters. For a better visualization we represent ChronosX and Chronos with CX and C , respectively. For this, we measure the average computational time consumed per run for training and testing across datasets and compared it to the aggregated WQL metric. As can be seen in Figure 11a, the adapters are among the best performing and fastest variants. This is due to the decreased number of updated parameters as we report in Figure 11b. Overall the most efficient variants in terms of time and number of updated hyperparameters is ChronosX(RS) , while the best performing and still efficient is ChronosX . We can see that full finetuning models have a larger amount of updated parameters and larger execution time than our approaches using only adapters.
+
+Figure 11: Average Time Execution and number of updated parameters of our proposed models against Aggregated Relative Weighted Quantile Loss on real datasets with covariates.
+
+<!-- image -->
+
+## I.2 Full set of evaluations with ChronosX , TimesFMX , and MOMENTX
+
+We present the following results:
+
+- In Fig. 12 we present the Aggregated Relative WQL and MASE on simple, complex, and real datasets,
+- In Table 4 and Table 5 we present the WQL on simple and complex datasets, respectively,
+- In Table 6 and Table 7 we present the MASE on simple datasets, respectively.
+- In Table 8 and Table 9 we present the MASE and WQL on real datasets, respectively.
+
+Figure 12: Aggregated Relative WQL and MASE on simple, complex, and real datasets. Emphasis on comparisons of pretrained models with extensions to incorporate covariates.
+
+<!-- image -->
+
+Table 4: WQL scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 5: WQL scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 6: MASE scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 7: MASE scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 8: WQL scores per model in real datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 9: MASE scores per model in real datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+## I.3 Evaluations on covariate injection on pretrained models with either IIB, OIB or both.
+
+In this section we present results where where ChronosX has either covariates of the past (IIB), covariates of the future (OIB), or both (IIB and OIB).
+
+We present the following results:
+
+- In Fig. 13 we present the Aggregated Relative WQL and MASE on simple, complex, and real datasets,
+- In Table 10 and Table 11 we present the WQL on simple and complex datasets, respectively,
+- In Table 12 and Table 13 we present the MASE on simple datasets, respectively.
+- In Table 14 and Table 15 we present WQL and MASE on real datasets, respectively.
+
+<!-- image -->
+
+(f) Agg. Rel. MASE on real datasets with covariates.
+
+Figure 13: Aggregated Relative WQL and MASE on simple, complex, and real datasets. Emphasis on ablations of ChronosX with either past covariates, future covariates, or both.
+
+Table 10: WQL scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 11: WQL scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 12: MASE scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 13: MASE scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 14: WQL scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 15: MASE scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+## I.4 Ablations showing that performance improvement is brought by covariates
+
+In this section we present results where ChronosX (NC) and ChronosX (FF) (NC) are variants with nocovariates of our models ChronosX and ChronosX (FF), respectively.
+
+We present the following results:
+
+- In Fig. 14 we present the Aggregated Relative WQL and MASE on simple, complex, and real datasets.
+- In Table 16 and Table 17 we present the WQL on simple and complex datasets, respectively,
+- In Table 18 and Table 19 we present the MASE on simple datasets, respectively.
+- In Table 20 and Table 21 we present WQL and MASE on real datasets, respectively.
+- (d) MASE on Simple Synthetic Data. (e) MASE on Complex Synthetic Data.
+
+<!-- image -->
+
+(f) MASE on Real Datasets Table 16: WQL scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+Figure 14: Covariate ablation study. ChronosX (NC) and ChronosX (FF) (NC) are variants with no-covariates of our models ChronosX and ChronosX (FF), respectively. Overall model ablations with no-covariates perform worse.
+
+<!-- image -->
+
+Table 17: WQL scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.asdf
+
+<!-- image -->
+
+Table 18: MASE scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+Full Finetuned
+
+ChronosX (FF)
+
+ChronosX (FF) (NC)
+
+0.947
+
+3.203
+
+0.161
+
+0.220
+
+0.024
+
+0.010
+
+0.023
+
+0.023
+
+0.148
+
+0.601
+
+2.675
+
+0.010
+
+0.165
+
+0.023
+
+0.023
+
+0.019
+
+0.144
+
+6.000
+
+0.268
+
+3.255
+
+0.126
+
+0.377
+
+0.469
+
+0.515
+
+1.424
+
+0.294
+
+0.641
+
+0.128
+
+0.402
+
+3.107
+
+0.496
+
+1.172
+
+0.466
+
+0.626
+
+0.827
+
+9.000
+
+Adapters Only
+
+ChronosX (NC)
+
+0.403
+
+3.717
+
+0.200
+
+0.485
+
+0.486
+
+0.676
+
+1.685
+
+0.371
+
+0.686
+
+0.185
+
+0.613
+
+3.868
+
+0.810
+
+1.467
+
+0.585
+
+0.742
+
+1.073
+
+11.875
+
+Pretrained Models
+
+Moirai (Large)
+
+0.849
+
+4.069
+
+0.642
+
+0.847
+
+0.781
+
+0.823
+
+1.862
+
+0.823
+
+1.067
+
+0.540
+
+0.851
+
+4.079
+
+0.826
+
+1.566
+
+0.831
+
+1.067
+
+1.642
+
+14.062
+
+Baselines
+
+NBEATSx-G
+
+0.086
+
+0.641
+
+0.070
+
+0.206
+
+0.458
+
+0.231
+
+0.452
+
+0.093
+
+0.177
+
+0.069
+
+0.299
+
+0.965
+
+0.235
+
+0.196
+
+0.453
+
+0.192
+
+0.341
+
+6.688
+
+Simple ARP (Add)
+
+Simple Bells (Add)
+
+Simple ARP (Mult.)
+
+Simple Bells (Mult.)
+
+Simple Spikes (Mult.)
+
+Simple Spikes (Add)
+
+Simple Steps (Add)
+
+Single ARP (Add.)
+
+Simple Steps (Mult.)
+
+Single ARP (Mult.)
+
+Single Bells (Mult.)
+
+Single Bells (Add.)
+
+Single Spikes (Add.)
+
+Single Steps (Add.)
+
+Single Spikes (Mult.)
+
+Single Steps (Mult.)
+
+Agg. Relative Score
+
+Avg. Rank ChronosX
+
+0.951
+
+2.459
+
+0.500
+
+0.858
+
+0.089
+
+0.372
+
+0.742
+
+0.811
+
+0.113
+
+0.593
+
+1.122
+
+2.599
+
+0.309
+
+0.514
+
+0.115
+
+0.061
+
+0.694
+
+9.438
+
+ChronosX(RS)
+
+0.317
+
+3.474
+
+0.156
+
+0.472
+
+0.093
+
+0.292
+
+0.780
+
+0.340
+
+0.254
+
+0.162
+
+0.539
+
+3.735
+
+0.264
+
+0.702
+
+0.089
+
+0.215
+
+0.566
+
+8.375
+
+Chronos Small
+
+0.322
+
+3.483
+
+0.157
+
+0.473
+
+0.581
+
+0.653
+
+1.653
+
+0.344
+
+0.720
+
+0.166
+
+0.539
+
+3.728
+
+0.653
+
+1.273
+
+0.575
+
+0.735
+
+1.000
+
+10.875
+
+Moirai (Base)
+
+0.571
+
+3.689
+
+0.454
+
+0.691
+
+0.664
+
+0.756
+
+1.856
+
+0.548
+
+1.014
+
+0.418
+
+0.684
+
+3.835
+
+0.690
+
+1.501
+
+0.629
+
+0.998
+
+1.374
+
+12.688
+
+NHiTS
+
+0.067
+
+0.392
+
+0.057
+
+0.177
+
+0.453
+
+0.146
+
+0.422
+
+0.072
+
+0.124
+
+0.053
+
+0.208
+
+0.616
+
+0.112
+
+0.186
+
+0.449
+
+0.127
+
+0.257
+
+5.312
+
+AutoARIMA
+
+1.103
+
+1.993
+
+1.616
+
+1.698
+
+1.930
+
+0.644
+
+1.079
+
+1.200
+
+2.262
+
+1.914
+
+1.611
+
+1.945
+
+0.540
+
+0.886
+
+1.909
+
+2.672
+
+2.153
+
+13.188
+
+TFT
+
+0.039
+
+0.006
+
+0.055
+
+0.004
+
+0.013
+
+0.004
+
+0.033
+
+0.008
+
+0.027
+
+0.004
+
+0.054
+
+0.003
+
+0.002
+
+0.002
+
+0.005
+
+0.004
+
+0.013
+
+1.812
+
+NBEATSx-I
+
+0.029
+
+0.051
+
+0.212
+
+0.491
+
+0.071
+
+0.337
+
+0.054
+
+0.076
+
+0.048
+
+0.040
+
+0.687
+
+0.040
+
+0.214
+
+0.046
+
+0.068
+
+0.064
+
+0.140
+
+4.438
+
+DeepAR
+
+0.034
+
+0.613
+
+0.020
+
+0.025
+
+0.009
+
+0.006
+
+0.077
+
+0.007
+
+0.035
+
+0.346
+
+0.019
+
+0.025
+
+0.002
+
+0.004
+
+0.009
+
+0.004
+
+0.030
+
+2.688
+
+PatchTSTx
+
+0.013
+
+0.014
+
+0.035
+
+0.019
+
+0.007
+
+0.456
+
+0.018
+
+0.703
+
+0.015
+
+0.016
+
+0.026
+
+0.019
+
+0.470
+
+0.451
+
+0.008
+
+0.684
+
+0.071
+
+3.875
+
+Seasonal Naive
+
+1.788
+
+4.951
+
+1.930
+
+1.882
+
+1.397
+
+1.258
+
+2.577
+
+1.774
+
+1.808
+
+1.877
+
+1.989
+
+4.779
+
+1.242
+
+2.281
+
+1.415
+
+1.841
+
+2.989
+
+15.688
+
+Table 19: MASE scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+|                        | Full Finetuned   | Full Finetuned     | Adapters Only   | Adapters Only   | Adapters Only   | Pretrained Models   | Pretrained Models   | Pretrained Models   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines      |
+|------------------------|------------------|--------------------|-----------------|-----------------|-----------------|---------------------|---------------------|---------------------|-------------|-------------|-------------|-------------|-------------|-------------|-------------|----------------|
+|                        | ChronosX (FF)    | ChronosX (FF) (NC) | ChronosX        | ChronosX (NC)   | ChronosX(RS)    | Chronos Small       | Moirai (Large)      | Moirai (Base)       | NHiTS       | AutoARIMA   | TFT         | NBEATSx-I   | NBEATSx-G   | DeepAR      | PatchTSTx   | Seasonal Naive |
+| Diverse ARP (Add)      | 1.004            | 0.513              | 1.282           | 0.769           | 0.769           | 0.768               | 2.056               | 1.848               | 0.148       | 2.801       | 0.317       | 0.110       | 0.242       | 0.419       | 0.099       | 1.947          |
+| Diverse ARP (Mult.)    | 0.500            | 0.491              | 0.987           | 0.740           | 0.767           | 0.772               | 1.928               | 1.791               | 0.323       | 3.091       | 0.404       | 0.314       | 0.374       | 0.370       | 0.221       | 1.921          |
+| Diverse Bells (Add)    | 3.392            | 3.608              | 4.066           | 4.079           | 4.000           | 3.975               | 4.634               | 4.713               | 1.512       | 2.234       | 0.446       | 12.561      | 1.584       | 2.513       | 0.169       | 5.563          |
+| Diverse Bells (Mult.)  | 0.925            | 1.191              | 1.959           | 1.661           | 1.591           | 1.620               | 2.834               | 2.755               | 1.000       | 3.453       | 0.651       | 0.920       | 1.171       | 1.462       | 0.249       | 2.698          |
+| Diverse Spikes (Add)   | 0.062            | 0.599              | 0.294           | 0.733           | 0.439           | 0.767               | 1.048               | 0.999               | 0.163       | 1.203       | 0.077       | 0.107       | 0.176       | 0.132       | 0.022       | 1.286          |
+| Diverse Spikes (Mult.) | 0.173            | 0.508              | 0.451           | 0.676           | 0.604           | 0.691               | 1.247               | 1.201               | 0.516       | 1.826       | 0.121       | 0.264       | 0.537       | 0.240       | 0.491       | 1.427          |
+| Diverse Steps (Add)    | 0.393            | 1.761              | 0.896           | 2.036           | 1.583           | 2.099               | 2.387               | 2.388               | 0.409       | 2.182       | 0.252       | 0.222       | 0.490       | 0.584       | 0.056       | 2.851          |
+| Diverse Steps (Mult.)  | 0.495            | 1.125              | 1.054           | 1.386           | 1.446           | 1.464               | 2.110               | 2.195               | 0.644       | 3.165       | 0.404       | 0.581       | 0.818       | 1.021       | 0.401       | 2.329          |
+| Noisy ARP (Add)        | 0.613            | 0.596              | 0.967           | 0.715           | 0.703           | 0.713               | 1.580               | 1.473               | 0.477       | 1.760       | 0.570       | 0.464       | 0.483       | 0.495       | 0.459       | 1.713          |
+| Noisy ARP (Mult.)      | 0.750            | 0.592              | 0.884           | 0.767           | 0.783           | 0.778               | 1.647               | 1.619               | 0.551       | 2.510       | 0.632       | 0.552       | 0.551       | 0.552       | 0.512       | 1.665          |
+| Noisy Bells (Add)      | 2.370            | 3.193              | 3.301           | 3.441           | 3.274           | 3.328               | 3.851               | 3.721               | 0.867       | 1.472       | 0.722       | 0.805       | 1.027       | 0.714       | 0.436       | 4.558          |
+| Noisy Bells (Mult.)    | 0.693            | 1.114              | 1.425           | 1.334           | 1.369           | 1.360               | 2.211               | 2.166               | 1.105       | 2.819       | 1.029       | 1.187       | 1.219       | 0.833       | 0.583       | 2.155          |
+| Noisy Spikes (Add)     | 0.210            | 0.643              | 0.344           | 0.748           | 0.456           | 0.776               | 0.995               | 0.974               | 0.239       | 0.842       | 0.241       | 0.208       | 0.236       | 0.203       | 0.176       | 1.194          |
+| Noisy Spikes (Mult.)   | 0.362            | 0.640              | 0.547           | 0.756           | 0.679           | 0.777               | 1.281               | 1.265               | 0.629       | 1.717       | 0.451       | 0.453       | 0.660       | 0.364       | 0.445       | 1.401          |
+| Noisy Steps (Add)      | 0.524            | 1.552              | 0.958           | 1.898           | 1.540           | 1.994               | 2.030               | 2.071               | 0.457       | 1.479       | 0.511       | 0.381       | 0.546       | 0.417       | 0.324       | 2.424          |
+| Noisy Steps (Mult.)    | 0.497            | 1.017              | 0.806           | 1.128           | 1.172           | 1.190               | 1.597               | 1.574               | 0.683       | 2.123       | 0.630       | 0.636       | 0.714       | 0.558       | 0.462       | 2.052          |
+| Agg. Relative Score    | 0.443            | 0.792              | 0.808           | 0.981           | 0.885           | 1.000               | 1.573               | 1.534               | 0.417       | 1.674       | 0.324       | 0.396       | 0.471       | 0.430       | 0.201       | 1.741          |
+| Avg. Rank              | 5.000            | 8.188              | 9.562           | 10.625          | 9.938           | 11.062              | 14.250              | 13.625              | 4.750       | 13.875      | 4.000       | 4.312       | 6.000       | 4.438       | 1.438       | 14.938         |
+
+Table 20: WQL scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+|                               | Full Finetuned   | Full Finetuned     | Adapters Only   | Adapters Only   | Adapters Only   | Pretrained Models   | Pretrained Models   | Pretrained Models   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines      |
+|-------------------------------|------------------|--------------------|-----------------|-----------------|-----------------|---------------------|---------------------|---------------------|-------------|-------------|-------------|-------------|-------------|-------------|-------------|----------------|
+|                               | ChronosX (FF)    | ChronosX (FF) (NC) | ChronosX        | ChronosX (NC)   | ChronosX (RS)   | Chronos Small       | Moirai (Base)       | Moirai (Large)      | AutoARIMA   | TFT         | DeepAR      | PatchTSTx   | NBEATSx-G   | NBEATSx-I   | NHiTS       | Seasonal Naive |
+| ETT (15 Min.)                 | 0.022            | 0.022              | 0.016           | 0.018           | 0.015           | 0.016               | 0.019               | 0.040               | 0.020       | 0.020       | 0.072       | 0.035       | 0.016       | 0.027       | 0.015       | 0.065          |
+| ETT (Hourly) M5               | 0.025 0.538      | 0.024              | 0.025           | 0.022           | 0.024           | 0.022               | 0.037               | 0.076               | 0.045       | 0.045       | 0.026       | 0.036       | 0.065       | 0.063       | 0.035       | 0.101          |
+|                               |                  | 0.537              | 0.557           | 0.552           | 0.551           | 0.549               | 0.586               | 0.576               | -           | 0.560       | 0.617       | 0.812       | 0.607       | 0.604       | 0.748       | 0.934          |
+| Electricity-BE                | 0.058            | 0.059              | 0.049           | 0.051           | 0.047           | 0.049               | 0.069               | 0.075               | 0.080       | 0.087       | 0.078       | 0.040       | 0.036       | 0.054       | 0.038       | 0.071          |
+| Electricity-DE Electricity-FR | 0.455 0.074      | 0.553              | 0.219           | 0.243           | 0.245           | 0.315               | 0.457               | 0.414               | 0.372       | 0.374       | 0.235       | 0.304 0.048 | 0.195 0.061 | 0.378 0.076 | 0.295 0.041 | 1.048 0.135    |
+| Electricity-NP                |                  | 0.071              | 0.062           | 0.062           | 0.059           | 0.060               | 0.083               | 0.058               | 0.061       | 0.076       | 0.100 0.030 | 0.022       | 0.027       | 0.029       | 0.034       | 0.037          |
+|                               | 0.020            | 0.019              | 0.019           | 0.027           | 0.022           | 0.025               | 0.039               | 0.026               | 0.028       | 0.026       |             |             |             |             |             |                |
+| Electricity-PJM               | 0.059            | 0.070              | 0.038           | 0.033           | 0.042           | 0.039               | 0.062               | 0.051               | 0.075       | 0.027       | 0.030       | 0.030       | 0.027       | 0.027       | 0.024       | 0.037          |
+| Bull                          | 0.077            | 0.154              | 0.062           | 0.105           | 0.092           | 0.113               | 0.171               | 0.171               | 0.133       | 0.095       | 0.104       | 0.082       | 0.072       | 0.073       | 0.077       | 0.234          |
+| Cockatoo                      | 0.054            | 0.141              | 0.040           | 0.068           | 0.033           | 0.044               | 0.029               | 0.055               | 0.060       | 0.055       | 0.031       | 0.085       | 0.026       | 0.091       | 0.029       | 0.068          |
+| Covid19 (ProEnFo)             | 0.016            | 0.017              | 0.011           | 0.013           | 0.016           | 0.017               | 0.008               | 0.006               | 0.018       | 0.012       | 0.007       | 0.008       | 0.006       | 0.007       | 0.009       | 0.014          |
+| GFC12                         | 0.064            | 0.055              | 0.037           | 0.035           | 0.033           | 0.034               | 0.047               | 0.040               | 0.047       | 0.040       | 0.056       | 0.037       | 0.039       | 0.042       | 0.042       | 0.064          |
+| GFC14                         | 0.015            | 0.020              | 0.013           | 0.014           | 0.015           | 0.015               | 0.019               | 0.017               | 0.032       | 0.016       | 0.012       | 0.019       | 0.019       | 0.022       | 0.027       | 0.031          |
+| GFC17                         | 0.025            | 0.038              | 0.019           | 0.035           | 0.034           | 0.035               | 0.034               | 0.031               | 0.021       | 0.018       | 0.046       | 0.013       | 0.021       | 0.021       | 0.019       | 0.031          |
+| Hog                           | 0.031            | 0.032              | 0.018           | 0.021           | 0.020           | 0.024               | 0.034               | 0.043               | 0.037       | 0.016       | 0.019       | 0.020       | 0.020       | 0.021       | 0.020       | 0.022          |
+| PDB                           | 0.027            | 0.021              | 0.017           | 0.015           | 0.015           | 0.015               | 0.019               | 0.019               | 0.020       | 0.018       | 0.025       | 0.010       | 0.017       | 0.016       | 0.020       | 0.030          |
+| Spain                         | 0.059            | 0.043              | 0.038           | 0.039           | 0.034           | 0.035               | 0.039               | 0.054               | 0.033       | 0.060       | 0.046       | 0.023       | 0.071       | 0.038       | 0.030       | 0.057          |
+| Rideshare                     | 0.177            | 0.178              | 0.178           | 0.229           | 0.179           | 0.182               | 0.192               | 0.194               | 0.257       | 0.219       | 0.190       | 0.184       | 0.205       | 0.190       | 0.193       | 0.325          |
+| Agg. Relative Score Avg. Rank | 9.056            | 10.556             | 4.667           | 7.500           | 5.389           | 6.722               | 10.667              |                     | 1.286       | 1.091       | 9.444       |             | 6.611       | 1.094       |             | 1.752          |
+|                               | 1.174            | 1.313              | 0.878           | 1.011           | 0.944           | 1.000               | 1.204               | 1.272 10.111        | 11.353      | 8.722       | 1.140       | 0.932 6.056 | 0.939       | 8.722       | 0.926 6.444 | 13.722         |
+
+Table 21: MASE scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+|                     | Full Finetuned   | Full Finetuned     | Adapters Only   | Adapters Only   | Adapters Only   | Pretrained Models   | Pretrained Models   | Pretrained Models   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines      |
+|---------------------|------------------|--------------------|-----------------|-----------------|-----------------|---------------------|---------------------|---------------------|-------------|-------------|-------------|-------------|-------------|-------------|-------------|----------------|
+|                     | ChronosX (FF)    | ChronosX (FF) (NC) | ChronosX        | ChronosX (NC)   | ChronosX (RS)   | Chronos Small       | Moirai (Base)       | Moirai (Large)      | AutoARIMA   | TFT         | DeepAR      | PatchTSTx   | NBEATSx-G   | NBEATSx-I   | NHiTS       | Seasonal Naive |
+| ETT (15 Min.)       | 0.338            | 0.327              | 0.213           | 0.210           | 0.206           | 0.224               | 0.259               | 0.513               | 0.225       | 0.269       | 0.790       | 0.451       | 0.208       | 0.404       | 0.239       | 0.677          |
+| ETT (Hourly)        | 0.354            | 0.343              | 0.352           | 0.294           | 0.338           | 0.297               | 0.489               | 0.900               | 0.469       | 0.599       | 0.351       | 0.463       | 0.752       | 0.677       | 0.443       | 0.950          |
+| M5                  | 0.907            | 0.905              | 0.925           | 0.930           | 0.918           | 0.919               | 0.959               | 0.925               | -           | 0.911       | 0.938       | 1.038       | 0.946       | 0.953       | 1.326       | 1.268          |
+| Electricity-BE      | 0.432            | 0.454              | 0.374           | 0.382           | 0.372           | 0.380               | 0.458               | 0.510               | 0.306       | 0.621       | 0.568       | 0.292       | 0.276       | 0.406       | 0.276       | 0.405          |
+| Electricity-DE      | 1.001            | 1.208              | 0.378           | 0.473           | 0.466           | 0.636               | 0.970               | 0.820               | 0.699       | 0.671       | 0.458       | 0.625       | 0.381       | 0.646       | 0.526       | 1.582          |
+| Electricity-FR      | 0.676            | 0.640              | 0.570           | 0.558           | 0.537           | 0.548               | 0.801               | 0.520               | 0.532       | 0.691       | 0.881       | 0.451       | 0.562       | 0.628       | 0.382       | 0.966          |
+| Electricity-NP      | 0.548            | 0.526              | 0.518           | 0.742           | 0.595           | 0.654               | 1.070               | 0.674               | 0.717       | 0.683       | 0.769       | 0.560       | 0.685       | 0.682       | 0.869       | 0.781          |
+| Electricity-PJM     | 0.389            | 0.450              | 0.261           | 0.227           | 0.281           | 0.267               | 0.372               | 0.308               | 0.194       | 0.155       | 0.166       | 0.176       | 0.154       | 0.162       | 0.147       | 0.169          |
+| Bull                | 0.830            | 1.447              | 0.601           | 0.954           | 0.840           | 0.990               | 1.577               | 1.497               | 1.248       | 0.851       | 0.940       | 0.783       | 0.723       | 0.727       | 0.769       | 1.681          |
+| Cockatoo            | 0.911            | 2.097              | 0.652           | 1.037           | 0.558           | 0.706               | 0.324               | 0.797               | 0.881       | 0.761       | 0.442       | 1.107       | 0.308       | 1.184       | 0.471       | 0.737          |
+| Covid19 (ProEnFo)   | 0.407            | 0.432              | 0.269           | 0.338           | 0.407           | 0.411               | 0.183               | 0.141               | 0.423       | 0.330       | 0.204       | 0.224       | 0.157       | 0.174       | 0.214       | 0.276          |
+| GFC12               | 1.193            | 1.044              | 0.738           | 0.692           | 0.644           | 0.657               | 0.769               | 0.799               | 0.718       | 0.738       | 1.138       | 0.599       | 0.709       | 0.667       | 0.688       | 0.925          |
+| GFC14               | 0.499            | 0.569              | 0.414           | 0.403           | 0.466           | 0.433               | 0.517               | 0.501               | 1.010       | 0.468       | 0.339       | 0.524       | 0.521       | 0.587       | 0.693       | 0.722          |
+| GFC17               | 0.525            | 0.820              | 0.474           | 0.743           | 0.717           | 0.732               | 0.782               | 0.644               | 0.535       | 0.421       | 0.904       | 0.303       | 0.486       | 0.430       | 0.413       | 0.533          |
+| Hog                 | 0.468            | 0.364              | 0.284           | 0.293           | 0.277           | 0.302               | 0.378               | 0.574               | 0.720       | 0.239       | 0.261       | 0.339       | 0.324       | 0.317       | 0.308       | 0.227          |
+| PDB                 | 0.658            | 0.530              | 0.404           | 0.369           | 0.366           | 0.355               | 0.347               | 0.432               | 0.497       | 0.398       | 0.580       | 0.208       | 0.352       | 0.297       | 0.388       | 0.545          |
+| Spain               | 0.834            | 0.628              | 0.589           | 0.638           | 0.438           | 0.454               | 0.505               | 0.780               | 0.390       | 0.817       | 0.585       | 0.304       | 0.850       | 0.482       | 0.357       | 0.606          |
+| Rideshare           | 0.461            | 0.463              | 0.467           | 0.614           | 0.467           | 0.472               | 0.473               | 0.476               | 0.630       | 0.528       | 0.475       | 0.460       | 0.497       | 0.470       | 0.469       | 0.630          |
+| Agg. Relative Score | 1.227 10.167     | 1.324 10.889       | 0.911           | 1.022 8.167     | 0.955 5.500     | 7.000               | 1.123               | 1.227 10.500        | 10.088      | 8.833       | 9.222       | 0.905 6.167 | 0.898 6.611 | 1.016 7.944 | 0.902 6.333 | 1.341 11.972   |
+| Avg. Rank           |                  |                    | 5.833           |                 |                 | 1.000               | 10.444              |                     | 1.151       | 1.062       | 1.092       |             |             |             |             |                |
+
+## I.5 Ablation: performance with larger version of Chronos
+
+In this section we present results where ChronosX is based in Chronos-Small, Chronos-Base and Chronos-Large pretrained models.
+
+We present the following results:
+
+- In Fig. 15 we present the Aggregated Relative WQL and MASE on simple, complex, and real datasets, with ChronosX on Chronos-Small, Chronos-Base and Chronos-Large model versions.
+- In Table 22 and Table 23 we present the WQL on simple and complex datasets, respectively,
+- In Table 24 and Table 25 we present the MASE on simple datasets, respectively.
+- In Table 26 and Table 27 we present WQL and MASE on real datasets, respectively.
+
+<!-- image -->
+
+(d) MASE on Simple Synthetic Data.
+
+(e) MASE on Complex Synthetic Data.
+
+(f) MASE on Real Datasets Table 22: WQL scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+Figure 15: Ablations of ChronosX and ChronosX (FF) with larger versions of Chronos .
+
+<!-- image -->
+
+Table 23: WQL scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.asdf
+
+<!-- image -->
+
+Table 24: MASE scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 25: MASE scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 26: WQL scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 27: MASE scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+## I.6 Ablation: performance with architecture of adapter architecture
+
+In this section we present results where ChronosX has different adapter architectures for covariates. We present the following results:
+
+- In Fig. 16 we present the Aggregated Relative WQL and MASE on different versions of ChronosX with different adapter blocks.
+- In Table 28 and Table 29 we present the WQL on simple and complex datasets, respectively,
+- In Table 30 and Table 31 we present the MASE on simple and complex datasets, respectively.
+- In Table 32 and Table 33 we present WQL and MASE on real datasets, respectively.
+
+<!-- image -->
+
+(d) MASE on Simple Synthetic Data.
+
+(e) MASE on Complex Synthetic Data.
+
+(f) MASE on Real Datasets Table 28: WQL scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+Figure 16: Ablations of ChronosX with simpler adapter blocks.
+
+Full Finetuned
+
+ChronosX (FF)
+
+0.164
+
+0.287
+
+0.042
+
+0.041
+
+0.007
+
+0.007
+
+0.007
+
+0.130
+
+0.007
+
+0.038
+
+0.034
+
+0.252
+
+0.008
+
+0.008
+
+0.008
+
+0.007
+
+0.166
+
+5.938
+
+TFT
+
+0.007
+
+0.001
+
+0.005
+
+0.001
+
+0.003
+
+0.001
+
+0.004
+
+0.001
+
+0.005
+
+0.001
+
+0.006
+
+0.001
+
+0.001
+
+0.001
+
+0.002
+
+0.001
+
+0.012
+
+1.438
+
+DeepAR
+
+0.007
+
+0.056
+
+0.004
+
+0.005
+
+0.003
+
+0.002
+
+0.009
+
+0.002
+
+0.007
+
+0.036
+
+0.004
+
+0.005
+
+0.002
+
+0.001
+
+0.003
+
+0.001
+
+0.029
+
+2.750
+
+Moirai (Base)
+
+0.099
+
+0.346
+
+0.114
+
+0.136
+
+0.196
+
+0.498
+
+0.458
+
+0.106
+
+0.269
+
+0.109
+
+0.136
+
+0.383
+
+0.436
+
+0.449
+
+0.197
+
+0.283
+
+1.466
+
+12.375
+
+NHiTS
+
+0.012
+
+0.037
+
+0.014
+
+0.033
+
+0.101
+
+0.083
+
+0.096
+
+0.013
+
+0.032
+
+0.012
+
+0.038
+
+0.063
+
+0.073
+
+0.058
+
+0.108
+
+0.034
+
+0.256
+
+5.562
+
+AutoARIMA
+
+0.198
+
+0.176
+
+0.313
+
+0.273
+
+0.446
+
+0.381
+
+0.293
+
+0.222
+
+0.486
+
+0.410
+
+0.289
+
+0.181
+
+0.310
+
+0.262
+
+0.463
+
+0.622
+
+2.036
+
+13.375
+
+NBEATSx-I
+
+0.005
+
+0.012
+
+0.040
+
+0.048
+
+0.036
+
+0.067
+
+0.014
+
+0.019
+
+0.011
+
+0.008
+
+0.072
+
+0.025
+
+0.040
+
+0.012
+
+0.018
+
+0.021
+
+0.140
+
+4.375
+
+Baselines
+
+NBEATSx-G
+
+0.015
+
+0.061
+
+0.018
+
+0.037
+
+0.116
+
+0.117
+
+0.105
+
+0.018
+
+0.046
+
+0.016
+
+0.055
+
+0.098
+
+0.139
+
+0.062
+
+0.120
+
+0.050
+
+0.341
+
+6.812
+
+PatchTSTx
+
+0.002
+
+0.003
+
+0.003
+
+0.004
+
+0.004
+
+0.099
+
+0.004
+
+0.143
+
+0.003
+
+0.004
+
+0.003
+
+0.004
+
+0.242
+
+0.098
+
+0.002
+
+0.146
+
+0.068
+
+4.062
+
+Seasonal Naive
+
+0.402
+
+0.582
+
+0.572
+
+0.417
+
+0.440
+
+0.978
+
+0.835
+
+0.416
+
+0.577
+
+0.538
+
+0.461
+
+0.592
+
+0.954
+
+0.900
+
+0.462
+
+0.596
+
+3.789
+
+15.812
+
+ChronosX (NL-NR)
+
+0.066
+
+0.347
+
+0.057
+
+0.133
+
+0.136
+
+0.223
+
+0.118
+
+0.076
+
+0.204
+
+0.062
+
+0.124
+
+0.398
+
+0.361
+
+0.185
+
+0.140
+
+0.213
+
+0.971
+
+10.375
+
+Chronos Small
+
+0.056
+
+0.319
+
+0.037
+
+0.089
+
+0.142
+
+0.431
+
+0.415
+
+0.062
+
+0.169
+
+0.038
+
+0.105
+
+0.367
+
+0.391
+
+0.390
+
+0.145
+
+0.186
+
+1.000
+
+10.250
+
+Pretrained Models
+
+Moirai (Large)
+
+0.148
+
+0.383
+
+0.153
+
+0.156
+
+0.212
+
+0.515
+
+0.455
+
+0.152
+
+0.275
+
+0.131
+
+0.163
+
+0.410
+
+0.479
+
+0.471
+
+0.230
+
+0.291
+
+1.680
+
+13.875
+
+Simple ARP (Add)
+
+Simple Bells (Add)
+
+Simple ARP (Mult.)
+
+Simple Bells (Mult.)
+
+Simple Spikes (Mult.)
+
+Simple Spikes (Add)
+
+Simple Steps (Add)
+
+Single ARP (Add.)
+
+Simple Steps (Mult.)
+
+Single ARP (Mult.)
+
+Single Bells (Mult.)
+
+Single Bells (Add.)
+
+Single Spikes (Add.)
+
+Single Steps (Add.)
+
+Single Spikes (Mult.)
+
+Single Steps (Mult.)
+
+Agg. Relative Score
+
+Avg. Rank ChronosX
+
+0.168
+
+0.225
+
+0.136
+
+0.176
+
+0.022
+
+0.250
+
+0.185
+
+0.175
+
+0.030
+
+0.157
+
+0.214
+
+0.261
+
+0.181
+
+0.151
+
+0.031
+
+0.018
+
+0.735
+
+9.875
+
+Adapters Only
+
+ChronosX (OL)
+
+ChronosX (NL)
+
+0.089
+
+0.302
+
+0.127
+
+0.165
+
+0.020
+
+0.206
+
+0.133
+
+0.105
+
+0.059
+
+0.114
+
+0.157
+
+0.318
+
+0.210
+
+0.156
+
+0.040
+
+0.052
+
+0.741
+
+9.375
+
+0.088
+
+0.342
+
+0.108
+
+0.151
+
+0.025
+
+0.233
+
+0.122
+
+0.121
+
+0.105
+
+0.089
+
+0.110
+
+0.391
+
+0.241
+
+0.195
+
+0.070
+
+0.073
+
+0.824
+
+9.750
+
+Table 29: WQL scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.asdf
+
+<!-- image -->
+
+Table 30: MASE scores per model in 16 simple synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+Full Finetuned
+
+ChronosX (FF)
+
+0.947
+
+3.203
+
+0.161
+
+0.220
+
+0.024
+
+0.010
+
+0.023
+
+0.023
+
+0.148
+
+0.601
+
+2.675
+
+0.010
+
+0.165
+
+0.023
+
+0.023
+
+0.019
+
+0.144
+
+5.812
+
+Adapters Only
+
+ChronosX (OL)
+
+ChronosX (NL)
+
+0.567
+
+3.182
+
+0.479
+
+0.826
+
+0.092
+
+0.305
+
+0.510
+
+0.524
+
+0.229
+
+0.436
+
+0.758
+
+3.175
+
+0.347
+
+0.543
+
+0.147
+
+0.196
+
+0.714
+
+9.250
+
+0.559
+
+3.605
+
+0.410
+
+0.800
+
+0.092
+
+0.364
+
+0.528
+
+0.623
+
+0.391
+
+0.356
+
+0.545
+
+3.870
+
+0.406
+
+0.673
+
+0.251
+
+0.269
+
+0.796
+
+9.750
+
+Pretrained Models
+
+Moirai (Large)
+
+0.849
+
+4.069
+
+0.642
+
+0.847
+
+0.781
+
+0.823
+
+1.862
+
+0.823
+
+1.067
+
+0.540
+
+0.851
+
+4.079
+
+0.826
+
+1.566
+
+0.831
+
+1.067
+
+1.642
+
+14.062
+
+Baselines
+
+NBEATSx-G
+
+0.086
+
+0.641
+
+0.070
+
+0.206
+
+0.458
+
+0.231
+
+0.452
+
+0.093
+
+0.177
+
+0.069
+
+0.299
+
+0.965
+
+0.235
+
+0.196
+
+0.453
+
+0.192
+
+0.341
+
+6.875
+
+Simple ARP (Add)
+
+Simple Bells (Add)
+
+Simple ARP (Mult.)
+
+Simple Bells (Mult.)
+
+Simple Spikes (Mult.)
+
+Simple Spikes (Add)
+
+Simple Steps (Add)
+
+Single ARP (Add.)
+
+Simple Steps (Mult.)
+
+Single ARP (Mult.)
+
+Single Bells (Mult.)
+
+Single Bells (Add.)
+
+Single Spikes (Add.)
+
+Single Steps (Add.)
+
+Single Spikes (Mult.)
+
+Single Steps (Mult.)
+
+Agg. Relative Score
+
+Avg. Rank ChronosX
+
+0.951
+
+2.459
+
+0.500
+
+0.858
+
+0.089
+
+0.372
+
+0.742
+
+0.811
+
+0.113
+
+0.593
+
+1.122
+
+2.599
+
+0.309
+
+0.514
+
+0.115
+
+0.061
+
+0.694
+
+9.625
+
+ChronosX (NL-NR)
+
+0.429
+
+3.645
+
+0.226
+
+0.683
+
+0.443
+
+0.344
+
+0.559
+
+0.409
+
+0.671
+
+0.236
+
+0.609
+
+3.937
+
+0.570
+
+0.614
+
+0.454
+
+0.670
+
+0.911
+
+10.000
+
+Chronos Small
+
+0.322
+
+3.483
+
+0.157
+
+0.473
+
+0.581
+
+0.653
+
+1.653
+
+0.344
+
+0.720
+
+0.166
+
+0.539
+
+3.728
+
+0.653
+
+1.273
+
+0.575
+
+0.735
+
+1.000
+
+10.438
+
+Moirai (Base)
+
+0.571
+
+3.689
+
+0.454
+
+0.691
+
+0.664
+
+0.756
+
+1.856
+
+0.548
+
+1.014
+
+0.418
+
+0.684
+
+3.835
+
+0.690
+
+1.501
+
+0.629
+
+0.998
+
+1.374
+
+12.375
+
+NHiTS
+
+0.067
+
+0.392
+
+0.057
+
+0.177
+
+0.453
+
+0.146
+
+0.422
+
+0.072
+
+0.124
+
+0.053
+
+0.208
+
+0.616
+
+0.112
+
+0.186
+
+0.449
+
+0.127
+
+0.257
+
+5.500
+
+AutoARIMA
+
+1.103
+
+1.993
+
+1.616
+
+1.698
+
+1.930
+
+0.644
+
+1.079
+
+1.200
+
+2.262
+
+1.914
+
+1.611
+
+1.945
+
+0.540
+
+0.886
+
+1.909
+
+2.672
+
+2.153
+
+13.500
+
+TFT
+
+0.039
+
+0.006
+
+0.055
+
+0.004
+
+0.013
+
+0.004
+
+0.033
+
+0.008
+
+0.027
+
+0.004
+
+0.054
+
+0.003
+
+0.002
+
+0.002
+
+0.005
+
+0.004
+
+0.013
+
+1.812
+
+NBEATSx-I
+
+0.029
+
+0.051
+
+0.212
+
+0.491
+
+0.071
+
+0.337
+
+0.054
+
+0.076
+
+0.048
+
+0.040
+
+0.687
+
+0.040
+
+0.214
+
+0.046
+
+0.068
+
+0.064
+
+0.140
+
+4.438
+
+DeepAR
+
+0.034
+
+0.613
+
+0.020
+
+0.025
+
+0.009
+
+0.006
+
+0.077
+
+0.007
+
+0.035
+
+0.346
+
+0.019
+
+0.025
+
+0.002
+
+0.004
+
+0.009
+
+0.004
+
+0.030
+
+2.688
+
+PatchTSTx
+
+0.013
+
+0.014
+
+0.035
+
+0.019
+
+0.007
+
+0.456
+
+0.018
+
+0.703
+
+0.015
+
+0.016
+
+0.026
+
+0.019
+
+0.470
+
+0.451
+
+0.008
+
+0.684
+
+0.071
+
+4.188
+
+Seasonal Naive
+
+1.788
+
+4.951
+
+1.930
+
+1.882
+
+1.397
+
+1.258
+
+2.577
+
+1.774
+
+1.808
+
+1.877
+
+1.989
+
+4.779
+
+1.242
+
+2.281
+
+1.415
+
+1.841
+
+2.989
+
+15.688
+
+Table 31: MASE scores per model in 16 complex synthetic datasets. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+|                        | Full Finetuned   | Adapters Only   | Adapters Only   | Adapters Only   | Adapters Only    | Pretrained Models   | Pretrained Models   | Pretrained Models   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines      |
+|------------------------|------------------|-----------------|-----------------|-----------------|------------------|---------------------|---------------------|---------------------|-------------|-------------|-------------|-------------|-------------|-------------|-------------|----------------|
+|                        | ChronosX (FF)    | ChronosX        | ChronosX (OL)   | ChronosX (NL)   | ChronosX (NL-NR) | Chronos Small       | Moirai (Large)      | Moirai (Base)       | NHiTS       | AutoARIMA   | TFT         | NBEATSx-I   | NBEATSx-G   | DeepAR      | PatchTSTx   | Seasonal Naive |
+| Diverse ARP (Add)      | 1.004            | 1.282           | 0.745           | 0.766           | 0.779            | 0.768               | 2.056               | 1.848               | 0.148       | 2.801       | 0.317       | 0.110       | 0.242       | 0.419       | 0.099       | 1.947          |
+| Diverse ARP (Mult.)    | 0.500            | 0.987           | 0.791           | 0.783           | 0.766            | 0.772               | 1.928               | 1.791               | 0.323       | 3.091       | 0.404       | 0.314       | 0.374       | 0.370       | 0.221       | 1.921          |
+| Diverse Bells (Add)    | 3.392            | 4.066           | 3.840           | 3.997           | 4.008            | 3.975               | 4.634               | 4.713               | 1.512       | 2.234       | 0.446       | 12.561      | 1.584       | 2.513       | 0.169       | 5.563          |
+| Diverse Bells (Mult.)  | 0.925            | 1.959           | 1.673           | 1.720           | 1.755            | 1.620               | 2.834               | 2.755               | 1.000       | 3.453       | 0.651       | 0.920       | 1.171       | 1.462       | 0.249       | 2.698          |
+| Diverse Spikes (Add)   | 0.062            | 0.294           | 0.302           | 0.298           | 0.295            | 0.767               | 1.048               | 0.999               | 0.163       | 1.203       | 0.077       | 0.107       | 0.176       | 0.132       | 0.022       | 1.286          |
+| Diverse Spikes (Mult.) | 0.173            | 0.451           | 0.471           | 0.452           | 0.460            | 0.691               | 1.247               | 1.201               | 0.516       | 1.826       | 0.121       | 0.264       | 0.537       | 0.240       | 0.491       | 1.427          |
+| Diverse Steps (Add)    | 0.393            | 0.896           | 0.889           | 0.914           | 0.893            | 2.099               | 2.387               | 2.388               | 0.409       | 2.182       | 0.252       | 0.222       | 0.490       | 0.584       | 0.056       | 2.851          |
+| Diverse Steps (Mult.)  | 0.495            | 1.054           | 0.965           | 1.105           | 1.119            | 1.464               | 2.110               | 2.195               | 0.644       | 3.165       | 0.404       | 0.581       | 0.818       | 1.021       | 0.401       | 2.329          |
+| Noisy ARP (Add)        | 0.613            | 0.967           | 0.793           | 0.748           | 0.784            | 0.713               | 1.580               | 1.473               | 0.477       | 1.760       | 0.570       | 0.464       | 0.483       | 0.495       | 0.459       | 1.713          |
+| Noisy ARP (Mult.)      | 0.750            | 0.884           | 0.848           | 0.829           | 0.799            | 0.778               | 1.647               | 1.619               | 0.551       | 2.510       | 0.632       | 0.552       | 0.551       | 0.552       | 0.512       | 1.665          |
+| Noisy Bells (Add)      | 2.370            | 3.301           | 2.144           | 3.703           | 3.911            | 3.328               | 3.851               | 3.721               | 0.867       | 1.472       | 0.722       | 0.805       | 1.027       | 0.714       | 0.436       | 4.558          |
+| Noisy Bells (Mult.)    | 0.693            | 1.425           | 1.383           | 1.388           | 1.304            | 1.360               | 2.211               | 2.166               | 1.105       | 2.819       | 1.029       | 1.187       | 1.219       | 0.833       | 0.583       | 2.155          |
+| Noisy Spikes (Add)     | 0.210            | 0.344           | 0.344           | 0.341           | 0.345            | 0.776               | 0.995               | 0.974               | 0.239       | 0.842       | 0.241       | 0.208       | 0.236       | 0.203       | 0.176       | 1.194          |
+| Noisy Spikes (Mult.)   | 0.362            | 0.547           | 0.529           | 0.566           | 0.574            | 0.777               | 1.281               | 1.265               | 0.629       | 1.717       | 0.451       | 0.453       | 0.660       | 0.364       | 0.445       | 1.401          |
+| Noisy Steps (Add)      | 0.524            | 0.958           | 0.950           | 1.050           | 1.038            | 1.994               | 2.030               | 2.071               | 0.457       | 1.479       | 0.511       | 0.381       | 0.546       | 0.417       | 0.324       | 2.424          |
+| Noisy Steps (Mult.)    | 0.497            | 0.806           | 0.772           | 1.027           | 0.999            | 1.190               | 1.597               | 1.574               | 0.683       | 2.123       | 0.630       | 0.636       | 0.714       | 0.558       | 0.462       | 2.052          |
+| Agg. Relative Score    | 0.443            | 0.808           | 0.722           | 0.774           | 0.774            | 1.000               | 1.573               | 1.534               | 0.417       | 1.674       | 0.324       | 0.396       | 0.471       | 0.430       | 0.201       | 1.741          |
+| Avg. Rank              | 4.875            | 10.062          | 8.750           | 9.688           | 9.875            | 10.500              | 14.188              | 13.562              | 5.062       | 14.062      | 3.938       | 4.250       | 6.188       | 4.438       | 1.625       | 14.938         |
+
+Table 32: WQL scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+<!-- image -->
+
+Table 33: MASE scores per model in real datasets with covariates. Models achieving the fi rst , second , and third best scores have been highlighted. Scores reported are averaged over three random seeds.
+
+|                     | Full Finetuned   | Adapters Only   | Adapters Only   | Adapters Only   | Adapters Only    | Pretrained Models   | Pretrained Models   | Pretrained Models   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines   | Baselines      |
+|---------------------|------------------|-----------------|-----------------|-----------------|------------------|---------------------|---------------------|---------------------|-------------|-------------|-------------|-------------|-------------|-------------|-------------|----------------|
+|                     | ChronosX (FF)    | ChronosX        | ChronosX (OL)   | ChronosX (NL)   | ChronosX (NL-NR) | Chronos Small       | Moirai (Base)       | Moirai (Large)      | AutoARIMA   | TFT         | DeepAR      | PatchTSTx   | NBEATSx-G   | NBEATSx-I   | NHiTS       | Seasonal Naive |
+| ETT (15 Min.)       | 0.338            | 0.213           | 0.231           | 0.201           | 0.216            | 0.224               | 0.259               | 0.513               | 0.225       | 0.269       | 0.790       | 0.451       | 0.208       | 0.404       | 0.239       | 0.677          |
+| ETT (Hourly)        | 0.354            | 0.352           | 0.330           | 0.327           | 0.318            | 0.297               | 0.489               | 0.900               | 0.469       | 0.599       | 0.351       | 0.463       | 0.752       | 0.677       | 0.443       | 0.950          |
+| M5                  | 0.907            | 0.925           | 0.923           | 0.921           | 0.918            | 0.919               | 0.959               | 0.925               | -           | 0.911       | 0.938       | 1.038       | 0.946       | 0.953       | 1.326       | 1.268          |
+| Electricity-BE      | 0.432            | 0.374           | 0.387           | 0.379           | 0.377            | 0.380               | 0.458               | 0.510               | 0.306       | 0.621       | 0.568       | 0.292       | 0.276       | 0.406       | 0.276       | 0.405          |
+| Electricity-DE      | 1.001            | 0.378           | 0.472           | 0.486           | 0.563            | 0.636               | 0.970               | 0.820               | 0.699       | 0.671       | 0.458       | 0.625       | 0.381       | 0.646       | 0.526       | 1.582          |
+| Electricity-FR      | 0.676            | 0.570           | 0.575           | 0.561           | 0.560            | 0.548               | 0.801               | 0.520               | 0.532       | 0.691       | 0.881       | 0.451       | 0.562       | 0.628       | 0.382       | 0.966          |
+| Electricity-NP      | 0.548            | 0.518           | 0.567           | 0.535           | 0.595            | 0.654               | 1.070               | 0.674               | 0.717       | 0.683       | 0.769       | 0.560       | 0.685       | 0.682       | 0.869       | 0.781          |
+| Electricity-PJM     | 0.389            | 0.261           | 0.255           | 0.246           | 0.258            | 0.267               | 0.372               | 0.308               | 0.194       | 0.155       | 0.166       | 0.176       | 0.154       | 0.162       | 0.147       | 0.169          |
+| Bull                | 0.830            | 0.601           | 0.537           | 0.620           | 0.634            | 0.990               | 1.577               | 1.497               | 1.248       | 0.851       | 0.940       | 0.783       | 0.723       | 0.727       | 0.769       | 1.681          |
+| Cockatoo            | 0.911            | 0.652           | 0.717           | 0.730           | 0.725            | 0.706               | 0.324               | 0.797               | 0.881       | 0.761       | 0.442       | 1.107       | 0.308       | 1.184       | 0.471       | 0.737          |
+| Covid19 (ProEnFo)   | 0.407            | 0.269           | 0.289           | 0.318           | 0.308            | 0.411               | 0.183               | 0.141               | 0.423       | 0.330       | 0.204       | 0.224       | 0.157       | 0.174       | 0.214       | 0.276          |
+| GFC12               | 1.193            | 0.738           | 0.693           | 0.693           | 0.709            | 0.657               | 0.769               | 0.799               | 0.718       | 0.738       | 1.138       | 0.599       | 0.709       | 0.667       | 0.688       | 0.925          |
+| GFC14               | 0.499            | 0.414           | 0.439           | 0.434           | 0.391            | 0.433               | 0.517               | 0.501               | 1.010       | 0.468       | 0.339       | 0.524       | 0.521       | 0.587       | 0.693       | 0.722          |
+| GFC17               | 0.525            | 0.474           | 0.775           | 0.728           | 0.784            | 0.732               | 0.782               | 0.644               | 0.535       | 0.421       | 0.904       | 0.303       | 0.486       | 0.430       | 0.413       | 0.533          |
+| Hog                 | 0.468            | 0.284           | 0.286           | 0.268           | 0.262            | 0.302               | 0.378               | 0.574               | 0.720       | 0.239       | 0.261       | 0.339       | 0.324       | 0.317       | 0.308       | 0.227          |
+| PDB                 | 0.658            | 0.404           | 0.348           | 0.370           | 0.348            | 0.355               | 0.347               | 0.432               | 0.497       | 0.398       | 0.580       | 0.208       | 0.352       | 0.297       | 0.388       | 0.545          |
+| Spain               | 0.834            | 0.589           | 0.425           | 0.538           | 0.528            | 0.454               | 0.505               | 0.780               | 0.390       | 0.817       | 0.585       | 0.304       | 0.850       | 0.482       | 0.357       | 0.606          |
+| Rideshare           | 0.461            | 0.467           | 0.482           | 0.486           | 0.528            | 0.472               | 0.473               | 0.476               | 0.630       | 0.528       | 0.475       | 0.460       | 0.497       | 0.470       | 0.469       | 0.630          |
+| Agg. Relative Score | 1.227            | 0.911           | 0.934           | 0.943           | 0.958            | 1.000               | 1.123               | 1.227               | 1.151       | 1.062       | 1.092       | 0.905       | 0.898       | 1.016       | 0.902       | 1.341          |
+| Avg. Rank           | 10.667           | 6.056           | 6.833           | 6.556           | 6.778            | 7.167               | 10.611              | 10.889              | 10.559      | 9.556       | 9.333       | 6.556       | 7.056       | 8.278       | 6.500       | 12.306         |
+
+## I.7 Probabilistic Forecasts of Chronos Variants
+
+From Figure 17 to 33, we plot the probabilistic forecast of different Chronos variants.
+
+Bull
+
+<!-- image -->
+
+12-31 00
+
+12-31 12
+
+01-01 00
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+Figure 17: Forecasts on Bull Dataset
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+12-31 00
+
+12-31 12
+
+01-01 00
+
+Covid19 (ProEnFo)
+
+Figure 18: Forecasts on Covid19 Dataset
+
+<!-- image -->
+
+Electricity-BE
+
+Figure 19: Forecasts on Electricity-BE Dataset
+
+<!-- image -->
+
+Electricity-DE
+
+Figure 20: Forecasts on Electricity-DE Dataset
+
+<!-- image -->
+
+Electricity-FR
+
+Figure 21: Forecasts on Electricity-FR Dataset
+
+<!-- image -->
+
+12-20 00
+
+12-20 12
+
+12-21 00
+
+12-21 12
+
+12-22 00
+
+12-22 12
+
+Electricity-NP
+
+<!-- image -->
+
+12-23 00
+
+12-23 12
+
+12-24 00
+
+12-20 00
+
+12-20 12
+
+12-21 00
+
+12-21 12
+
+Figure 22: Forecasts on Electricity-NP Dataset
+
+12-22 00
+
+12-22 12
+
+12-23 00
+
+12-23 12
+
+12-24 00
+
+Electricity-PJM
+
+Figure 23: Forecasts on Electricity-PJM Dataset
+
+<!-- image -->
+
+ETT (15 Min.)
+
+Figure 24: Forecasts on ETT (15 Min.) Dataset
+
+<!-- image -->
+
+ETT (Hourly)
+
+Figure 25: Forecasts on ETT (Hourly) Dataset
+
+<!-- image -->
+
+GFC12
+
+Figure 26: Forecasts on GEF12 Dataset
+
+<!-- image -->
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+GFC14
+
+<!-- image -->
+
+12-31 00
+
+12-31 12
+
+01-01 00
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+Figure 27: Forecasts on GEF14 Dataset
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+12-31 00
+
+12-31 12
+
+01-01 00
+
+GFC17
+
+Figure 28: Forecasts on GEF17 Dataset
+
+<!-- image -->
+
+Hog M5
+
+Figure 29: Forecasts on Hog Dataset
+
+<!-- image -->
+
+Figure 30: Forecasts on M5 Dataset
+
+<!-- image -->
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+12-31 00
+
+PDB
+
+<!-- image -->
+
+12-31 12
+
+01-01 00
+
+12-28 00
+
+12-28 12
+
+12-29 00
+
+Figure 31: Forecasts on PDB Dataset
+
+12-29 12
+
+12-30 00
+
+12-30 12
+
+12-31 00
+
+12-31 12
+
+01-01 00
+
+Rideshare Spain
+
+Figure 32: Forecasts on Rideshare Dataset
+
+<!-- image -->
+
+Figure 33: Forecasts on Spanish Dataset
+
+<!-- image -->

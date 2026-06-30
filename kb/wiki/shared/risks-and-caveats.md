@@ -3,15 +3,15 @@ type: shared
 domain: shared
 project: shared
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p1-cluster-pretrained-deep-models
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - risks
+- risks
 ---
 
 # Risks and caveats

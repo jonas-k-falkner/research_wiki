@@ -3,15 +3,15 @@ type: shared
 domain: shared
 project: shared
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p1-cluster-pretrained-deep-models
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - index
+- index
 ---
 
 # Sybilion AI Research Wiki
@@ -97,7 +97,7 @@ Upstream origin (consolidated, not cited directly):
 | [Embedding models](domains/embedding-models/index.md) | 5 | 5 seed |
 | [Nowcasting graph](domains/nowcasting-graph/index.md) | 8 | 8 seed |
 | [Scenario engine](domains/scenario-engine/index.md) | 6 | 6 seed |
-| [Time-series forecasting](domains/timeseries-forecasting/index.md) | 7 | 7 seed |
+| [Time-series forecasting](domains/timeseries-forecasting/index.md) | 71 | 68 researched, 3 seed |
 
 ## Shared pages
 
@@ -110,5 +110,5 @@ Upstream origin (consolidated, not cited directly):
 - [Research backlog](shared/research-backlog.md)
 - [Risks and caveats](shared/risks-and-caveats.md)
 
-_34 total pages across 4 domain(s) + shared._
+_98 total pages across 4 domain(s) + shared._
 <!-- AUTO:end -->

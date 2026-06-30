@@ -3,15 +3,15 @@ type: entity
 domain: nowcasting-graph
 project: P4
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - entity
-  - data-sources
-  - p4
+- entity
+- data-sources
+- p4
 ---
 
 # Entity set: P4 public data sources

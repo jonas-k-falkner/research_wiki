@@ -3,16 +3,16 @@ type: source
 domain: nowcasting-graph
 project: P4
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p4-availability-nowcasting
+- src-2026-06-p4-availability-nowcasting
 tags:
-  - nowcasting
-  - supply-chain
-  - evidence-ledger
-  - graph
+- nowcasting
+- supply-chain
+- evidence-ledger
+- graph
 ---
 
 # Source: B2B SCM availability nowcasting report

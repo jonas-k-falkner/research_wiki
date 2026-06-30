@@ -3,14 +3,14 @@ type: experiment
 domain: embedding-models
 project: P2
 status: draft
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p2-causal-embedding-model
-  - src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p2-causal-embedding-model
+- src-2026-06-p1-cluster-pretrained-deep-models
 tags:
-  - experiment
+- experiment
 ---
 
 # Experiment: P2 causal retrieval validation

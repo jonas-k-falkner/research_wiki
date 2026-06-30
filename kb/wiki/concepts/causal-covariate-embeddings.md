@@ -3,15 +3,20 @@ type: concept
 domain: embedding-models
 project: P2
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-27
 sources:
   - src-2026-06-p2-causal-embedding-model
   - src-2026-06-p1-cluster-pretrained-deep-models
   - src-2026-06-tsf-literature-review
+  - src-2026-06-wang-timexer
+  - src-2026-06-arango-chronosx
+  - src-2026-06-han-unica
+  - src-2026-06-potapczinski-apollopfn
+  - src-2026-06-lu-cats-ats
 tags:
-  - concept
+- concept
 ---
 
 # Causal covariate embeddings
@@ -37,9 +42,16 @@ Explicit TE/Granger over a ~200M-series universe is intractable (the deck's stat
 - Knowledge distillation from expensive pairwise scores into a learned retrieval space `[verify]`
 - Causal discovery caveats: correlation-vs-causation failure modes in observational time series
 
-## What the external review says `[verify]`
+## What the primary literature confirms (P1 scope, partial)
 
-A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) reports that **asymmetric target/covariate modeling is a validated, successful pattern** in 2024–2026 TSF — TimeXer (NeurIPS 2024) uses an endogenous/exogenous split with a bridge token, one of the clearest successful designs in the period; UniCA and ApolloPFN argue covariate-aware adaptation of strong temporal representations is effective. This supports the asymmetric/directed direction here (and P1's covariate layer). What remains unmatched by any flagship paper: a *shared encoder trained independently of the forecasting head, then used for target-conditioned sparse retrieval/routing over hundreds of covariates* — flagged in the review as a real novelty point. `[verify]` against named primaries; page stays `seed`.
+From the I-P1-C primary literature pass (2026-06-29):
+
+- **TimeXer** ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md), NeurIPS 2024): confirmed primary. Uses cross-attention with a patch-based endogenous encoder and a variate-level exogenous token ("bridge token"); shows statistically significant MSE reduction versus iTransformer, PatchTST, and Chronos on 8 benchmarks. Validates the endo/exo split architecture. Does NOT use retrieval or sparse selection — it attends over all exogenous covariates simultaneously.
+- **ChronosX, UNICA, ApolloPFN, CATS-ATS** ([src-2026-06-arango-chronosx](../sources/src-2026-06-arango-chronosx.md), [src-2026-06-han-unica](../sources/src-2026-06-han-unica.md), [src-2026-06-potapczinski-apollopfn](../sources/src-2026-06-potapczinski-apollopfn.md), [src-2026-06-lu-cats-ats](../sources/src-2026-06-lu-cats-ats.md)): all four 2025–2026 papers independently confirm that leading TSFMs (Chronos, TimesFM, MOMENT) do not support exogenous covariates. Covariate adapters are an active and open area.
+
+**What remains unmatched by primaries:** a shared encoder trained independently of the forecasting head, then used for *target-conditioned sparse retrieval* over hundreds of covariates. TimeXer and adapters use dense attention over all covariates; none implement sparse top-k covariate retrieval. This gap is real and represents the P2 novelty claim.
+
+The P2-specific claims (asymmetric geometry, TE/Granger distillation) remain `[verify]` — they are not covered by P1 primary literature.
 
 ## Cross-project relevance
 

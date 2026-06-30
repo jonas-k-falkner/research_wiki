@@ -3,18 +3,18 @@ type: shared
 domain: shared
 project: shared
 status: active
-confidence: high
 stage: seed
+confidence: high
 updated: 2026-06-27
 sources:
-  - src-2026-06-px-cross-project-strategy
-  - src-2026-06-p1-cluster-pretrained-deep-models
-  - src-2026-06-p4-availability-nowcasting
-  - src-2026-06-tsf-literature-review
+- src-2026-06-px-cross-project-strategy
+- src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p4-availability-nowcasting
+- src-2026-06-tsf-literature-review
 tags:
-  - backlog
-  - roadmap
-  - research
+- backlog
+- roadmap
+- research
 ---
 
 # Research backlog

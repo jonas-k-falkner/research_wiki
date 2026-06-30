@@ -8,7 +8,7 @@ confidence: low
 updated: 2026-06-27
 sources: []
 tags:
-  - index
+- index
 ---
 
 # Domain index: Scenario engine

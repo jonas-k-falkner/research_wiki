@@ -3,16 +3,16 @@ type: source
 domain: embedding-models
 project: P2
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p2-causal-embedding-model
+- src-2026-06-p2-causal-embedding-model
 tags:
-  - embedding
-  - causal
-  - transfer-entropy
-  - retrieval
+- embedding
+- causal
+- transfer-entropy
+- retrieval
 ---
 
 # Source: P2 — Causal embedding model v2

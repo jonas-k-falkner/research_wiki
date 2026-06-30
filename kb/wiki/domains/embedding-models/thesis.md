@@ -3,15 +3,15 @@ type: domain
 domain: embedding-models
 project: P2
 status: active
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p2-causal-embedding-model
-  - src-2026-06-p1-cluster-pretrained-deep-models
+- src-2026-06-p2-causal-embedding-model
+- src-2026-06-p1-cluster-pretrained-deep-models
 tags:
-  - thesis
-  - embeddings
+- thesis
+- embeddings
 ---
 
 # Domain thesis: Embedding models

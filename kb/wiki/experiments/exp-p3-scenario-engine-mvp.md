@@ -3,13 +3,13 @@ type: experiment
 domain: scenario-engine
 project: P3
 status: draft
-confidence: medium
 stage: seed
+confidence: medium
 updated: 2026-06-25
 sources:
-  - src-2026-06-p3-scenario-engine
+- src-2026-06-p3-scenario-engine
 tags:
-  - experiment
+- experiment
 ---
 
 # Experiment: P3 scenario engine MVP
