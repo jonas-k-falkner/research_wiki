@@ -358,6 +358,39 @@ the closest task or create a new task if a theme emerges.
 
 ---
 
+## Final ingest status (2026-06-30)
+
+All tasks complete. All library papers with PDFs now have source pages.
+
+**Ingested in supplementary pass (2026-06-30, priority-corrected):**
+
+HIGH priority (priority label in plan was wrong):
+- `beckXLSTMExtendedLong2024` — upgraded from background stub to full P1/P2 source page (mLSTM matrix memory)
+- `kazemiTime2VecLearningVector2019` — not in original plan; created `src-2026-06-kazemi-time2vec`
+- `heMomentumContrastUnsupervised2020` — was LOW in I-P2-A; created `src-2026-06-he-moco`
+- `musgraveMetricLearningReality` — was LOW in I-P2-A; created `src-2026-06-musgrave-metric-learning-reality`
+- `liuSelfSupervisedLearningTime2024` — was LOW in I-P2-A; created `src-2026-06-liu-ssl-comparison`
+- `tanIndexingClassifyingGigabytes2017` — was LOW in I-P1-A; created `src-2026-06-tan-ts-indexing`
+- `atesCounterfactualExplanationsMachine2021` — not in library, no citekey; created `src-2026-06-ates-counterfactual-ts`
+
+MEDIUM/LOW (background and tooling):
+- `ericssonSelfSupervisedRepresentationLearning2022` → `src-2026-06-ericsson-ssl-survey`
+- `liuSelfSupervisedContrastiveLearning2023` → `src-2026-06-liu-ssl-medical-review`
+- `umDataAugmentationWearable2017` → `src-2026-06-um-wearable-augmentation`
+- `lewisBARTDenoisingSequencetoSequence2019` → `src-2026-06-lewis-bart`
+- `pascualLearningProblemagnosticSpeech2019` → `src-2026-06-pascual-speech-ssl`
+- `tranFastPreciseSinglecell2021` → `src-2026-06-tran-scrna-autoencoder`
+- `minderData2NeoToolComplex2024` → `src-2026-06-minder-data2neo`
+- `zhangUnderstandingTokenlevelTopological2025` → `src-2026-06-zhang-tem-topology`
+- `kadraInterpretableMesomorphicNetworks2024` → `src-2026-06-kadra-mesomorphic` (no library entry)
+
+**Papers that cannot be ingested (no PDF in library):**
+- `atashgahiQuickRobustFeature2022` — library entry present, no PDF file. Skip.
+- `wangRDLinearNovelTime2024` — library entry present, no PDF file. Skip.
+- `bytez.comAreSelfAttentionsEffective2024` — web page entry, no PDF file. Skip.
+
+---
+
 ## Execution order
 
 ```
@@ -382,3 +415,8 @@ I-P4-A  (supply chain KG)         ← independent; can run in parallel with P2
   was ingested, what was promoted, key finding).
 - **Run `wiki toc build`** after any structural change (new source page, new concept page).
 - **Run `wiki lint`** before every commit; fix all errors; flag warns.
+
+
+## open gaps
+
+- multi-frequency merging approaches for daily freq forecasts (needs a model that works with monthly, weekly and daily data and is able to fuse the information without leakage and without forward looking info.

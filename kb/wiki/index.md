@@ -94,8 +94,8 @@ Upstream origin (consolidated, not cited directly):
 
 | Domain | Pages | Stages |
 |---|---|---|
-| [background](domains/background/index.md) | 1 | 1 researched |
-| [Embedding models](domains/embedding-models/index.md) | 26 | 21 researched, 5 seed |
+| [background](domains/background/index.md) | 0 | — |
+| [Embedding models](domains/embedding-models/index.md) | 27 | 22 researched, 5 seed |
 | [Nowcasting graph](domains/nowcasting-graph/index.md) | 15 | 9 researched, 6 seed |
 | [Scenario engine](domains/scenario-engine/index.md) | 6 | 6 seed |
 | [Time-series forecasting](domains/timeseries-forecasting/index.md) | 83 | 80 researched, 3 seed |

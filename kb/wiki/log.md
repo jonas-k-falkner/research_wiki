@@ -549,3 +549,45 @@ Priority reassessment identified several papers originally marked LOW/background
 
 - `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (all pre-existing or provenance warns for library-missing PDFs)
 - `wiki toc build`: indexes updated
+
+## 2026-06-30 (Supplementary ingest — MEDIUM/LOW and background, 9 papers + ingest plan)
+
+Completed the final pass of all remaining library papers with PDFs. Three papers cannot be ingested (no PDF). Ingest plan updated with final status.
+
+### Source pages created (9)
+
+| Source slug | Paper | Venue | Priority |
+|---|---|---|---|
+| `src-2026-06-ericsson-ssl-survey` | Ericsson et al., SSL intro/advances/challenges | IEEE SPM 2022 | MEDIUM (P2 SSL reference) |
+| `src-2026-06-liu-ssl-medical-review` | Liu et al., contrastive SSL for medical TS | Sensors 2023 | MEDIUM (augmentation survey) |
+| `src-2026-06-um-wearable-augmentation` | Um et al., wearable sensor augmentation | ICMI 2017 | MEDIUM (augmentation catalog) |
+| `src-2026-06-lewis-bart` | Lewis et al., BART denoising seq2seq | ACL 2020 | LOW (MAE pretraining background) |
+| `src-2026-06-pascual-speech-ssl` | Pascual et al., PASE speech SSL | Interspeech 2019 | LOW (multi-task SSL background) |
+| `src-2026-06-tran-scrna-autoencoder` | Tran & Ang, hierarchical autoencoder (scRNA) | Nature Comms 2021 | LOW (background only) |
+| `src-2026-06-minder-data2neo` | Minder et al., Data2Neo Neo4j tool | ETH 2024 | LOW→HIGH for P4 (ETL tooling) |
+| `src-2026-06-zhang-tem-topology` | Zhang et al., TEM token topology | arXiv 2025 | LOW (P1 backbone background) |
+| `src-2026-06-kadra-mesomorphic` | Kadra et al., IMN mesomorphic networks | arXiv 2024 | LOW (P1 attribution background) |
+
+### Papers that cannot be ingested (no PDF)
+
+- `atashgahiQuickRobustFeature2022` — library entry present, PDF missing
+- `wangRDLinearNovelTime2024` — library entry present, PDF missing
+- `bytez.comAreSelfAttentionsEffective2024` — web page entry, no PDF
+
+### Key findings
+
+- **Data2Neo** (ETH 2024): open-source Python ETL (YAML recipe + custom Python hooks + streaming) for relational → Neo4j KG. P4 ETL pipeline recommendation: use Data2Neo for evidence ledger → explicit evidence graph construction. Complements Besta et al. (Neo4j confirmed as P4 graph store).
+- **Um wearable augmentation** (2017): canonical augmentation reference; safe augmentations for P2: jitter, scaling, window slicing. Dangerous for P2: permutation (destroys temporal order), rotation (destroys channel correlation).
+- **TEM** (2025): Transformers degrade token topology at depth → supports P1 preference for shallow (2–4 layer) backbones.
+- **IMN** (2024): hypernetworks generate per-sample linear models; per-instance feature importance by design. P1 consideration for tabular covariate attribution.
+
+### Pages updated
+
+- `projects/p4-availability-nowcasting-graph.md`: Data2Neo source added
+- `domains/nowcasting-graph/thesis.md`: Data2Neo source added
+- `.agent/ingest-plan.md`: Final status section added; 3 uningested papers documented
+
+### Lint / TOC
+
+- `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (pre-existing)
+- `wiki toc build`: indexes updated

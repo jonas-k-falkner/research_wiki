@@ -14,6 +14,7 @@ sources:
 - src-2026-06-cheng-shield
 - src-2026-06-ramzy-mare
 - src-2026-06-besta-graph-databases
+- src-2026-06-minder-data2neo
 tags:
 - supply-chain
 - nowcasting
@@ -97,6 +98,7 @@ Three primary papers now support the P4 architecture:
 - [sources/src-2026-06-cheng-shield.md](../sources/src-2026-06-cheng-shield.md) — SHIELD: LLM schema induction for EV battery SC disruption prediction (CMU 2024)
 - [sources/src-2026-06-ramzy-mare.md](../sources/src-2026-06-ramzy-mare.md) — MARE: semantic SC disruption ontology + SPARQL DMP framework (Infineon, 2022)
 - [sources/src-2026-06-besta-graph-databases.md](../sources/src-2026-06-besta-graph-databases.md) — graph DB taxonomy: LPG (Neo4j) vs RDF, infrastructure choice for P4 (ETH 2023)
+- [sources/src-2026-06-minder-data2neo.md](../sources/src-2026-06-minder-data2neo.md) — Data2Neo (ETH 2024): open-source Python ETL for relational → Neo4j; recommended ETL tool for P4's evidence ledger → graph construction
 
 ## Related pages
 

@@ -14,6 +14,7 @@ sources:
 - src-2026-06-cheng-shield
 - src-2026-06-ramzy-mare
 - src-2026-06-besta-graph-databases
+- src-2026-06-minder-data2neo
 tags:
 - thesis
 - nowcasting

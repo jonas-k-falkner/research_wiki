@@ -35,7 +35,8 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [MARE: Semantic Supply Chain Disruption Management and Resilience Evaluation Framework](../../sources/src-2026-06-ramzy-mare.md) | source | researched | active |
 | [SHIELD: LLM-Driven Schema Induction for Predictive Analytics in EV Battery Supply Chain Disruptions](../../sources/src-2026-06-cheng-shield.md) | source | researched | active |
 | [Source: B2B SCM availability nowcasting report](../../sources/src-2026-06-p4-availability-nowcasting.md) | source | seed | active |
+| [Source: Data2Neo — A Tool for Complex Neo4j Data Integration (2024)](../../sources/src-2026-06-minder-data2neo.md) | source | researched | active |
 | [Supply Chain Knowledge Graph Completion with Relation Learning](../../sources/src-2026-06-liu-sc-kg.md) | source | researched | active |
 
-_14 page(s): 8 researched, 6 seed._
+_15 page(s): 9 researched, 6 seed._
 <!-- AUTO:end -->
