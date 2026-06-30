@@ -19,6 +19,14 @@ sources:
   - src-2026-06-yue-ts2vec
   - src-2026-06-li-ti-mae
   - src-2026-06-cheng-timemae
+  - src-2026-06-foumani-series2vec
+  - src-2026-06-choi-multitask-ssl
+  - src-2026-06-eldele-ca-tcc
+  - src-2026-06-eldele-label-efficient-review
+  - src-2026-06-jawed-ssl-semisupervised
+  - src-2026-06-yang-timeclr
+  - src-2026-06-fraikin-trep
+  - src-2026-06-talukder-totem
 tags:
 - concept
 - ssl
@@ -57,6 +65,30 @@ Primary literature pass on 4 HIGH-priority SSL/contrastive TS papers establishes
 - TS2Vec (dilated CNN + contextual consistency) and TimeMAE (decoupled MAE + window slicing) are the strongest symmetric encoder baselines for P2 ablation.
 - TimeMAE's window slicing and decoupled architecture are the most relevant design patterns to adopt for P2's pretraining stage.
 - P2's directed objective needs to be layered on top of (or replace) the symmetric pretraining objective.
+
+## SSL landscape — MEDIUM papers (I-P2-A ingest, 2026-06-30)
+
+Eight additional SSL TS papers (MEDIUM priority) extend the baseline established above. Key findings:
+
+**Symmetric methods confirmed again:**
+- **Series2Vec** ([src-2026-06-foumani-series2vec](../sources/src-2026-06-foumani-series2vec.md), DMKD 2024): replaces augmentation with Soft-DTW similarity as pretext target; outperforms TS-TCC/TS2Vec/Ti-MAE/TimeMAE on UCR; still symmetric.
+- **TimeCLR** ([src-2026-06-yang-timeclr](../sources/src-2026-06-yang-timeclr.md), KBS 2022): SimCLR + DTW-aware augmentation (autoencoder generates phase shifts); InceptionTime backbone; symmetric.
+- **Multi-task SSL** ([src-2026-06-choi-multitask-ssl](../sources/src-2026-06-choi-multitask-ssl.md), ICLR 2023 ws): combines contextual+temporal+transformation consistency in single framework; symmetric.
+- **CA-TCC** ([src-2026-06-eldele-ca-tcc](../sources/src-2026-06-eldele-ca-tcc.md), TPAMI 2023): journal extension of TS-TCC; adds semi-supervised variant (pseudo-labels → class-aware contrastive); symmetric.
+- **Jawed 2020** ([src-2026-06-jawed-ssl-semisupervised](../sources/src-2026-06-jawed-ssl-semisupervised.md), ECML 2020): earliest SSL TS paper; forecasting-as-auxiliary-task; superseded by 2021-2023 methods.
+- **TOTEM** ([src-2026-06-talukder-totem](../sources/src-2026-06-talukder-totem.md), ICML 2024): VQVAE tokenizer for cross-domain generalist training; zero-shot 80% AvgWins; symmetric reconstruction.
+
+**Key novel finding — T-Rep:**
+- **T-Rep** ([src-2026-06-fraikin-trep](../sources/src-2026-06-fraikin-trep.md), ICLR 2024): first SSL TS method to incorporate **learned time-embeddings** (from timestep indices) in pretext tasks. Two novel tasks: (1) Divergence prediction — predict JSD between time-embeddings given representation difference (continuous temporal distance, replaces binary contrastive); (2) Time-embedding-conditioned forecasting. Built on TS2Vec encoder. Outperforms TS2Vec on all tasks + stronger robustness to missing data. Still symmetric.
+
+**P2 design implications from MEDIUM papers:**
+- T-Rep's time-embedding approach could inform P2's directed pretext: a regime-aware time-embedding conditioned on market state could sharpen TE/Granger label quality for P2's asymmetric objective.
+- Series2Vec confirms that similarity-preserving pretext (using TS-specific distance as target) outperforms augmentation-based contrastive — same principle applies to P2's TE/Granger targets.
+- CA-TCC's 4-phase semi-supervised pattern (pretrain on unlabeled → sparse labels → pseudo-labels → class-aware contrastive) is the reference architecture for P2's training with expensive TE/Granger labels.
+- TOTEM's VQVAE tokenizer is a candidate cross-domain pretraining stage for P2 if commodity series onboarding is a priority.
+- Survey paper (Eldele 2024): P2 is firmly in the **in-domain semi-supervised** quadrant — do not use cross-domain transfer from HAR/ECG benchmarks.
+
+**SSL symmetry gap: confirmed again.** All 12 papers reviewed in I-P2-A (8 HIGH + 8 MEDIUM) are symmetric.
 
 ## Literature still to integrate `[verify]`
 

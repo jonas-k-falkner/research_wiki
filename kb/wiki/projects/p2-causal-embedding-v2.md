@@ -13,6 +13,14 @@ sources:
 - src-2026-06-yue-ts2vec
 - src-2026-06-li-ti-mae
 - src-2026-06-cheng-timemae
+- src-2026-06-foumani-series2vec
+- src-2026-06-choi-multitask-ssl
+- src-2026-06-eldele-ca-tcc
+- src-2026-06-eldele-label-efficient-review
+- src-2026-06-jawed-ssl-semisupervised
+- src-2026-06-yang-timeclr
+- src-2026-06-fraikin-trep
+- src-2026-06-talukder-totem
 tags:
 - embeddings
 - causality
@@ -68,16 +76,25 @@ Primary literature pass confirms: **no existing SSL TS method implements an asym
 | Ti-MAE (Li et al. 2023, ICLR ws) | Masked autoencoder | — | Best SSL forecasting 2023 | Yes |
 | TimeMAE (Cheng et al. 2023, TKDE) | Decoupled MAE | HAR 91.31% linear eval | — | Yes |
 
-**P2 novelty is confirmed:** the asymmetric/directed objective is not present in any published SSL TS encoder. P2 development should use TimeMAE as the primary symmetric baseline (strongest classification encoder) and TS2Vec as the universal baseline across tasks.
+**P2 novelty is confirmed across all 12 reviewed SSL papers:** no published SSL TS encoder implements an asymmetric/directed objective. P2 development should use TimeMAE as the primary symmetric baseline (strongest classification encoder) and TS2Vec as the universal baseline across tasks.
+
+**Additional design inputs from I-P2-A MEDIUM (2026-06-30):**
+- **T-Rep** (Fraikin et al. 2024, ICLR): learned time-embeddings in pretext tasks; divergence prediction as continuous temporal distance; outperforms TS2Vec; robust to missing data. Time-embedding approach could condition P2's directed pretext on regime/seasonality.
+- **CA-TCC** (Eldele et al. 2023, TPAMI): 4-phase semi-supervised (pretrain → fine-tune → pseudo-label → class-aware contrastive); 1% labels ≈ fully supervised. Reference architecture for P2's label-efficient training with expensive TE/Granger labels.
+- **Series2Vec** (Foumani et al. 2024): similarity-preserving pretext (Soft-DTW target) outperforms augmentation-based contrastive. P2 can adopt the same design but with TE/Granger as directed similarity target.
+- **Multi-task SSL** (Choi & Kang 2023): shared encoder + multiple loss heads. P2 could combine a symmetric backbone loss with a directed asymmetric head.
 
 ## Sources
 
 - [sources/src-2026-06-p2-causal-embedding-model](../sources/src-2026-06-p2-causal-embedding-model.md) — bottleneck framing, asymmetric-objective proposal, moat.
 - [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md) — how retrieved covariates feed the selector.
-- [sources/src-2026-06-eldele-ts-tcc](../sources/src-2026-06-eldele-ts-tcc.md) — TS-TCC (IJCAI 2021), symmetric SSL baseline
-- [sources/src-2026-06-yue-ts2vec](../sources/src-2026-06-yue-ts2vec.md) — TS2Vec (AAAI 2022), universal symmetric encoder
-- [sources/src-2026-06-li-ti-mae](../sources/src-2026-06-li-ti-mae.md) — Ti-MAE (ICLR 2023 ws), best SSL forecasting
-- [sources/src-2026-06-cheng-timemae](../sources/src-2026-06-cheng-timemae.md) — TimeMAE (TKDE 2023), best SSL classification
+- [sources/src-2026-06-eldele-ts-tcc](../sources/src-2026-06-eldele-ts-tcc.md), [sources/src-2026-06-yue-ts2vec](../sources/src-2026-06-yue-ts2vec.md), [sources/src-2026-06-li-ti-mae](../sources/src-2026-06-li-ti-mae.md), [sources/src-2026-06-cheng-timemae](../sources/src-2026-06-cheng-timemae.md) — HIGH SSL baselines
+- [sources/src-2026-06-fraikin-trep](../sources/src-2026-06-fraikin-trep.md) — T-Rep (ICLR 2024): time-embeddings in pretext tasks
+- [sources/src-2026-06-eldele-ca-tcc](../sources/src-2026-06-eldele-ca-tcc.md) — CA-TCC (TPAMI 2023): semi-supervised reference
+- [sources/src-2026-06-foumani-series2vec](../sources/src-2026-06-foumani-series2vec.md) — Series2Vec (DMKD 2024): similarity-preserving pretext
+- [sources/src-2026-06-choi-multitask-ssl](../sources/src-2026-06-choi-multitask-ssl.md) — multi-task SSL (ICLR 2023 ws)
+- [sources/src-2026-06-talukder-totem](../sources/src-2026-06-talukder-totem.md) — TOTEM (ICML 2024): VQVAE cross-domain tokenizer
+- [sources/src-2026-06-eldele-label-efficient-review](../sources/src-2026-06-eldele-label-efficient-review.md), [sources/src-2026-06-yang-timeclr](../sources/src-2026-06-yang-timeclr.md), [sources/src-2026-06-jawed-ssl-semisupervised](../sources/src-2026-06-jawed-ssl-semisupervised.md) — survey + early methods
 
 ## Related pages
 

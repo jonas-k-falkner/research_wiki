@@ -441,3 +441,72 @@ Per ingest-plan.md, MEDIUM/LOW papers for I-P2-A and I-P4-A remain for a follow-
 - **I-P2-A MEDIUM**: foumaniSeries2vec, choiMultiTask, eldeleSSLContrastive, eldeleLabel, jawedSSL, yangTimeCLR, fraikinTRep, talukderTOTEM
 - **I-P4-A MEDIUM**: chengSHIELD, ramzyMARE, bestaDemystify
 - **Both LOW** priority papers deferred
+
+## 2026-06-30 (I-P2-A MEDIUM — SSL representation learning, 8 MEDIUM-priority papers)
+
+Completed the MEDIUM-priority pass for Task I-P2-A. All 8 papers confirmed `state: new`. All `wiki check claim` calls returned novel (one false-positive `duplicate` for T-Rep time-embeddings claim against TS-TCC — false positive from domain-level semantic similarity; proceeded as novel).
+
+### Source pages created (8)
+
+| Source slug | Paper | Venue | Priority |
+|---|---|---|---|
+| `src-2026-06-foumani-series2vec` | Foumani et al., Series2Vec | DMKD 2024 | MEDIUM |
+| `src-2026-06-choi-multitask-ssl` | Choi & Kang, Multi-task SSL | ICLR 2023 ws | MEDIUM |
+| `src-2026-06-eldele-ca-tcc` | Eldele et al., CA-TCC | TPAMI 2023 | MEDIUM |
+| `src-2026-06-eldele-label-efficient-review` | Eldele et al., label-efficient TS survey | TNNLS 2024 | MEDIUM |
+| `src-2026-06-jawed-ssl-semisupervised` | Jawed et al., SSL semi-supervised TS | ECML PKDD 2020 | MEDIUM |
+| `src-2026-06-yang-timeclr` | Yang et al., TimeCLR | KBS 2022 | MEDIUM |
+| `src-2026-06-fraikin-trep` | Fraikin et al., T-Rep | ICLR 2024 | MEDIUM |
+| `src-2026-06-talukder-totem` | Talukder et al., TOTEM | ICML 2024 | MEDIUM |
+
+### Key findings
+
+**SSL symmetry gap confirmed across all 12 reviewed papers (8 HIGH + 8 MEDIUM):** Every SSL TS method in the literature uses a symmetric objective — augmentation-based contrastive, reconstruction, or proximity-based. No asymmetric/directed objective exists in published work. P2's directional pretext is an unmatched research gap as of 2024.
+
+Notable MEDIUM findings for P2 design:
+- **T-Rep** (Fraikin et al. 2024, ICLR): first SSL TS with learned time-embeddings in pretext tasks; continuous JSD divergence target instead of binary contrastive; outperforms TS2Vec; robust to missing data. Time-embedding approach could condition P2's directed pretext on regime/seasonality.
+- **CA-TCC** (Eldele et al. 2023, TPAMI): 4-phase semi-supervised (pretrain → fine-tune → pseudo-label → class-aware contrastive); 1% labels ≈ fully supervised on HAR. Reference architecture for P2's label-efficient training with expensive TE/Granger labels.
+- **Series2Vec** (Foumani et al. 2024): similarity-preserving pretext using Soft-DTW avoids augmentation corruption; outperforms TS-TCC/TS2Vec/Ti-MAE/TimeMAE on UCR/UEA. P2 can adopt same design but with TE/Granger as directed similarity target.
+- **TOTEM** (Talukder et al. 2024, ICML): VQVAE tokenizer (strided 1D conv → discrete codebook → transpose conv decoder); zero-shot 80% AvgWins across 5 unseen imputation domains.
+- **Survey** (Eldele 2024, TNNLS): P2 sits in in-domain semi-supervised quadrant, not cross-domain transfer.
+
+### Pages updated
+
+- `concepts/causal-covariate-embeddings.md`: "SSL landscape — MEDIUM papers" section added; 8 new sources in frontmatter
+- `projects/p2-causal-embedding-v2.md`: "Additional design inputs from I-P2-A MEDIUM" section added; 8 new sources in frontmatter
+- `domains/embedding-models/thesis.md`: "SSL landscape — MEDIUM papers" section added; 8 new sources in frontmatter
+
+### Lint / TOC
+
+- `uv run wiki lint`: 0 errors, 23 warnings (all pre-existing)
+- `uv run wiki toc build`: indexes updated
+
+## 2026-06-30 (I-P4-A MEDIUM — supply chain disruption and graph infrastructure, 3 MEDIUM-priority papers)
+
+Completed the MEDIUM-priority pass for Task I-P4-A. All 3 papers confirmed `state: new`. All `wiki check claim` calls returned novel.
+
+### Source pages created (3)
+
+| Source slug | Paper | Venue | Priority |
+|---|---|---|---|
+| `src-2026-06-cheng-shield` | Cheng et al., SHIELD | CMU 2024 | MEDIUM |
+| `src-2026-06-ramzy-mare` | Ramzy et al., MARE | Infineon + TIB 2022 | MEDIUM |
+| `src-2026-06-besta-graph-databases` | Besta et al., graph DB taxonomy | ETH Zurich, ACM CSUR 2023 | MEDIUM |
+
+### Key findings
+
+- **SHIELD** (CMU 2024): LLM schema induction (GPT-4o from 239 sources) produces 11 event categories × 27 subcategories for EV battery SC disruption prediction; fine-tuned RoBERTa event detection + GCN impact scoring outperform baseline GCN and GPT-4o prompting. Human-in-the-loop curation non-negotiable. Resolves P4 open question: LLM schema induction is viable for P4's disruption event taxonomy.
+- **MARE** (Infineon + TIB 2022): Disruption Ontology (hasCause, hasScope, hasSeverity, hasLocation, hasBeginDate/hasEndDate) + SPARQL DMP covers all 4 phases (Monitor, Assess, Recover, Evaluate). Resolves P4 open question: MARE's 6-attribute ontology is the reference schema for disruption event entity type in P4's evidence ledger.
+- **Besta et al.** (ETH Zurich 2023, ACM CSUR): survey of 51 graph DB systems; LPG (Neo4j) outperforms RDF for property-rich heterogeneous SC graphs (O(1) property vs O(n) triples). Cypher more natural for SC queries than SPARQL. Resolves P4 open question: Neo4j confirmed as the correct MVP graph store. Combined with AlMahri 2026 production validation (F1 0.962–0.991), Neo4j is the definitive P4 choice.
+
+### Pages updated
+
+- `concepts/explicit-evidence-graph.md`: "Secondary literature (I-P4-A MEDIUM)" section added; 3 new sources in frontmatter; two open questions resolved (schema-driven disruption extraction; property-graph vs relational)
+- `concepts/evidence-ledger.md`: "Secondary literature (I-P4-A MEDIUM)" section added; 1 new source in frontmatter; MARE disruption ontology documented as reference schema
+- `projects/p4-availability-nowcasting-graph.md`: "Secondary literature (I-P4-A MEDIUM)" section added; 3 new sources in frontmatter and Sources section
+- `domains/nowcasting-graph/thesis.md`: "MEDIUM literature (I-P4-A)" section added; 3 new sources in frontmatter
+
+### Lint / TOC
+
+- `uv run wiki lint`: 0 errors, 23 warnings (all pre-existing)
+- `uv run wiki toc build`: indexes updated
