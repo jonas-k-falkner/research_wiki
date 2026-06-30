@@ -591,3 +591,33 @@ Completed the final pass of all remaining library papers with PDFs. Three papers
 
 - `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (pre-existing)
 - `wiki toc build`: indexes updated
+
+## 2026-06-30 (I-P2-v1 — embedding model v1 production architecture context)
+
+Ingested `raw/seed/embedding_model_v1_context.md` (SHA256: `1f2f0070...`). This seed file documents the production v1 symmetric SSL embedding model — the concrete baseline P2 v2 must beat.
+
+### Source page created
+
+- `sources/src-2026-06-embedding-model-v1.md` — production architecture context; stage: researched; confidence: high
+
+### Key findings
+
+- **Architecture:** `SSLModel` with `ConvAttnEncoder` (TCN → MHA → meanmax pooling → 128-dim `z`); `RNNAttnDecoder` (sLSTM + cross-attention) for masked reconstruction; INPUT_DIM=1, HIDDEN_DIM=128, EMB_DIM=128, MAX_SEQ_LEN=180.
+- **SSL heads (defaults):** SL (Soft-DTW in x-space + L2 in z-space, weight 0.7) + GL (masked MSE, weight 0.3); CL (NT-Xent τ=0.07) off by default.
+- **SimMemoryBuffer:** groups `(x, z)` pairs by length bin; same-length negatives across batches; GPU-accelerated via Triton.
+- **Production KPIs:** MAP@50 > 0.95, combined_rank_score > 0.925, reconstruction_error < 0.31.
+- **Inference API:** `model.transform(x)` — (BS, T, 1) → (BS, 128); must be preserved by P2 v2.
+- **P2 implication:** V1's SL head (Soft-DTW symmetric) is the only component P2 replaces. The backbone, GL head, and `SimMemoryBuffer` are reused. `GrangerSelector` / `TransferEntropySelector` serve as distillation teacher for the new asymmetric directed SL head.
+
+### Pages updated
+
+- `projects/p2-causal-embedding-v2.md`: new "V1 production baseline" section; source added to frontmatter and Sources
+- `concepts/causal-covariate-embeddings.md`: new "V1 symmetric baseline" section (symmetric vs directed comparison table); source added to frontmatter
+- `domains/embedding-models/thesis.md`: new "V1 production baseline" section; source added to frontmatter and Sources
+- `experiments/exp-p2-causal-retrieval-validation.md`: new "V1 symmetric baseline" section; protocol updated to reference v1 baseline and concrete encoder; source added to frontmatter
+- `sources/src-2026-06-p2-causal-embedding-model.md`: forward reference to v1 source page added
+
+### Lint / TOC
+
+- `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (pre-existing)
+- `wiki toc build`: indexes updated

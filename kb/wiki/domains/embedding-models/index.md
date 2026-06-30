@@ -34,6 +34,7 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Source: A Metric Learning Reality Check (2020)](../../sources/src-2026-06-musgrave-metric-learning-reality.md) | source | researched | active |
 | [Source: BART: Denoising Sequence-to-Sequence Pre-training for Natural Language Generation, Translation, and Comprehension (2019)](../../sources/src-2026-06-lewis-bart.md) | source | researched | active |
 | [Source: Data Augmentation of Wearable Sensor Data for Parkinson's Disease Monitoring (2017)](../../sources/src-2026-06-um-wearable-augmentation.md) | source | researched | active |
+| [Source: Embedding model v1 — production architecture context](../../sources/src-2026-06-embedding-model-v1.md) | source | researched | active |
 | [Source: Fast and Precise Single-cell Data Analysis Using a Hierarchical Autoencoder (2021)](../../sources/src-2026-06-tran-scrna-autoencoder.md) | source | researched | active |
 | [Source: Learning Problem-agnostic Speech Representations from Multiple Self-supervised Tasks (2019)](../../sources/src-2026-06-pascual-speech-ssl.md) | source | researched | active |
 | [Source: Momentum Contrast for Unsupervised Visual Representation Learning (2020)](../../sources/src-2026-06-he-moco.md) | source | researched | active |
@@ -50,5 +51,5 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [TS-TCC: Time-Series Representation Learning via Temporal and Contextual Contrasting](../../sources/src-2026-06-eldele-ts-tcc.md) | source | researched | active |
 | [TS2Vec: Towards Universal Representation of Time Series](../../sources/src-2026-06-yue-ts2vec.md) | source | researched | active |
 
-_27 page(s): 22 researched, 5 seed._
+_28 page(s): 23 researched, 5 seed._
 <!-- AUTO:end -->

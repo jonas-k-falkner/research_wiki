@@ -32,6 +32,7 @@ sources:
   - src-2026-06-musgrave-metric-learning-reality
   - src-2026-06-liu-ssl-comparison
   - src-2026-06-beck-xlstm
+  - src-2026-06-embedding-model-v1
 tags:
 - concept
 - ssl
@@ -111,6 +112,26 @@ Eight additional SSL TS papers (MEDIUM priority) extend the baseline established
 
 **Evaluation protocol:**
 - **Musgrave** ([src-2026-06-musgrave-metric-learning-reality](../sources/src-2026-06-musgrave-metric-learning-reality.md), ECCV 2020): most claimed metric learning improvements vanish under fair evaluation (equal architecture, dimensions, augmentations, Bayesian hyperparameter search). P2 evaluation must fix these variables across all symmetric baselines; use MAP@R or directional precision metrics, not Recall@K alone.
+
+## V1 symmetric baseline (production, 2026-06-30)
+
+The production v1 model ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)) is the concrete symmetric baseline P2 must beat:
+
+- **Encoder:** `ConvAttnEncoder` — TCN → multi-head attention → meanmax pooling → 128-dim `z`
+- **Similarity objective (SL head):** Soft-DTW in x-space + L2 in z-space (weight 0.7) — **symmetric** by construction (DTW(A,B) = DTW(B,A))
+- **Reconstruction (GL head):** MSE on 30% masked tokens (weight 0.3); sLSTM decoder
+- **Negative sampling:** `SimMemoryBuffer` — length-binned `(x, z)` pairs across batches
+
+V1's SL head is exactly what P2 replaces. The backbone (`ConvAttnEncoder`), GL head, and `SimMemoryBuffer` are reused unchanged. The change from symmetric to asymmetric is entirely in the SL head's distance function and label source:
+
+| | V1 (symmetric) | P2 v2 (directed) |
+|---|---|---|
+| x-space distance | Soft-DTW(A,B) = Soft-DTW(B,A) | TE(A→B) ≠ TE(B→A) |
+| z-space target | L2 (symmetric) | asymmetric directed distance |
+| Label source | Unsupervised (shape) | Distilled TE/Granger soft labels |
+| A→B ≠ B→A? | No | Yes — this is the P2 claim |
+
+**Why this matters for the concept:** V1 proves the encoder and data pipeline work at production scale; P2's research bet is solely on whether replacing the distance function in the SL head produces a stable asymmetric geometry.
 
 ## Literature still to integrate `[verify]`
 

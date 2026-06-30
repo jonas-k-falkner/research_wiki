@@ -30,6 +30,7 @@ sources:
 - src-2026-06-um-wearable-augmentation
 - src-2026-06-lewis-bart
 - src-2026-06-pascual-speech-ssl
+- src-2026-06-embedding-model-v1
 tags:
 - embeddings
 - causality
@@ -58,6 +59,41 @@ sample series pairs
   → retrieve top-k causal drivers
   → feed covariates into P1 selector or P3/P4 explanation layers
 ```
+
+## V1 production baseline (I-P2-v1, 2026-06-30)
+
+V1 is a production symmetric SSL embedding model. P2 v2 is a **minimal surgical change** to v1: replace the SL head (Soft-DTW symmetric) with a directed asymmetric head. All other components are reused. See [sources/src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md).
+
+**Encoder:** `ConvAttnEncoder` — TCN → multi-head attention → meanmax pooling → `z` (128-dim, for retrieval) + `z_seq` (sequential, for decoder). INPUT_DIM=1, HIDDEN_DIM=128, EMB_DIM=128, MAX_SEQ_LEN=180.
+
+**SSL heads (default weights):**
+
+| Head | Loss | Weight | Purpose |
+|---|---|---|---|
+| GL | MSE on 30% masked tokens | 0.3 | Reconstruction / imputation |
+| SL | SmoothL1(Soft-DTW_x, L2_z) | **0.7** | Shape similarity — **P2 replaces this** |
+| CL | NT-Xent τ=0.07 | 0.0 (off) | Augmentation invariance |
+
+**`SimMemoryBuffer`** groups `(x, z)` pairs by length bin, providing same-length negatives across batches. Reused by P2's directed negative sampling.
+
+**Production KPIs (v1):** MAP@50 > 0.95, combined_rank_score > 0.925, reconstruction_error < 0.31.
+
+**Inference API (must be preserved by P2 v2):**
+```python
+z = model.transform(x)                      # (BS, T, 1) → (BS, 128)
+x_hat, mask = model.reconstruct(x)          # impute NaN values
+z, x_hat, mask = model.transform_and_reconstruct(x)
+```
+
+**P2 component disposition:**
+
+| Component | P2 action |
+|---|---|
+| `ConvAttnEncoder` | Reuse (freeze or fine-tune) |
+| GL head + `RNNAttnDecoder` | Reuse |
+| `SimMemoryBuffer` | Reuse for directed negative sampling |
+| SL head (Soft-DTW) | **Replace with directed TE/Granger head** |
+| `GrangerSelector` / `TransferEntropySelector` | Reuse as distillation teacher |
 
 ## Key assumptions
 
@@ -130,6 +166,7 @@ Primary literature pass confirms: **no existing SSL TS method implements an asym
 - [sources/src-2026-06-um-wearable-augmentation](../sources/src-2026-06-um-wearable-augmentation.md) — wearable TS augmentation (2017); canonical augmentation reference
 - [sources/src-2026-06-lewis-bart](../sources/src-2026-06-lewis-bart.md) — BART (ACL 2020); MAE-style pretraining background
 - [sources/src-2026-06-pascual-speech-ssl](../sources/src-2026-06-pascual-speech-ssl.md) — PASE speech SSL (2019); multi-task SSL background
+- [sources/src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md) — v1 production architecture (ConvAttnEncoder, SSL heads, SimMemoryBuffer, KPIs); P2 symmetric baseline
 
 ## Related pages
 

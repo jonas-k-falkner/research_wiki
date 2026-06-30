@@ -55,6 +55,10 @@ Retrain the existing 128-dim encoder with a directed, asymmetric objective (Tran
 - Which asymmetric geometry (source/target heads, order/hyperbolic, asymmetric distance head)?
 - Pairwise-label sampling strategy on the distillation subset.
 
+## See also
+
+- [sources/src-2026-06-embedding-model-v1](src-2026-06-embedding-model-v1.md) — v1 production architecture context (ConvAttnEncoder, SSL heads, SimMemoryBuffer, KPIs); the concrete symmetric baseline this source's asymmetric proposal builds on.
+
 ## Updated pages
 
 - [projects/p2-causal-embedding-v2](../projects/p2-causal-embedding-v2.md)
