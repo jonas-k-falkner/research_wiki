@@ -263,3 +263,77 @@ Completed Task I-P1-C: ingested 19 academic papers covering TSF backbone archite
 
 - `uv run wiki lint`: 0 errors, 36 warnings (all pre-existing: library.json mismatches, orphan LOW-priority source pages, near-duplicate titles, stage/confidence sanity from pre-I-P1-C pages).
 - `uv run wiki toc build`: indexes updated.
+
+## 2026-06-30
+
+### DLinear re-evaluation against 2024–2025 architectures
+
+**Triggered by**: user request to re-evaluate DLinear claims against newer 2024/2025/2026 architectures.
+
+**Finding**: DLinear is no longer the performance frontier. The progression:
+- 2023: PatchTST (ICLR) outperforms DLinear
+- 2024: iTransformer (ICLR) = "current SOTA in TSF" per multiple 2024 papers; outperforms DLinear
+- 2024: TimeMixer/TimeMixer++ further outperform iTransformer (7.3% on Electricity)
+- 2025: TimeKAN = 2025 SOTA; explicitly states "DLinear already shows a significant gap"
+
+The gap is NOT small. Chen et al. 2025 analysis still applies: all these models succeed on benchmarks because benchmarks are self-dependent/stationary. Core P1 implication — invest in covariate layer — unchanged. But starting baseline updated from DLinear to iTransformer/TimeMixer.
+
+**New source page**: `sources/src-2026-06-huang-timekan.md` (TimeKAN, 2025 SOTA on most LT benchmarks).
+
+### Pages updated
+
+- `comparisons/tsf-backbone-comparison.md`: added iTransformer and PatchTST rows; added performance tier header; revised Key Finding #1 and backbone recommendation; DLinear demoted to "ablation baseline only."
+- `domains/timeseries-forecasting/thesis.md`: key assumptions table updated; External literature positioning section revised; backbone recommendation table updated.
+- `projects/p1-cluster-pretrained-deep-models.md`: External literature positioning updated; candidate architecture updated to iTransformer/TimeMixer as primary backbone.
+- `sources/src-2026-06-zeng-dlinear.md`: caveat added noting PatchTST/iTransformer/TimeMixer/TimeKAN subsequently outperformed DLinear.
+
+### Real-benchmark challenge: TimeKAN/iTransformer SOTA is academic-only
+
+**Triggered by**: user challenge — TimeKAN is significantly more complex; what is the simplest architecture with acceptable performance on **real, useful benchmarks** (M5, retail demand, EPF)?
+
+**Key finding**: TimeKAN, iTransformer, and TimeMixer have **no published evaluation on M5, VN1, or EPF**. Their SOTA claims are exclusively on academic LTSF benchmarks (ETT×4, Weather, Electricity) — the self-dependent/stationary datasets Chen et al. 2025 warns do not transfer to real retail demand.
+
+On real benchmarks:
+- **M5 / VN1 (real retail)**: Zanotti 2025 uses N-BEATS and N-HiTS as DL SOTA; LGBM/tree-based models win the competition.
+- **EPF (real electricity price with exo)**: NBEATSx is SOTA with genuine exogenous covariates.
+- **M5 zero-shot with exo**: ApolloPFN (native exo PFN) is SOTA with promotions/prices.
+
+**TimeKAN complexity**: significantly more complex than N-HiTS. TimeKAN = CFD blocks + M-KAN polynomial basis + Frequency Mixing (KAN-based architecture). N-HiTS = MLP stacks + hierarchical interpolation + multi-rate pooling. N-HiTS is 50× faster than Transformers and scales linearly with input.
+
+**Revised recommendation**: Start with N-HiTS (simplest + real-benchmark proof), add covariates via NBEATSx (simplest) or TimeXer (strongest). iTransformer/TimeKAN are academic comparisons, not the P1 starting point.
+
+### Pages updated
+
+- `sources/src-2026-06-zanotti-retraining-frequency.md`: expanded from stub to full source page; added key claims about N-BEATS/N-HiTS as M5/VN1 DL SOTA and LGBM as competition winner.
+- `comparisons/tsf-backbone-comparison.md`: added real-benchmark tier header distinguishing academic LTSF from M5/VN1/EPF; revised backbone recommendation to N-HiTS → NBEATSx → TimeXer priority; added benchmark dependency caveat.
+- `domains/timeseries-forecasting/thesis.md`: backbone priority table revised (N-HiTS to P1, N-HiTS/NBEATSx focus); near-term path updated; key assumption updated; real-benchmark update section added.
+- `projects/p1-cluster-pretrained-deep-models.md`: candidate architecture updated to N-HiTS/NBEATSx/TimeXer; external positioning updated with real-benchmark evidence.
+- Source added to frontmatter: `src-2026-06-zanotti-retraining-frequency` in thesis, comparison, and project pages.
+
+## 2026-06-30 (P1 domain pivot: demand/SKU → price/commodity/energy)
+
+**Triggered by**: user clarification that P1 targets the **input/procurement side** — commodity prices, energy futures, FX — not output/demand/sales. Focus is on non-stationary volatile price data, robust forecasting, and interpretable attribution (what drove the price move), not retail SKU scalability.
+
+### Domain changes
+
+| Before | After |
+|---|---|
+| Purpose | Retail SKU demand forecasting, analyst bottleneck removal | Commodity/energy/price forecasting, procurement-side attribution |
+| Primary benchmark | M5, VN1 (real retail) | EPF — electricity price forecasting (genuinely non-stationary, spike-prone, exo-covariate-rich) |
+| Backbone priority 1 | N-HiTS (M5/M4 proven) | NBEATSx (EPF SOTA, MLP + exo concatenation) |
+| Backbone priority 2 | NBEATSx | TimeXer (SOTA on 5 EPF datasets, best endo/exo cross-attention) |
+| Attribution priority | Supplementary | **Central** — identifying which macro/supply covariates drove a price move is the core business value |
+| Cluster definition | Demand seasonality / SKU shape | Price series volatility regime / market type (energy complex, metals, agricultural, FX) |
+| Accuracy baseline | LGBM (demand competition winner) | GARCH/ARIMAX + LGBM (price domain baselines) |
+| Key risk | Shape ≠ regime in demand | Volatility regime shifts invalidate cluster models; price spikes stress AttGrad gradient path |
+
+### Pages updated
+
+- `kb/CLAUDE.md`: P1 project description updated; P1 tracking guidance updated (new domain tracking items, EPF benchmark, attribution quality)
+- `projects/p1-cluster-pretrained-deep-models.md`: Purpose, Candidate architecture, Success criteria, Main risks, Open research questions, External literature positioning — all updated
+- `domains/timeseries-forecasting/thesis.md`: Current thesis, Preferred near-term path, Key assumptions table, Backbone priority table, Real benchmark note
+- `comparisons/tsf-backbone-comparison.md`: Real benchmarks tier header (EPF primary); backbone recommendation revised (NBEATSx → TimeXer → iTransformer → N-HiTS)
+- `sources/src-2026-06-olivares-nbeatsx.md`: Applicability to P1 upgraded (now primary backbone candidate, EPF connection highlighted)
+- `sources/src-2026-06-wang-timexer.md`: Applicability to P1 upgraded (Priority 2, EPF alignment)
+- `sources/src-2026-06-challu-nhits.md`: Applicability to P1 downgraded (medium; demand-benchmark credentials; ablation baseline only for P1)
+- `sources/src-2026-06-zanotti-retraining-frequency.md`: Applicability to P1 updated (indirect relevance; domain shifted; retraining-cadence finding still applicable)

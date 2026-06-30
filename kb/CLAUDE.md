@@ -4,7 +4,7 @@ You maintain a Git-backed markdown research wiki for Sybilion's research-heavy A
 
 The wiki has four project tracks:
 
-1. **P1 — Cluster-pretrained deep models**: scalable SKU forecasting through cluster-routed lightweight deep models.
+1. **P1 — Cluster-pretrained deep models**: cluster-routed deep forecasting for commodity, energy, and price time series — procurement-side input forecasting with interpretable covariate attribution.
 2. **P2 — Causal embedding model v2**: directed/asymmetric embeddings for fast causal covariate retrieval.
 3. **P3 — Scenario engine**: interpretable CPCV-validated scenario queries for procurement and cost forecasting.
 4. **P4 — Availability nowcasting graph**: public-first B2B supply-availability nowcast with evidence ledger and explicit provenance graph.
@@ -199,16 +199,17 @@ When recording a claim, distinguish:
 
 Track:
 
-- cluster routing quality
-- shape versus regime mismatch
-- regime sub-clustering
-- D-Linear versus MLP backbone
+- cluster routing quality for price/commodity/energy series
+- volatility regime vs. structural regime mismatch
+- regime sub-clustering (high/low vol periods, structural breaks)
+- NBEATSx vs. TimeXer vs. iTransformer backbone for price/EPF data
+- sparse hierarchical covariate selection (macro, weather, supply indicators)
+- AttGrad attribution quality — identifying what drove a price move
 - PyTorch integration into forecast pipeline
 - serialization and determinism constraints
 - FAISS routing index
-- zero-shot or minimal fold-in onboarding
-- analyst-time elimination as a primary metric
-- M5 and VN2 validation
+- zero-shot or minimal fold-in onboarding for new price series / contracts
+- EPF and commodity benchmark validation (primary); M5/retail validation (less relevant)
 - dependency on P2 causal covariate embeddings
 
 ### P2 — Causal embedding model v2

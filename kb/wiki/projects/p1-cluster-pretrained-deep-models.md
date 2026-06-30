@@ -5,7 +5,7 @@ project: P1
 status: active
 stage: researched
 confidence: medium
-updated: 2026-06-29
+updated: 2026-06-30
 sources:
   - src-2026-06-p1-cluster-pretrained-deep-models
   - src-2026-06-tsf-literature-review
@@ -27,6 +27,9 @@ sources:
   - src-2026-06-lu-cats-ats
   - src-2026-06-challu-nhits
   - src-2026-06-oreshkin-nbeats
+  - src-2026-06-wang-timemixer
+  - src-2026-06-huang-timekan
+  - src-2026-06-zanotti-retraining-frequency
 tags:
   - forecasting
   - deep-learning
@@ -37,22 +40,32 @@ tags:
 
 ## Purpose
 
-Train lightweight deep forecasting models per cluster of similar time series. A new SKU is embedded, routed to a cluster model, and forecast zero-shot or with minimal fold-in. The business objective is to remove the analyst bottleneck when client SKU counts grow from tens to hundreds or thousands.
+Train cluster-routed deep forecasting models on commodity, energy, and price time series — the **input/procurement side** of the supply chain. Target: volatile, non-stationary price data (commodity prices, electricity prices, energy futures, FX) rather than demand/sales series. Core value: **robust price forecasts with interpretable attribution** — surfacing which macro, weather, or supply indicators drove a given price movement, to support procurement and hedging decisions.
 
 ## Current thesis
 
-P1 is the scalability unlock, but it should not start as a full build until the cluster-quality gate is passed. The most important near-term question is whether shape-based clusters are regime-consistent enough for shared models, or whether shape + regime sub-clustering is required.
+P1 is the attribution + robust forecasting layer for procurement-side intelligence. The cluster approach routes price series by market type and volatility regime (not by SKU demand patterns). The most important near-term question is whether volatility-regime clusters are stable enough for shared models, or whether explicit regime detection and regime sub-clustering is required. The architecture investment priority is the **covariate attribution layer** (sparse hierarchical α-entmax + AttGrad), not the backbone — the backbone needs only to match established EPF/commodity baselines.
 
 ## Candidate architecture
 
 ```text
-200M series
+Portfolio of commodity / energy / price series
   → time-series embedding model
+      (encode price dynamics, volatility structure, seasonality)
   → FAISS cluster routing
+      (clusters = energy complex / metals / agricultural / FX / other)
   → optional regime sub-clustering
-  → cluster-specific D-Linear or MLP model
-  → sparse covariate selector / attention over P2-style covariate embeddings
-  → forecast
+      (high-vol vs low-vol; structural breaks; market microstructure shifts)
+  → cluster-specific forecasting backbone:
+      NBEATSx (MLP + exo concatenation; EPF SOTA; start here)
+      or TimeXer (patch-attn + cross-attn; best on 5 EPF datasets; use when exo is large)
+      or iTransformer (channel-wise attn; good for correlated price series like energy complex)
+      | DLinear = ablation baseline only |
+  → sparse hierarchical covariate selector
+      α-entmax over macro indicators / weather / supply-chain signals / futures term structure
+  → AttGrad attribution
+      (weight × gradient; identifies which covariates drove forecast)
+  → price forecast + attribution report
 ```
 
 ## Important design update from `p1_cluster-pretrained_deep-models.md`
@@ -72,20 +85,23 @@ This makes the explanation layer more robust than raw attention weights, especia
 
 | Criterion | Target |
 |---|---|
-| Scalability | Near-zero marginal analyst effort per new SKU after onboarding |
-| Accuracy | Match or exceed default/tuned LGBM on relevant benchmarks and internal data |
-| Cluster quality | Low within-cluster variance for stationarity, seasonality, heteroscedasticity, or improved quality after sub-clustering |
+| Forecast accuracy | Match or exceed GARCH/ARIMAX and LGBM on EPF benchmarks and internal commodity/price data |
+| Attribution quality | AttGrad identifies top-k macro/supply covariates that align with known market drivers; polarity consistency test (Liu et al. 2022) passes |
+| Cluster quality | Low within-cluster variance for volatility regime, seasonality, structural behavior; within-cluster model outperforms global model |
+| Robustness | Forecast accuracy degrades gracefully under price spikes and volatility regime shifts, not catastrophically |
 | Integration | `ClusterDeepModel` fits forecast pipeline Model ABC and serialization constraints |
-| Explanation | Report useful cluster-level and covariate-level importance without treating attention weights as causal proof |
+| New series onboarding | New commodity / contract routed to cluster and forecast with zero or minimal fold-in |
 
 ## Main risks
 
 | Risk | Mitigation |
 |---|---|
-| Shape similarity does not imply regime similarity | Run detector-suite cluster QA and introduce regime sub-clusters if needed |
+| Price volatility regime shifts invalidate cluster models faster than demand patterns | Implement explicit regime detection; trigger re-clustering and/or re-routing on structural break signals |
+| Non-stationarity of price data makes long-horizon forecasting harder than for stationary demand | Focus on short/medium horizons (1–4 weeks); use probabilistic intervals; track calibration not just point accuracy |
+| AttGrad attribution is unstable under price spikes (extreme inputs stress the gradient path) | Run MC-dropout stability checks; test attribution consistency under perturbed inputs |
+| Covariate selection is unstable under correlated macro inputs | Hierarchical entmax, cluster-level importance, diversity regularization, stability diagnostics |
 | PyTorch integration violates library layering/determinism | Implement first-class optional `ClusterDeepModel`; persist routing index and state dict cleanly |
-| Deep model does not beat tuned LGBM | Treat analyst-time elimination and zero-shot onboarding as primary value, not only raw accuracy |
-| Covariate selection is unstable under correlated macro inputs | Use hierarchical entmax, cluster-level importance, diversity regularization, and stability diagnostics |
+| EPF benchmark does not fully represent commodity (non-electricity) price dynamics | Validate on at least one additional benchmark (e.g., commodity futures) once data is sourced |
 
 ## Dependencies
 
@@ -99,15 +115,19 @@ This makes the explanation layer more robust than raw attention weights, especia
 
 ## Open research questions
 
-- See [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) (global-vs-clustered-vs-local) and [concepts/hierarchical-entmax-covariate-selection](../concepts/hierarchical-entmax-covariate-selection.md) (entmax vs hard gates). Backbone choice (D-Linear vs MLP) is an unresolved deck open question.
+- See [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) (global-vs-clustered-vs-local) and [concepts/hierarchical-entmax-covariate-selection](../concepts/hierarchical-entmax-covariate-selection.md) (entmax vs hard gates).
+- **Volatility regime clustering**: do shape-based embeddings separate high/low vol periods, or is an explicit volatility-regime detector required before clustering?
+- **Backbone for price spikes**: do MLP-based models (NBEATSx) handle price spike distributions robustly, or is a heavier backbone needed for tail events?
+- **Attribution under non-stationarity**: does AttGrad remain faithful (low polarity violation rate) on volatile price data, or do attention gradient paths degrade under distributional shift?
+- **Commodity benchmarks beyond EPF**: EPF is well-studied; comparable open benchmarks for crude oil, metals, or agricultural commodity prices are less standardized. What is the best available public benchmark for non-electricity commodity price forecasting?
 
 ## External literature positioning
 
 A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md)) finds adjacent validators for the parts of P1 — TimeXer (asymmetric target/covariate), Channel Clustering → DUET (cluster-first) — while TS foundation models are background, not blueprints, for sparse covariate selection. It also supports a compact backbone (spend the budget on the selector) and no residual bypass.
 
-**Updated with primary-source verification (I-P1-C, 2026-06-29):**
-- Compact backbone preference is now evidence-backed: Zeng et al. 2023 ([src-2026-06-zeng-dlinear](../sources/src-2026-06-zeng-dlinear.md)) shows DLinear outperforms all Transformer LTSF models by 20–50% MSE on 9 standard benchmarks; Chen et al. 2025 ([src-2026-06-chen-closer-look-transformers](../sources/src-2026-06-chen-closer-look-transformers.md)) confirms standard benchmarks are self-dependent/stationary, so architecture investment should go into the covariate layer, not backbone complexity.
-- Covariate gap is confirmed: four 2025–2026 papers (ChronosX, UNICA, ApolloPFN, CATS-ATS) independently identify that Chronos, TimesFM, MOMENT, and other leading TSFMs do not support exogenous covariates; TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) provides the strongest validated endo/exo cross-attention template. See [comparisons/tsf-backbone-comparison](../comparisons/tsf-backbone-comparison.md) for full model table.
+**Updated with primary-source verification (I-P1-C, 2026-06-29; re-evaluated 2026-06-30):**
+- Compact backbone preference is evidence-backed. On academic LTSF benchmarks (ETT, Weather, Electricity), the frontier has moved: DLinear → PatchTST → iTransformer → TimeMixer++ → TimeKAN, with TimeKAN explicitly noting a "significant gap" over DLinear. Chen et al. 2025 explains this: all succeed because benchmarks are self-dependent/stationary. **For P1's price/commodity/energy focus, EPF (electricity price forecasting) is the primary real benchmark** — it features genuine non-stationarity, price spikes, and informative exogenous covariates (load, gas prices, weather). On EPF: NBEATSx ([src-2026-06-olivares-nbeatsx](../sources/src-2026-06-olivares-nbeatsx.md)) and TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) are directly validated. TimeKAN/iTransformer/TimeMixer have **no published EPF or commodity price evaluation** — their SOTA is academic LTSF only. For M5/retail demand (Zanotti 2025, [src-2026-06-zanotti-retraining-frequency](../sources/src-2026-06-zanotti-retraining-frequency.md)), N-BEATS/N-HiTS are DL SOTA — less relevant to P1's new domain focus but useful as methodological background.
+- Covariate gap is confirmed: four 2025–2026 papers (ChronosX, UNICA, ApolloPFN, CATS-ATS) independently identify that Chronos, TimesFM, MOMENT, and other leading TSFMs do not support exogenous covariates; TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) provides the strongest validated endo/exo cross-attention template; iTransformer and TimeMixer++ also lack native exo support. See [comparisons/tsf-backbone-comparison](../comparisons/tsf-backbone-comparison.md) for full model table.
 
 ## Sources
 

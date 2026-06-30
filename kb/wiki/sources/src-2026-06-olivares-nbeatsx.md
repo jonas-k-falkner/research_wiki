@@ -45,7 +45,7 @@ NBEATSx extends N-BEATS to incorporate time-dependent exogenous variables via a 
 
 ## Caveats / Applicability to P1
 
-High direct relevance. NBEATSx is the most direct covariate-enabled MLP backbone for P1 — it combines the strong N-BEATS residual architecture with exogenous variable support via concatenation (simple but effective). The electricity price forecasting setting directly parallels P1's demand forecasting with promotional/price covariates. NBEATSx establishes that the MLP + concatenated covariates approach is viable without architectural complexity.
+**High direct relevance — primary backbone candidate for P1.** P1's domain is commodity/energy price forecasting (procurement-side), and NBEATSx is validated on exactly the relevant real benchmark: EPF (electricity price forecasting with exogenous variables). The ~20% improvement over N-BEATS on EPF demonstrates that covariate injection via concatenation is effective on volatile, non-stationary price data — not just on stationary demand data. The interpretable decomposition (trend + seasonality + exogenous contribution) directly supports P1's attribution goal. NBEATSx is the recommended starting backbone for P1.
 
 ## Related
 

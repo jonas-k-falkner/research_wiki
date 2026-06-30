@@ -5,7 +5,7 @@ project: P1
 status: active
 stage: researched
 confidence: medium
-updated: 2026-06-29
+updated: 2026-06-30
 sources:
 - src-2026-06-p1-cluster-pretrained-deep-models
 - src-2026-06-tsf-literature-review
@@ -19,6 +19,9 @@ sources:
 - src-2026-06-han-unica
 - src-2026-06-potapczinski-apollopfn
 - src-2026-06-lu-cats-ats
+- src-2026-06-wang-timemixer
+- src-2026-06-huang-timekan
+- src-2026-06-zanotti-retraining-frequency
 tags:
 - thesis
 - forecasting
@@ -28,19 +31,19 @@ tags:
 
 ## Current thesis
 
-The portfolio needs a scalable forecasting layer that can move from analyst-tuned SKU workflows to cluster-routed, low-touch global models. P1 is the main architecture for this transition.
+P1 is the attribution and robust forecasting layer for **procurement-side intelligence**: commodity prices, energy futures, electricity prices, FX — volatile, non-stationary input data, not demand/sales. The cluster approach groups price series by market type and volatility regime. The architecture investment priority is the covariate attribution layer (sparse hierarchical α-entmax + AttGrad), not the backbone. The primary real benchmark is **EPF** (electricity price forecasting), where NBEATSx and TimeXer are validated.
 
 ## Most important unresolved question
 
-Do shape-based clusters provide sufficiently consistent regimes for a shared model, or must clusters be split by stationarity, seasonality, heteroscedasticity, and related detector flags?
+Do volatility-regime clusters derived from price-series embeddings produce regime-consistent groups for shared models, or is explicit regime detection (structural break tests, vol-regime classifiers) required before clustering?
 
 ## Preferred near-term path
 
-1. Run the P1 cluster-quality gate.
-2. Prototype a single cluster with D-Linear and MLP if the gate passes or after regime sub-clustering.
-3. Integrate sparse hierarchical covariate selection (NBEATSx concatenation or TimeXer cross-attention).
-4. Validate against LGBM and existing forecasting baselines on data with real covariate effects (not just standard benchmarks).
-5. Track analyst-time elimination as a first-class success metric.
+1. Run the P1 cluster-quality gate — adapted for price/commodity series (volatility regime consistency, not demand-seasonality consistency).
+2. Prototype a single cluster with **NBEATSx** (MLP + exo concatenation; EPF-proven) if the gate passes or after regime sub-clustering.
+3. Add cross-attention covariate integration via **TimeXer** if exo effect is confirmed large on the target dataset.
+4. Validate against GARCH/ARIMAX and LGBM on **EPF benchmarks** and internal commodity/price data — not academic ETT/Weather or retail M5/VN1.
+5. Track attribution quality (AttGrad polarity consistency) as a first-class success metric alongside forecast accuracy.
 
 ## Key assumptions
 
@@ -48,17 +51,23 @@ Do shape-based clusters provide sufficiently consistent regimes for a shared mod
 |---|---|---|
 | 200M series provide enough training diversity | unvalidated in current wiki | Determines whether P1 can generalize zero-shot |
 | Shape + regime clusters are learnable and useful | testing required | Determines P1 viability |
-| Compact backbone (DLinear/N-BEATS) suffices for temporal modeling | **evidence-backed** ([Zeng 2023](../../sources/src-2026-06-zeng-dlinear.md), [Chen 2025](../../sources/src-2026-06-chen-closer-look-transformers.md)): linear outperforms Transformers on standard benchmarks | Supports investing in covariate architecture, not backbone complexity |
+| Compact backbone suffices for temporal modeling; invest budget in covariate layer | **evidence-backed and strengthened** ([Chen 2025](../../sources/src-2026-06-chen-closer-look-transformers.md)): all 2022–2025 models succeed on standard benchmarks due to benchmark nature, not architecture. For **real benchmarks** (M5, VN1) N-HiTS/N-BEATS are DL SOTA ([Zanotti 2025](../../sources/src-2026-06-zanotti-retraining-frequency.md)); iTransformer/TimeKAN SOTA is academic LTSF only. Starting point is now **N-HiTS** (real benchmark proof) with NBEATSx for covariates. | Supports covariate architecture focus; use N-HiTS not iTransformer as the real-benchmark starting point |
 | Hierarchical entmax can stabilize covariate selection | plausible | Influences P1 model architecture |
 | P2 embeddings improve covariate layer | unvalidated | Influences sequencing of full P1 build |
-| Standard benchmark results transfer to retail demand with real covariates | **not confirmed** ([Chen 2025](../../sources/src-2026-06-chen-closer-look-transformers.md) warns benchmarks are self-dependent/stationary) | Requires P1 validation on covariate-rich data |
+| Standard benchmark results transfer to commodity/energy price data with real covariates | **not confirmed** ([Chen 2025](../../sources/src-2026-06-chen-closer-look-transformers.md) warns benchmarks are self-dependent/stationary; EPF is genuinely non-stationary and spike-prone) | Requires P1 validation on price/commodity data; EPF is the primary target |
 
 ## External literature positioning
 
 A deep-research synthesis of 2024–2026 TSF ([sources/src-2026-06-tsf-literature-review](../../sources/src-2026-06-tsf-literature-review.md)) splits the field into two streams: stronger general backbones and a covariate-adapter stream. This is now verified against named primaries (I-P1-C ingest, 2026-06-29). Key confirmed findings:
 
-**1. Compact backbone sufficiency — confirmed.**
-Zeng et al. 2023 ([src-2026-06-zeng-dlinear](../../sources/src-2026-06-zeng-dlinear.md)) demonstrates that a one-layer linear model (DLinear) outperforms all tested Transformer-based LTSF models by **20–50% MSE** on 9 standard benchmarks (ETT, Electricity, Traffic, Weather, ILI, Exchange-Rate). Chen et al. 2025 ([src-2026-06-chen-closer-look-transformers](../../sources/src-2026-06-chen-closer-look-transformers.md)) explains the mechanism: standard benchmarks are self-dependent and stationary, so intra-variate temporal modeling (captured perfectly by a linear layer) dominates. This supports the P1 design preference for a compact backbone. **Caveat**: real demand data with promotional drivers may require cross-attention for exogenous covariates (TimeXer shows this on EPF datasets with genuine covariate effect).
+**1. Compact backbone sufficiency — confirmed and updated.**
+Zeng et al. 2023 ([src-2026-06-zeng-dlinear](../../sources/src-2026-06-zeng-dlinear.md)) shows DLinear outperforms the Transformer-based LTSF models of its era by 20–50% MSE. Chen et al. 2025 ([src-2026-06-chen-closer-look-transformers](../../sources/src-2026-06-chen-closer-look-transformers.md)) explains: standard benchmarks are self-dependent and stationary, so intra-variate temporal modeling dominates — this is why DLinear could match or beat complex Transformers.
+
+**2024–2025 update:** DLinear is no longer the performance frontier. PatchTST (ICLR 2023) outperformed it; iTransformer (ICLR 2024) is described as "current SOTA in TSF" by multiple 2024 papers; TimeMixer/TimeMixer++ (2024) further outperform iTransformer; TimeKAN (2025, [src-2026-06-huang-timekan](../../sources/src-2026-06-huang-timekan.md)) is 2025 SOTA and explicitly notes "DLinear already shows a significant gap compared to SOTA." The core thesis is unchanged — invest in covariate architecture — but the appropriate baseline is now iTransformer or TimeMixer. DLinear is retained as the minimal ablation baseline.
+
+**Caveat**: Chen et al.'s insight applies to ALL these models: on non-stationary data with genuine inter-variate signal (e.g. demand with promotional covariates), the performance ordering can change. TimeXer shows cross-attention beats DLinear on EPF. P1 must validate on covariate-rich data.
+
+**Real benchmark note:** TimeKAN, iTransformer, and TimeMixer have no published evaluation on EPF or commodity price data. Their SOTA claims are **exclusively on academic LTSF benchmarks** (ETT×4, Weather, Electricity). For P1's price/commodity/energy focus, NBEATSx ([src-2026-06-olivares-nbeatsx](../../sources/src-2026-06-olivares-nbeatsx.md)) and TimeXer ([src-2026-06-wang-timexer](../../sources/src-2026-06-wang-timexer.md)) are the architectures validated on EPF. For retail/demand context, Zanotti 2025 ([src-2026-06-zanotti-retraining-frequency](../../sources/src-2026-06-zanotti-retraining-frequency.md)) uses N-BEATS and N-HiTS as DL SOTA on M5/VN1 — useful as methodological background but not P1's primary domain.
 
 **2. Covariate gap in TSFMs — confirmed across four papers.**
 ChronosX ([src-2026-06-arango-chronosx](../../sources/src-2026-06-arango-chronosx.md)), UNICA ([src-2026-06-han-unica](../../sources/src-2026-06-han-unica.md)), ApolloPFN ([src-2026-06-potapczinski-apollopfn](../../sources/src-2026-06-potapczinski-apollopfn.md)), and CATS-ATS ([src-2026-06-lu-cats-ats](../../sources/src-2026-06-lu-cats-ats.md)) each explicitly identify that leading TSFMs — Chronos, TimesFM, MOMENT, Sundial, TimeMoE, LagLlama — ignore exogenous covariates. Only Moirai partially handles homogeneous covariates. This confirms that the covariate-adapter research stream exists precisely because the dominant TSFMs have this gap.
@@ -73,14 +82,19 @@ The TSFM wave (Chronos, TimesFM, Moirai, TTM, TiRex) is best understood as a zer
 
 See [comparisons/tsf-backbone-comparison](../../comparisons/tsf-backbone-comparison.md) for the full comparison table covering 15 models.
 
-**Summary recommendation for P1 backbone**:
+**Summary recommendation for P1 backbone (updated 2026-06-30 — price/commodity/EPF focus)**:
 
 | Priority | Architecture | Rationale |
 |---|---|---|
-| 1 (start here) | DLinear or NBEATSx | Compact, fast, proven on benchmark + covariate tasks; DLinear for temporal baseline, NBEATSx for covariate-integrated variant |
-| 2 (if covariate cross-attn needed) | TimeXer | Best endo/exo cross-attention architecture; heavier but validated on real covariate datasets |
-| 3 (if multi-task needed) | TimeMixer++ | General-purpose pattern machine; no exogenous support |
+| 1 (start here) | NBEATSx | MLP + exo concatenation; EPF SOTA (~20% over N-BEATS); interpretable decomposition; simplest real-benchmark–proven covariate model |
+| 2 (when exo drives the series) | TimeXer | Patch-attn + cross-attn; SOTA on 5 EPF datasets (avg MSE 0.307 vs DLinear 0.366); asymmetric endo/exo split validated |
+| 3 (correlated price series) | iTransformer | Channel-wise attention; good for correlated commodity complex (energy, metals); no exo natively |
+| 4 (ablation baseline) | DLinear | Minimal baseline to isolate covariate contribution; also N-HiTS for a stronger MLP ablation |
+| 5 (retail/demand context) | N-HiTS | Proven on M4/M5 real retail (Zanotti 2025); 50× faster; less directly relevant to price/EPF domain |
+| 6 (academic LTSF frontier) | TimeKAN | 2025 SOTA on ETT/Weather only; no EPF/commodity evaluation; complex; KAN complicates AttGrad |
 | Avoid for temporal backbone | Autoformer, Informer, FEDformer | Outperformed by DLinear; complexity not justified |
+
+**Key caveat**: TimeKAN/iTransformer/TimeMixer SOTA is measured on academic LTSF benchmarks (ETT×4, Weather, Electricity), which are self-dependent and stationary. None have published results on EPF or commodity prices. **For P1's price/commodity focus, NBEATSx and TimeXer are the architectures with evidence on the relevant real benchmarks (EPF).**
 
 ## SSM and linear-RNN landscape (background)
 

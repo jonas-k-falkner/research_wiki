@@ -52,7 +52,7 @@ N-HiTS extends N-BEATS with two innovations designed for long-horizon forecastin
 
 ## Applicability to P1
 
-High. N-HiTS is computationally efficient and well-suited for long-horizon demand forecasting. The multi-scale design naturally handles the weekly/monthly/yearly seasonality patterns in retail demand. No covariate support natively, but the residual block structure is amenable to covariate injection (similar to NBEATSx approach). This makes N-HiTS a strong candidate backbone for P1.
+Medium (revised 2026-06-30). N-HiTS is computationally efficient and the multi-scale hierarchical design is architecturally sound. However, P1's domain has shifted to **commodity/energy price forecasting (input/procurement side)**, not retail demand. N-HiTS' primary real-benchmark credentials are M4/M5 retail competition. For EPF (P1's primary target), NBEATSx and TimeXer are directly validated; N-HiTS is not. N-HiTS remains useful as: (1) a strong no-exo MLP ablation baseline; (2) methodological reference for residual block design. Not recommended as the P1 starting backbone.
 
 ## Related
 

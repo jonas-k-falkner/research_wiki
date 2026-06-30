@@ -97,7 +97,7 @@ Upstream origin (consolidated, not cited directly):
 | [Embedding models](domains/embedding-models/index.md) | 5 | 5 seed |
 | [Nowcasting graph](domains/nowcasting-graph/index.md) | 8 | 8 seed |
 | [Scenario engine](domains/scenario-engine/index.md) | 6 | 6 seed |
-| [Time-series forecasting](domains/timeseries-forecasting/index.md) | 71 | 68 researched, 3 seed |
+| [Time-series forecasting](domains/timeseries-forecasting/index.md) | 72 | 69 researched, 3 seed |
 
 ## Shared pages
 
@@ -110,5 +110,5 @@ Upstream origin (consolidated, not cited directly):
 - [Research backlog](shared/research-backlog.md)
 - [Risks and caveats](shared/risks-and-caveats.md)
 
-_98 total pages across 4 domain(s) + shared._
+_99 total pages across 4 domain(s) + shared._
 <!-- AUTO:end -->

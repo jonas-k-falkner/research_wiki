@@ -83,6 +83,7 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Sundararajan et al. (2017) — Integrated Gradients](../../sources/src-2026-06-sundararajan-integrated-gradients-2017.md) | source | researched | active |
 | [Tay et al. (2020) — Sparse Sinkhorn Attention](../../sources/src-2026-06-tay-sparse-sinkhorn-attention-2020.md) | source | researched | active |
 | [Tezekbayev et al. (2022) — Speeding Up Entmax](../../sources/src-2026-06-tezekbayev-alpha-relu-2022.md) | source | researched | active |
+| [TimeKAN: KAN-based Frequency Decomposition Learning Architecture for Long-term Time Series Forecasting](../../sources/src-2026-06-huang-timekan.md) | source | researched | active |
 | [TimeMixer++: A General Time Series Pattern Machine for Universal Predictive Analysis](../../sources/src-2026-06-wang-timemixer.md) | source | researched | active |
 | [TimesNet: Temporal 2D-Variation Modeling for General Time Series Analysis](../../sources/src-2026-06-wu-timesnet.md) | source | researched | active |
 | [TimeXer: Empowering Transformers for Time Series Forecasting with Exogenous Variables](../../sources/src-2026-06-wang-timexer.md) | source | researched | active |
@@ -94,5 +95,5 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Yasuda et al. (2023) — Sequential Attention for Feature Selection](../../sources/src-2026-06-yasuda-sequential-attention-2023.md) | source | researched | active |
 | [Zhao et al. (2019) — Sparse Transformer: Concentrated Attention Through Explicit Selection](../../sources/src-2026-06-zhao-sparse-transformer-2019.md) | source | researched | active |
 
-_71 page(s): 68 researched, 3 seed._
+_72 page(s): 69 researched, 3 seed._
 <!-- AUTO:end -->

@@ -61,7 +61,7 @@ For multivariate forecasting without explicit exogenous variables: treats each c
 
 ## Applicability to P1
 
-High and direct. TimeXer's endo/exo split design is the template for P1's covariate architecture: endogenous cluster-pretrained backbone + exogenous adapter. The global token bridge concept aligns with P1's goal of sparse hierarchical covariate selection without forcing full-sequence alignment. Cross-attention as the integration mechanism is a strong validated alternative to simple concatenation.
+**High and direct — Priority 2 backbone for P1.** P1's domain (commodity/energy price forecasting) aligns directly with TimeXer's EPF evaluation setting. TimeXer is validated on 5 EPF datasets where genuine exogenous covariates (load, gas price, weather) drive price — exactly the covariate-rich, non-stationary data P1 targets. The endo/exo asymmetric design is the template for P1's covariate architecture: cluster-pretrained backbone handles endogenous temporal dynamics; cross-attention layer handles exogenous macro/supply/weather indicators. The global token bridge aligns with P1's sparse hierarchical covariate selection goal. Use TimeXer when exo effect is confirmed to be large; use NBEATSx when a simpler concatenation baseline suffices.
 
 ## Related
 

@@ -50,7 +50,8 @@ The core argument: self-attention is permutation-invariant, which causes tempora
 
 - Scope limited to LTSF benchmarks with strong trend and/or periodicity (ETT, Electricity, Traffic, Weather, ILI, Exchange-Rate). Not a claim about all time series scenarios.
 - Does not address short-term forecasting, probabilistic forecasting, or settings with strong exogenous covariates.
-- Later work (e.g., iTransformer, PatchTST) partially addresses the permutation-invariance critique by using patch-level or variate-level tokenization.
+- **Superseded on benchmarks by 2023–2025 work.** PatchTST (ICLR 2023) outperformed DLinear on standard benchmarks. iTransformer (ICLR 2024) was subsequently described as "the current SOTA model in TSF" by multiple 2024 papers. TimeMixer (ICLR 2024) and TimeMixer++ further outperformed iTransformer. TimeKAN (2025) explicitly notes "DLinear already shows a significant gap when compared to state-of-the-art methods." The original claim — that DLinear beats *the Transformers evaluated at the time of writing* — remains correct; the claim that linear models are sufficient in general does not hold against 2024–2025 SOTA.
+- Chen et al. (2025) — [src-2026-06-chen-closer-look-transformers](src-2026-06-chen-closer-look-transformers.md) — explains why ALL these models (including DLinear and iTransformer) succeed on standard benchmarks: intra-variate patterns dominate because benchmarks are self-dependent and stationary. The performance ranking among models changes with dataset characteristics.
 - The "no inter-variate modeling" assumption may not hold for demand data with strong cross-SKU effects.
 
 ## Applicability to P1
