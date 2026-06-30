@@ -153,8 +153,9 @@ The P2-specific claims (asymmetric geometry, TE/Granger distillation) remain `[v
 
 ## Cross-project relevance
 
-- Feeds [concepts/hierarchical-entmax-covariate-selection](hierarchical-entmax-covariate-selection.md) and the P1 attention layer ([projects/p1-cluster-pretrained-deep-models](../projects/p1-cluster-pretrained-deep-models.md)).
-- Could supply candidate relation retrieval for P4, but P4 must keep provenance ([concepts/explicit-evidence-graph](explicit-evidence-graph.md)).
+**P1 (active, v1 phase):** P1 already uses v1 pre-computed embeddings as the key/query vectors in its covariate selection layer ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)). V1's symmetric SL head (Soft-DTW) gives shape-similarity covariate selection for free. This is Phase 0 of the P1/P2 integration. Phase 1 is a surgical interface swap: replace `z_cov_k` from v1 with `z_cov_k` from P2's directed model — no other P1 changes required. See [projects/p1-cluster-pretrained-deep-models](../projects/p1-cluster-pretrained-deep-models.md).
+
+**P4:** Could supply candidate relation retrieval, but P4 must keep provenance ([concepts/explicit-evidence-graph](explicit-evidence-graph.md)).
 
 ## Related pages
 

@@ -42,6 +42,7 @@ sources:
   - src-2026-06-ates-counterfactual-ts
   - src-2026-06-zhang-tem-topology
   - src-2026-06-kadra-mesomorphic
+  - src-2026-06-embedding-model-v1
 tags:
   - forecasting
   - deep-learning
@@ -60,35 +61,88 @@ P1 is the attribution + robust forecasting layer for procurement-side intelligen
 
 ## Candidate architecture
 
+Two-stream design: v1 pre-computed embeddings supply rich representation to the selection layer for free; a shallow backbone handles temporal resolution for the forecast.
+
 ```text
 Portfolio of commodity / energy / price series
-  → time-series embedding model
-      (encode price dynamics, volatility structure, seasonality)
-  → FAISS cluster routing
-      (clusters = energy complex / metals / agricultural / FX / other)
-  → optional regime sub-clustering
-      (high-vol vs low-vol; structural breaks; market microstructure shifts)
-  → cluster-specific forecasting backbone:
-      NBEATSx (MLP + exo concatenation; EPF SOTA; start here)
-      or TimeXer (patch-attn + cross-attn; best on 5 EPF datasets; use when exo is large)
-      or iTransformer (channel-wise attn; good for correlated price series like energy complex)
-      | DLinear = ablation baseline only |
-  → sparse hierarchical covariate selector
-      α-entmax over macro indicators / weather / supply-chain signals / futures term structure
-  → AttGrad attribution
-      (weight × gradient; identifies which covariates drove forecast)
-  → price forecast + attribution report
+  ↓
+  ┌─ [offline] precompute v1 embeddings ──────────────────────────────────────┐
+  │   z_target = v1.transform(target)                 (128-dim, unit-norm)    │
+  │   z_cov_k  = v1.transform(cov_k) for k=1..N      (128-dim, unit-norm)    │
+  └────────────────────────────────────────────────────────────────────────────┘
+  ↓
+  FAISS cluster routing on z_target
+    (clusters = energy complex / metals / agricultural / FX / other)
+    → optional regime sub-clustering (high-vol vs low-vol; structural breaks)
+  ↓
+  ┌─ covariate selection (Stream 1 — embedding-based) ────────────────────────┐
+  │   query = W_q · z_target  (learned projection 128 → d_sel)               │
+  │   keys  = W_k · z_cov_k   (same projection)                              │
+  │   scores = query^T key_k / sqrt(d_sel)                                   │
+  │   → α-entmax over scores → sparse selection weights                       │
+  │       (exact-zero weights = hard covariate gate)                          │
+  │   top-k covariates selected for Stream 2                                  │
+  │   Phase 0: W_q, W_k learned; v1 embeddings frozen symmetric              │
+  │   Phase 1: upgrade z_cov to P2 directed embeddings (no other change)     │
+  └────────────────────────────────────────────────────────────────────────────┘
+  ↓
+  ┌─ temporal re-embedding (Stream 2 — raw series) ───────────────────────────┐
+  │   target raw series + top-k covariate raw series                          │
+  │   → shallow encoder (1-2 layer TCN or patch encoder)                      │
+  │     captures full temporal resolution the 128-dim embedding compresses    │
+  └────────────────────────────────────────────────────────────────────────────┘
+  ↓
+  cluster-specific forecasting backbone (shallow, 2-4 layers):
+    NBEATSx (MLP + exo; EPF SOTA; start here)
+    or TimeXer (patch-attn + cross-attn; large exo set)
+    or iTransformer (channel-wise attn; correlated price complex)
+    | DLinear = ablation baseline only |
+  ↓
+  AttGrad attribution
+    (weight × gradient over selection weights + backbone)
+  ↓
+  price forecast + attribution report
 ```
+
+**Why the backbone can be shallow:** v1 embeddings supply deep representational signal (shape, volatility structure, Soft-DTW similarity) before the backbone sees anything. The backbone's only remaining job is temporal dynamics at the forecast resolution — no need for deep feature learning. Consistent with TEM topology findings: 2–4 layer Transformer backbones avoid topology degradation ([src-2026-06-zhang-tem-topology](../sources/src-2026-06-zhang-tem-topology.md)).
+
+**Why no projection may even be needed:** v1 has L2 norm regularization pushing embeddings toward unit-norm, so cosine similarity between `z_target` and `z_cov_k` is directly interpretable as structural similarity without any learned projection. A projection is optional and should be evaluated empirically.
+
+## V1 embeddings as covariate selection input (2026-06-30)
+
+The v1 production embedding model ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)) provides P1 with strong covariate representations at zero additional training cost.
+
+**What v1 captures that matters for covariate selection:**
+- SL head (Soft-DTW, weight 0.7): shape and structural similarity across variable-length series; DTW-invariant temporal alignment
+- GL head (masked MSE, weight 0.3): reconstruction-based regularity; series that share recoverable structure
+- MeanMax pooling: both average trend and peak/spike characteristics in a single 128-dim vector
+
+**How it plugs into P1:**
+
+| P1 component | What v1 provides |
+|---|---|
+| FAISS cluster routing | `z_target` directly routes to nearest cluster prototype |
+| Covariate selection query | `z_target` (projected) as the selection query — no re-training needed |
+| Covariate selection keys | `z_cov_k` (projected) as per-covariate key — offline precomputed |
+| Selection semantics (Phase 0) | Shape/structural similarity (symmetric): "series that look like the target" |
+| Selection semantics (Phase 1) | Directed influence (asymmetric): "series that causally drive the target" (P2 upgrade) |
+
+**What v1 does NOT capture for P1:**
+- Fine temporal resolution at the forecast horizon (e.g. recent 2-week momentum) — Stream 2 handles this
+- Target-specific causal direction (v1 is symmetric by construction) — P2 upgrade path handles this
+- Cross-series interaction at training time — backbone handles this
+
+**Phase 0 → Phase 1 upgrade path:** The covariate selection layer's interface is `z_cov_k ∈ ℝ^128`. When P2 is ready, replace v1 embeddings with P2's directed embeddings at this interface. The rest of P1's architecture — projection, α-entmax weights, backbone, AttGrad — requires no modification. This makes P2 a surgical plug-in upgrade to P1's covariate layer.
 
 ## Important design update from `p1_cluster-pretrained_deep-models.md`
 
-Source: [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md). This is the [concepts/cluster-pretrained-deep-models](../concepts/cluster-pretrained-deep-models.md) routing target plus a covariate layer. For covariate selection, the preferred direction is:
+Source: [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md). The "shared encoder for target and covariate series" described in this note is now identified as **v1** (`ConvAttnEncoder`). For covariate selection, the preferred direction is:
 
-- shared encoder for target and covariate series
-- precomputed covariate embedding clusters
+- v1 embeddings as precomputed keys and query (no shared encoder re-training required)
+- optional learned projection (128 → d_sel) to adapt embedding space to selection task
 - target-query-dependent hierarchical cluster→feature α-entmax
 - no residual path bypassing selection
-- feature importance by weight × gradient and cluster sensitivity
+- feature importance by weight × gradient (AttGrad) and cluster sensitivity
 - MC-dropout stability checks for confidence
 
 This makes the explanation layer more robust than raw attention weights, especially when covariates are highly correlated.
@@ -117,8 +171,9 @@ This makes the explanation layer more robust than raw attention weights, especia
 
 ## Dependencies
 
-- P2 provides causal covariate embeddings that can upgrade the covariate layer.
-- P3 creates commercial pressure for P1 by surfacing SKU-scaling bottlenecks.
+- **v1 embedding model (now):** P1 uses v1 pre-computed embeddings directly for FAISS cluster routing and covariate selection. No P2 needed for Phase 0.
+- **P2 (upgrade):** When P2's directed embeddings are ready, they replace v1 embeddings at the covariate selection interface only — surgical, no other architectural changes.
+- **P3:** Creates commercial pressure for P1 by surfacing SKU-scaling bottlenecks.
 
 ## Contradictions & tensions
 
@@ -189,6 +244,7 @@ The following gaps exist in the current wiki. Each is required to properly valid
 - [sources/src-2026-06-ates-counterfactual-ts](../sources/src-2026-06-ates-counterfactual-ts.md) — counterfactual TS explanations; P1 secondary attribution surface
 - [sources/src-2026-06-zhang-tem-topology](../sources/src-2026-06-zhang-tem-topology.md) — TEM (2025): topology preservation in Transformer TSF; supports shallow backbone preference
 - [sources/src-2026-06-kadra-mesomorphic](../sources/src-2026-06-kadra-mesomorphic.md) — IMN (2024): interpretable mesomorphic networks; instance-specific linear attribution for tabular covariates
+- [sources/src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md) — v1 production model; ConvAttnEncoder 128-dim embeddings used for P1 cluster routing and covariate selection
 
 ## Related pages
 

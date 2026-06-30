@@ -25,6 +25,7 @@ sources:
 - src-2026-06-lou-sparsek-attention-2024
 - src-2026-06-tay-sparse-sinkhorn-attention-2020
 - src-2026-06-sokar-wast-feature-selection-2022
+- src-2026-06-embedding-model-v1
 tags:
 - concept
 ---
@@ -34,6 +35,8 @@ tags:
 ## Definition
 
 A two-stage, target-query-dependent sparse selector: first select covariate *clusters* via α-entmax over cluster prototypes, then select features *within* chosen clusters via α-entmax; final weight is the product of cluster and within-cluster weights. Importance is reported via weight × gradient (AttGrad) sensitivity and cluster mass, not raw attention weights alone. See [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md).
+
+**Query and key representations (2026-06-30 update):** In P1's two-stream architecture, the query and key vectors for the selection layer come from **pre-computed v1 embeddings** ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)), not from the backbone or a separately trained encoder. This gives the selection layer rich structural representations (shape similarity, DTW-invariant patterns) before any gradient flows through it. An optional learned projection (128 → d_sel) adapts the 128-dim v1 embeddings to the selection layer's internal dimension.
 
 ## Why it matters
 
@@ -72,11 +75,35 @@ The attention-faithfulness literature (2019–2022) converges on a practical con
 - **Sequential Attention** (Yasuda et al. 2023): greedy marginal selection captures residual feature value, avoiding redundant-feature selection that flat entmax may suffer from. Equivalent to OMP for linear regression. Consider as ablation or post-hoc refinement step in P1. See [sources/src-2026-06-yasuda-sequential-attention-2023](../sources/src-2026-06-yasuda-sequential-attention-2023.md).
 - **α-ReLU** (Tezekbayev et al. 2022): faster alternative to α-entmax with same sparsity properties, matching softmax training speed. Useful if entmax bisection becomes a bottleneck; note that unnormalized outputs complicate cluster-mass attribution interpretation. See [sources/src-2026-06-tezekbayev-alpha-relu-2022](../sources/src-2026-06-tezekbayev-alpha-relu-2022.md).
 
+## V1-embedding-based selection mechanism (2026-06-30)
+
+Using v1 pre-computed embeddings ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)) as query/key vectors substantially de-risks the selection layer:
+
+**Selection scores (Phase 0):**
+```
+query_k  = W_q · z_target     # optionally just z_target directly (unit-norm)
+key_k    = W_k · z_cov_k      # optionally just z_cov_k directly
+score_k  = dot(query_k, key_k)
+weights  = α-entmax(scores)   # exact-zero weights = hard covariate gate
+```
+
+**Why v1 embeddings are a good prior for selection:**
+- v1 SL head (Soft-DTW, weight 0.7) is directly trained to map structurally similar series to nearby vectors — this is exactly the structural relevance prior a covariate selector needs
+- v1 has L2 norm regularization pushing embeddings toward unit-norm, so dot-product ≈ cosine similarity without any projection
+- Embeddings are offline-computable, stable, and interpretable (similar z → similar shape/dynamics)
+
+**What the selection layer still needs to learn:**
+- The projection W_q, W_k (optional but recommended): adapts the symmetric shape-similarity space to forecasting-task-specific relevance
+- The α-entmax temperature / threshold: controls sparsity given the forecast loss
+
+**Phase 0 → Phase 1:** When P2 is ready, replace `z_cov_k` with P2's directed embeddings at the key input. The learned projection and entmax operation are unchanged — the directional information enters through the keys alone.
+
 ## Open research questions
 
 - **α-entmax vs hard L0 / hard-concrete gates**: entmax preferred for training stability and interpretable cluster mass; hard gates give stronger sparsity guarantees. The correlated-macro-data setting may favor entmax's continuous relaxation for convergence. Requires empirical comparison on P1 datasets.
 - **Redundancy under correlation**: flat entmax may assign high mass to multiple correlated covariates simultaneously. Sequential Attention's greedy marginal approach (Yasuda et al.) could address this; alternatively, a decorrelation regularizer on cluster weights.
-- **Cluster structure sensitivity**: how sensitive is selection to the choice of cluster prototypes (precomputed vs learned)? Cluster-level mass interpretation breaks down if clusters are unstable across folds.
+- **Cluster structure sensitivity**: now anchored to v1 embedding space (stable pretraining, not fold-sensitive). Risk reduced vs learned-from-scratch prototypes. Main residual risk: does v1's shape-similarity space separate P1's commodity regimes well enough for routing?
+- **Projection necessity**: v1 embeddings are near-unit-norm; cosine similarity may be sufficient without W_q/W_k. Empirical ablation needed.
 - **AttGrad validation on forecasting**: Liu et al.'s polarity consistency test was developed on NLP classification tasks. Its translation to quantile forecasting targets (P10/P50/P90) requires adaptation — the "polarity" direction is less obvious for multi-horizon loss minimization.
 - **No-residual-path cost**: does enforcing no residual path bypassing the entmax selection gate cost forecast accuracy, and is that an acceptable price for interpretability?
 

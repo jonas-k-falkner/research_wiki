@@ -621,3 +621,32 @@ Ingested `raw/seed/embedding_model_v1_context.md` (SHA256: `1f2f0070...`). This 
 
 - `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (pre-existing)
 - `wiki toc build`: indexes updated
+
+## 2026-06-30 (P1 architectural update — v1 embeddings as covariate selection input)
+
+Reevaluated P1's architecture to use v1 pre-computed embeddings as query/key vectors in the covariate selection layer. No new encoder training needed — v1's SL head (Soft-DTW) already provides the structural similarity prior that selection requires, enabling a shallow P1 backbone.
+
+### Architecture change
+
+P1 now has a **two-stream design**:
+- **Stream 1 (selection):** v1 `z_target` + `z_cov_k` (128-dim, unit-norm) → optional learned projection → α-entmax scores → hard covariate gate
+- **Stream 2 (temporal):** raw series → shallow re-embedding (1-2 layer TCN/patch) → backbone
+
+Backbone can be shallow (2-4 layers) because representational heavy lifting is done by v1.
+
+### Phase 0 / Phase 1 upgrade path
+
+- **Phase 0 (now):** v1 symmetric embeddings → shape-similarity covariate selection
+- **Phase 1 (P2 ready):** swap `z_cov_k` to P2 directed embeddings → causal influence covariate selection; no other changes
+
+### Pages updated
+
+- `projects/p1-cluster-pretrained-deep-models.md`: Candidate architecture rewritten (two-stream diagram); "V1 embeddings as covariate selection input" section added; Dependencies updated; source added
+- `concepts/hierarchical-entmax-covariate-selection.md`: Definition updated (v1 embeddings as query/key); "V1-embedding-based selection mechanism" section with pseudocode added; open questions updated
+- `sources/src-2026-06-embedding-model-v1.md`: "Relevance to P1" section added with P1 usage table and upgrade path
+- `concepts/causal-covariate-embeddings.md`: Cross-project relevance updated with P1 Phase 0/1 framing
+
+### Lint / TOC
+
+- `wiki lint`: 1 error (pre-existing), 26 warnings (pre-existing)
+- `wiki toc build`: already up-to-date

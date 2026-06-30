@@ -106,6 +106,22 @@ z, x_hat, mask = model.transform_and_reconstruct(x)
 | Encoder | TCN + MHA | Local patterns (TCN) + long-range dependencies (attention) |
 | Pretext task | Masked reconstruction (not global AE) | Explicitly forces handling missing values |
 
+## Relevance to P1
+
+V1 embeddings enable a **two-stream P1 architecture** where the selection layer gets rich representation for free and the backbone can remain shallow:
+
+| P1 role | How v1 is used |
+|---|---|
+| FAISS cluster routing | `z_target = model.transform(target)` → nearest cluster prototype |
+| Covariate selection query | `z_target` (projected or direct) as the query vector |
+| Covariate selection keys | `z_cov_k = model.transform(cov_k)` as per-covariate key vectors |
+| Selection semantics | Soft-DTW structural similarity: "covariates whose dynamics resemble the target" |
+| Shallow backbone justification | v1 handles representational heavy lifting; backbone only needs temporal dynamics at forecast resolution (1-2 layer TCN/patch encoder) |
+
+**Why v1 is a good covariate prior for P1:** The SL head (Soft-DTW, weight 0.7) trains the embedding space to map structurally similar series to nearby vectors — this is exactly the structural relevance prior needed for covariate selection. The L2 norm regularization makes embeddings near-unit-norm, so cosine similarity is directly applicable without a learned projection (though a projection W ∈ ℝ^{d_sel × 128} remains an option).
+
+**Phase 0 → Phase 1 upgrade path:** When P2's directed embeddings are ready, replace `z_cov_k` with P2 directed embeddings at the covariate key interface only. The selection mechanism (projection, α-entmax, AttGrad), the backbone, and the inference API are unchanged.
+
 ## Relevance to P2
 
 V1 is the **symmetric baseline** P2 must beat. The target change is narrow: replace the SL head (Soft-DTW symmetric, weight 0.7) with an asymmetric directed head trained from Transfer Entropy / Granger soft labels.
