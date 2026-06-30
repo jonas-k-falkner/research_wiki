@@ -52,7 +52,16 @@ N-HiTS extends N-BEATS with two innovations designed for long-horizon forecastin
 
 ## Applicability to P1
 
-Medium (revised 2026-06-30). N-HiTS is computationally efficient and the multi-scale hierarchical design is architecturally sound. However, P1's domain has shifted to **commodity/energy price forecasting (input/procurement side)**, not retail demand. N-HiTS' primary real-benchmark credentials are M4/M5 retail competition. For EPF (P1's primary target), NBEATSx and TimeXer are directly validated; N-HiTS is not. N-HiTS remains useful as: (1) a strong no-exo MLP ablation baseline; (2) methodological reference for residual block design. Not recommended as the P1 starting backbone.
+**Medium-High (re-revised 2026-06-30 — weekly/monthly framing).** N-HiTS' hierarchical multi-rate design is directly appropriate for P1's **primary use case: weekly/monthly long-horizon commodity price forecasting**. The hierarchical interpolation + multi-rate pooling is explicitly designed to decompose long-horizon time series into frequency bands — exactly what weekly/monthly prices need.
+
+**Re-promotion rationale (relative to EPF-focused assessment):**
+- EPF (day-ahead) is now P1's *secondary* benchmark (frequency mismatch).
+- M4 monthly is P1's *primary frequency-matched public benchmark*, and N-HiTS achieves best-in-class on M4.
+- N-HiTS' 50× compute advantage over Transformers matters more for weekly/monthly series where dataset sizes are small.
+
+**Caveat preserved**: No exogenous covariate support — P1's core value proposition (attribution of what drove the price move) requires covariates. N-HiTS is the right backbone for the **no-exo ablation** and for initial long-horizon prototyping before covariate integration.
+
+Role in P1: **Priority 2 backbone — best long-horizon no-exo MLP; use when exo effect is not yet established, or as ablation baseline for NBEATSx/TimeXer covariate benefit.**
 
 ## Related
 

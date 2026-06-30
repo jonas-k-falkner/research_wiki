@@ -37,12 +37,17 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Bibal et al. (2022) — Is Attention Explanation? An Introduction to the Debate](../../sources/src-2026-06-bibal-attention-explanation-survey-2022.md) | source | researched | active |
 | [CATS: Enhancing Multivariate Time Series Forecasting by Constructing Auxiliary Time Series as Exogenous Variables](../../sources/src-2026-06-lu-cats-ats.md) | source | researched | active |
 | [ChronosX: Adapting Pretrained Time Series Models with Exogenous Variables](../../sources/src-2026-06-arango-chronosx.md) | source | researched | active |
+| [Extreme Conformal Prediction: Reliable Intervals for High-Impact Events](../../sources/src-2026-06-pasche-extreme-conformal.md) | source | researched | active |
 | [General Time Series Model (General TSM)](../../sources/src-2026-06-he-general-tsm.md) | source | researched | active |
+| [GLinear: Gaussian-Activated Linear Model for Time Series Forecasting](../../sources/src-2026-06-rizvi-glinear.md) | source | researched | active |
+| [iTFKAN: Interpretable Time Series Forecasting with Kolmogorov-Arnold Network](../../sources/src-2026-06-liang-itfkan.md) | source | researched | active |
 | [Jain & Wallace (2019) — Attention Is Not Explanation](../../sources/src-2026-06-jain-attention-not-explanation-2019.md) | source | researched | active |
 | [Lim et al. (2021) — Temporal Fusion Transformers](../../sources/src-2026-06-lim-tft-2021.md) | source | researched | active |
 | [Liu et al. (2022) — Rethinking Attention-Model Explainability](../../sources/src-2026-06-liu-rethinking-attention-explainability-2022.md) | source | researched | active |
+| [Long-Range Switching Time Series: S4 + SNLDS](../../sources/src-2026-06-zhang-switching-ssm.md) | source | researched | active |
 | [Lou et al. (2024) — SPARSEK Attention](../../sources/src-2026-06-lou-sparsek-attention-2024.md) | source | researched | active |
 | [Lundberg & Lee (2017) — SHAP](../../sources/src-2026-06-lundberg-shap-2017.md) | source | researched | active |
+| [Mix-BEATS: Mixer-enhanced Basis Expansion for Short-Term Load Forecasting](../../sources/src-2026-06-kumar-mixbeats.md) | source | researched | active |
 | [N-BEATS: Neural Basis Expansion Analysis for Interpretable Time Series Forecasting](../../sources/src-2026-06-oreshkin-nbeats.md) | source | researched | active |
 | [N-HiTS: Neural Hierarchical Interpolation for Time Series Forecasting](../../sources/src-2026-06-challu-nhits.md) | source | researched | active |
 | [NBEATSx: Neural Basis Expansion Analysis with Exogenous Variables](../../sources/src-2026-06-olivares-nbeatsx.md) | source | researched | active |
@@ -80,6 +85,7 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Source: Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality (2024)](../../sources/src-2026-06-dao-mamba2.md) | source | researched | active |
 | [Source: TSF literature review (deep-research synthesis, Jan 2024–mid 2026)](../../sources/src-2026-06-tsf-literature-review.md) | source | seed | active |
 | [Source: xLSTM: Extended Long Short-Term Memory (2024)](../../sources/src-2026-06-beck-xlstm.md) | source | researched | active |
+| [SPECTRE: FFT-Based Drop-In Replacement for Self-Attention](../../sources/src-2026-06-fein-ashley-spectre.md) | source | researched | active |
 | [Sundararajan et al. (2017) — Integrated Gradients](../../sources/src-2026-06-sundararajan-integrated-gradients-2017.md) | source | researched | active |
 | [Tay et al. (2020) — Sparse Sinkhorn Attention](../../sources/src-2026-06-tay-sparse-sinkhorn-attention-2020.md) | source | researched | active |
 | [Tezekbayev et al. (2022) — Speeding Up Entmax](../../sources/src-2026-06-tezekbayev-alpha-relu-2022.md) | source | researched | active |
@@ -90,10 +96,11 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Tiny Time Mixers (TTMs): Fast Pre-trained Models for Enhanced Zero/Few-shot Forecasting](../../sources/src-2026-06-ekambaram-ttm.md) | source | researched | active |
 | [TiRex: Zero-Shot Forecasting Across Long and Short Horizons with Enhanced In-Context Learning](../../sources/src-2026-06-auer-tirex.md) | source | researched | active |
 | [UNICA: Unified Covariate Adaptation for Time Series Foundation Models](../../sources/src-2026-06-han-unica.md) | source | researched | active |
+| [Unsupervised Embedding Quality Evaluation](../../sources/src-2026-06-tsitsulin-embedding-quality.md) | source | researched | active |
 | [Wiegreffe & Pinter (2019) — Attention is not not Explanation](../../sources/src-2026-06-wiegreffe-attention-not-not-2019.md) | source | researched | active |
 | [Winner-Takes-All Multivariate Probabilistic Forecasting](../../sources/src-2026-06-cortes-winner-takes-all.md) | source | researched | active |
 | [Yasuda et al. (2023) — Sequential Attention for Feature Selection](../../sources/src-2026-06-yasuda-sequential-attention-2023.md) | source | researched | active |
 | [Zhao et al. (2019) — Sparse Transformer: Concentrated Attention Through Explicit Selection](../../sources/src-2026-06-zhao-sparse-transformer-2019.md) | source | researched | active |
 
-_72 page(s): 69 researched, 3 seed._
+_79 page(s): 76 researched, 3 seed._
 <!-- AUTO:end -->

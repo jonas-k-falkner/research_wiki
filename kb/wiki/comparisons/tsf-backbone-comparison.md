@@ -23,6 +23,7 @@ sources:
 - src-2026-06-wang-timemixer
 - src-2026-06-huang-timekan
 - src-2026-06-zanotti-retraining-frequency
+- src-2026-06-rizvi-glinear
 tags:
 - backbone
 - comparison
@@ -46,19 +47,21 @@ This table compares backbone architectures and covariate-adapter approaches revi
 
 ### Real price / energy benchmarks (EPF, commodity prices — **primary for P1**)
 
-**P1 primary domain: procurement-side input forecasting** — commodity prices, energy futures, electricity prices, FX. Non-stationary, volatile, exo-covariate-rich.
+**P1 primary domain: procurement-side input forecasting** — commodity prices, energy futures, electricity prices, FX. Non-stationary, volatile, exo-covariate-rich. **Primary forecast horizon: weekly/monthly long-horizon.**
 
-**EPF (electricity price forecasting) — primary real benchmark:**  
+**Benchmark gap**: there is no standardized weekly/monthly commodity price forecasting benchmark in the literature. EPF is the closest validated benchmark but is **day-ahead** (frequency mismatch with P1's primary use case). M4 monthly series are frequency-matched but cover demand/macro, not commodity prices. Until a P1-specific benchmark is established, use EPF for architecture validation and M4 monthly as a frequency-matched proxy.
+
+**EPF (electricity price forecasting) — architecture validation benchmark (day-ahead; secondary for P1):**  
 - NBEATSx: SOTA, ~20% over N-BEATS; MLP + exo concatenation  
 - TimeXer: SOTA on 5 EPF datasets, avg MSE 0.307 vs DLinear 0.366; best validated endo/exo cross-attention  
 - TimeKAN, iTransformer, TimeMixer: **no published EPF evaluation**
 
-**Real retail demand benchmarks (M5, VN1, M4 — less relevant to P1's price focus):**  
-- N-BEATS, N-HiTS: DL SOTA on M5/VN1 (Zanotti 2025); competition-benchmark proven  
+**M4 monthly / real demand benchmarks (frequency-matched proxy for weekly/monthly horizon):**  
+- N-BEATS, N-HiTS: M4 SOTA; DL SOTA on M5/VN1 (Zanotti 2025); N-HiTS hierarchical multi-rate design explicitly targets long-horizon
 - LGBM/XGBoost: top solutions in M5 and other demand competitions  
 - ApolloPFN: zero-shot SOTA on M5 with promotions/prices
 
-Demand benchmarks (M5/VN1) inform backbone design decisions at the methodological level but are not P1's primary validation target.
+Demand benchmarks (M5/VN1) are not P1's primary domain but provide frequency-matched long-horizon evidence that EPF (day-ahead) cannot provide.
 
 | Model | Type | Exo covariates | Key benchmark result | Relevant for P1? |
 |---|---|---|---|---|
@@ -102,18 +105,22 @@ All four covariate-adapter papers (ChronosX, UNICA, ApolloPFN, CATS-ATS) explici
 
 **P1 domain: procurement-side price/commodity/energy forecasting.** Primary real benchmark: EPF.
 
-- **NBEATSx** (Priority 1 — start here): MLP + exo concatenation; SOTA on EPF; interpretable basis decomposition shows exogenous contribution alongside trend/seasonality. **Simplest architecture validated on EPF with genuine covariates.**
-- **TimeXer** (Priority 2 — when exo drives the forecast): patch-attn + cross-attn; SOTA on 5 EPF datasets; asymmetric endo/exo design is the template for P1's covariate architecture. Use when the exo covariate effect is confirmed large.
-- **iTransformer** (Priority 3 — correlated price series): channel-wise attention appropriate for commodity complex (energy, metals) where inter-series dependencies carry signal; no exo natively; academic benchmark proven.
-- **N-HiTS** (Priority 4 — MLP ablation without exo; demand-domain proof): strong MLP baseline; proven on M4/M5/real retail; less directly validated on price/EPF domain. Useful as a no-exo ablation.
-- **DLinear**: minimal ablation baseline only.
-- **TimeKAN** (Priority 5 — academic LTSF frontier only): 2025 SOTA on ETT/Weather; **no EPF or commodity evaluation**; KAN blocks complicate AttGrad attribution; significantly more complex.
+**Primary horizon: weekly/monthly long-horizon commodity price forecasting. Day-ahead (EPF) = secondary validation only.**
 
-**Simplified decision tree for P1 price forecasting:**
-1. Start: NBEATSx (EPF-proven; MLP + exo; interpretable)
-2. Exo effect large → upgrade to TimeXer (cross-attention)
-3. Correlated series (energy complex, metals) → add iTransformer as a comparison
-4. Ablation baselines → DLinear (linear) and N-HiTS (MLP without exo)
+- **NBEATSx** (Priority 1 — start here with covariates): MLP + exo concatenation; SOTA on EPF (day-ahead); interpretable basis decomposition; simplest architecture validated on real price data with genuine covariates. Frequency caveat: EPF is day-ahead, not weekly/monthly — validate architecture applicability on target frequency separately.
+- **N-HiTS** (Priority 2 — long-horizon without covariates): hierarchical multi-rate pooling + interpolation; M4 monthly SOTA (frequency-matched); designed for long horizons; 50× faster than Transformers. Most frequency-appropriate backbone for weekly/monthly when exo effect is moderate.
+- **TimeXer** (Priority 3 — when exo drives the forecast): patch-attn + cross-attn; SOTA on 5 EPF datasets; asymmetric endo/exo design is the template for P1's covariate architecture. Use when the exo covariate effect is confirmed large. Frequency caveat: EPF is day-ahead.
+- **iTransformer** (Priority 4 — correlated price series): channel-wise attention appropriate for commodity complex (energy, metals) where inter-series dependencies carry signal; no exo natively; academic benchmark proven.
+- **GLinear** (Priority 5 — simplicity + data efficiency): Gaussian-activated linear + RevIN; data-efficient for smaller weekly/monthly datasets; outperforms DLinear/NLinear on academic LTSF; no exo natively. Useful when dataset is small and simplicity is paramount.
+- **DLinear**: minimal linear ablation baseline only.
+- **TimeKAN** (Priority 6 — academic LTSF frontier only): 2025 SOTA on ETT/Weather; **no EPF or commodity evaluation**; KAN blocks complicate AttGrad attribution; significantly more complex.
+
+**Simplified decision tree for P1 price forecasting (weekly/monthly primary):**
+1. No exo / simple baseline: N-HiTS (M4 monthly–proven; long-horizon design) or GLinear (data-efficient; smaller datasets)
+2. Exo covariates available → NBEATSx (concatenation; EPF-proven architecture)
+3. Exo effect confirmed large → upgrade to TimeXer (cross-attention)
+4. Correlated series (energy complex, metals) → add iTransformer as a comparison
+5. Ablation: DLinear (linear) vs N-HiTS (MLP without exo) vs GLinear (smooth linear)
 
 ### 4. Exogenous integration strategies ranked
 

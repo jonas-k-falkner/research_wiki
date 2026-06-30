@@ -337,3 +337,46 @@ On real benchmarks:
 - `sources/src-2026-06-wang-timexer.md`: Applicability to P1 upgraded (Priority 2, EPF alignment)
 - `sources/src-2026-06-challu-nhits.md`: Applicability to P1 downgraded (medium; demand-benchmark credentials; ablation baseline only for P1)
 - `sources/src-2026-06-zanotti-retraining-frequency.md`: Applicability to P1 updated (indirect relevance; domain shifted; retraining-cadence finding still applicable)
+
+## 2026-06-30 (literature ingest: 7 papers; weekly/monthly framing; gap documentation)
+
+### Weekly/monthly framing revision
+
+P1's **primary forecast horizon clarified as weekly/monthly long-horizon** (4–52 weeks ahead commodity prices). Day-ahead (EPF) is now a secondary architecture-validation benchmark only. All three P1 domain pages updated:
+
+- **N-HiTS re-promoted** from "demand context, ablation" to Priority 2 backbone: hierarchical multi-rate design explicitly targets long-horizon; M4 monthly (frequency-matched) is best available public proxy benchmark.
+- **NBEATSx**: retained as Priority 1 with exo covariates; added frequency caveat (EPF is day-ahead; validate transfer to weekly/monthly separately).
+- **GLinear**: added to backbone table at Priority 5 — data-efficient, RevIN, appropriate for smaller weekly/monthly datasets.
+- **Benchmark gap documented**: no standardized weekly/monthly commodity price forecasting benchmark exists in the literature. EPF is day-ahead; M4 monthly is demand/macro. This is an explicit `[gap]` in the P1 project page.
+
+### New source pages (7 papers)
+
+| Source ID | Paper | Domain | P1 relevance |
+|---|---|---|---|
+| `src-2026-06-rizvi-glinear` | GLinear (Rizvi et al. 2025) | Academic LTSF | Medium — data-efficient simplicity baseline; RevIN; Priority 5 backbone |
+| `src-2026-06-pasche-extreme-conformal` | Extreme Conformal Prediction (Pasche et al. 2025) | Flood/finance risk | High — GPD-conformal intervals for price spikes; wraps any backbone |
+| `src-2026-06-zhang-switching-ssm` | S4+SNLDS Switching (Zhang et al. 2024) | Synthetic switching TS | Low — conceptual background for regime detection; synthetic benchmarks only |
+| `src-2026-06-kumar-mixbeats` | Mix-BEATS (Kumar et al. 2025) | Building STLF, hourly | Medium — N-BEATS-family on real energy data; frequency mismatch (day-ahead) |
+| `src-2026-06-liang-itfkan` | iTFKAN (Liang et al. 2025) | Academic LTSF | Low — interpretable KAN; covariate attribution gap; AttGrad incompatibility risk |
+| `src-2026-06-fein-ashley-spectre` | SPECTRE FFT attention (Fein-Ashley et al. 2025) | LLM / vision | Very low — infrastructure; no TSF evaluation; not applicable to MLP/linear backbones |
+| `src-2026-06-tsitsulin-embedding-quality` | Unsupervised Embedding Quality (Tsitsulin et al. 2023) | Graph / supervised embeddings | High — coherence, stable rank, SelfCluster metrics for P1 cluster quality gate |
+
+### Literature gaps documented (`[gap]` items in P1 project page + thesis)
+
+| Gap | Priority |
+|---|---|
+| EPF survey (Weron 2014 or equivalent) | High |
+| LEAR model (Lago et al. 2018) — EPF statistical baseline NBEATSx beats | High |
+| GARCH / GARCH-X literature — P1 success criterion references "outperform GARCH" | High |
+| Commodity price forecasting survey (crude oil, metals, agricultural) | Medium |
+| Structural break / change-point detection for price series (Bai-Perron, PELT) | Medium |
+| Weekly/monthly long-horizon commodity price benchmark | High |
+| Cross-commodity price dependency modeling | Low |
+
+### Pages modified
+
+- `projects/p1-cluster-pretrained-deep-models.md`: weekly/monthly framing in Purpose, success criteria, main risks; Literature to integrate section added with 7 gaps; 7 new source IDs in frontmatter and Sources section
+- `domains/timeseries-forecasting/thesis.md`: Current thesis expanded (benchmark gap context); near-term path updated; backbone priority table rewritten (7 rows, weekly/monthly context); Literature to integrate section added
+- `comparisons/tsf-backbone-comparison.md`: benchmark section updated (EPF day-ahead caveat; M4 monthly proxy); preferred backbone section rewritten; decision tree updated
+- `sources/src-2026-06-challu-nhits.md`: Applicability re-revised upward (Priority 2 for weekly/monthly long-horizon)
+- `sources/src-2026-06-olivares-nbeatsx.md`: frequency caveat added; remains Priority 1 with exo

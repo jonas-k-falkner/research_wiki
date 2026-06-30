@@ -30,6 +30,13 @@ sources:
   - src-2026-06-wang-timemixer
   - src-2026-06-huang-timekan
   - src-2026-06-zanotti-retraining-frequency
+  - src-2026-06-rizvi-glinear
+  - src-2026-06-pasche-extreme-conformal
+  - src-2026-06-zhang-switching-ssm
+  - src-2026-06-kumar-mixbeats
+  - src-2026-06-liang-itfkan
+  - src-2026-06-fein-ashley-spectre
+  - src-2026-06-tsitsulin-embedding-quality
 tags:
   - forecasting
   - deep-learning
@@ -40,7 +47,7 @@ tags:
 
 ## Purpose
 
-Train cluster-routed deep forecasting models on commodity, energy, and price time series — the **input/procurement side** of the supply chain. Target: volatile, non-stationary price data (commodity prices, electricity prices, energy futures, FX) rather than demand/sales series. Core value: **robust price forecasts with interpretable attribution** — surfacing which macro, weather, or supply indicators drove a given price movement, to support procurement and hedging decisions.
+Train cluster-routed deep forecasting models on commodity, energy, and price time series — the **input/procurement side** of the supply chain. Target: volatile, non-stationary price data (commodity prices, electricity prices, energy futures, FX) rather than demand/sales series. **Primary forecast horizon: weekly/monthly long-horizon** (weeks to 1+ year ahead commodity prices); day-ahead scenarios (e.g., power markets) are a secondary use case. Core value: **robust price forecasts with interpretable attribution** — surfacing which macro, weather, or supply indicators drove a given price movement, to support procurement and hedging decisions.
 
 ## Current thesis
 
@@ -85,7 +92,7 @@ This makes the explanation layer more robust than raw attention weights, especia
 
 | Criterion | Target |
 |---|---|
-| Forecast accuracy | Match or exceed GARCH/ARIMAX and LGBM on EPF benchmarks and internal commodity/price data |
+| Forecast accuracy | Match or exceed GARCH/ARIMAX and LGBM on internal weekly/monthly commodity/price data; use EPF benchmarks as secondary (day-ahead) validation for architecture sanity-check |
 | Attribution quality | AttGrad identifies top-k macro/supply covariates that align with known market drivers; polarity consistency test (Liu et al. 2022) passes |
 | Cluster quality | Low within-cluster variance for volatility regime, seasonality, structural behavior; within-cluster model outperforms global model |
 | Robustness | Forecast accuracy degrades gracefully under price spikes and volatility regime shifts, not catastrophically |
@@ -97,7 +104,7 @@ This makes the explanation layer more robust than raw attention weights, especia
 | Risk | Mitigation |
 |---|---|
 | Price volatility regime shifts invalidate cluster models faster than demand patterns | Implement explicit regime detection; trigger re-clustering and/or re-routing on structural break signals |
-| Non-stationarity of price data makes long-horizon forecasting harder than for stationary demand | Focus on short/medium horizons (1–4 weeks); use probabilistic intervals; track calibration not just point accuracy |
+| Non-stationarity of price data makes long-horizon forecasting harder than for stationary demand | Focus on weekly/monthly horizons with RevIN normalization and probabilistic intervals; track calibration not just point accuracy |
 | AttGrad attribution is unstable under price spikes (extreme inputs stress the gradient path) | Run MC-dropout stability checks; test attribution consistency under perturbed inputs |
 | Covariate selection is unstable under correlated macro inputs | Hierarchical entmax, cluster-level importance, diversity regularization, stability diagnostics |
 | PyTorch integration violates library layering/determinism | Implement first-class optional `ClusterDeepModel`; persist routing index and state dict cleanly |
@@ -119,7 +126,8 @@ This makes the explanation layer more robust than raw attention weights, especia
 - **Volatility regime clustering**: do shape-based embeddings separate high/low vol periods, or is an explicit volatility-regime detector required before clustering?
 - **Backbone for price spikes**: do MLP-based models (NBEATSx) handle price spike distributions robustly, or is a heavier backbone needed for tail events?
 - **Attribution under non-stationarity**: does AttGrad remain faithful (low polarity violation rate) on volatile price data, or do attention gradient paths degrade under distributional shift?
-- **Commodity benchmarks beyond EPF**: EPF is well-studied; comparable open benchmarks for crude oil, metals, or agricultural commodity prices are less standardized. What is the best available public benchmark for non-electricity commodity price forecasting?
+- **Frequency mismatch gap**: EPF (the primary validated benchmark for NBEATSx/TimeXer) is day-ahead. P1's primary use case is weekly/monthly long-horizon. Do EPF-validated architectures transfer to weekly/monthly price forecasting? M4 monthly is the best frequency-matched public proxy but covers demand/macro, not commodity prices.
+- **Commodity benchmarks beyond EPF**: EPF is well-studied; comparable open benchmarks for crude oil, metals, or agricultural commodity prices are less standardized. What is the best available public benchmark for non-electricity commodity price forecasting? `[gap]`
 
 ## External literature positioning
 
@@ -129,10 +137,31 @@ A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../source
 - Compact backbone preference is evidence-backed. On academic LTSF benchmarks (ETT, Weather, Electricity), the frontier has moved: DLinear → PatchTST → iTransformer → TimeMixer++ → TimeKAN, with TimeKAN explicitly noting a "significant gap" over DLinear. Chen et al. 2025 explains this: all succeed because benchmarks are self-dependent/stationary. **For P1's price/commodity/energy focus, EPF (electricity price forecasting) is the primary real benchmark** — it features genuine non-stationarity, price spikes, and informative exogenous covariates (load, gas prices, weather). On EPF: NBEATSx ([src-2026-06-olivares-nbeatsx](../sources/src-2026-06-olivares-nbeatsx.md)) and TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) are directly validated. TimeKAN/iTransformer/TimeMixer have **no published EPF or commodity price evaluation** — their SOTA is academic LTSF only. For M5/retail demand (Zanotti 2025, [src-2026-06-zanotti-retraining-frequency](../sources/src-2026-06-zanotti-retraining-frequency.md)), N-BEATS/N-HiTS are DL SOTA — less relevant to P1's new domain focus but useful as methodological background.
 - Covariate gap is confirmed: four 2025–2026 papers (ChronosX, UNICA, ApolloPFN, CATS-ATS) independently identify that Chronos, TimesFM, MOMENT, and other leading TSFMs do not support exogenous covariates; TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) provides the strongest validated endo/exo cross-attention template; iTransformer and TimeMixer++ also lack native exo support. See [comparisons/tsf-backbone-comparison](../comparisons/tsf-backbone-comparison.md) for full model table.
 
+## Literature to integrate
+
+The following gaps exist in the current wiki. Each is required to properly validate P1's claims. All are `[gap]` — no citation attached yet.
+
+| Gap | Why needed | Priority |
+|---|---|---|
+| EPF survey (e.g. Weron 2014 *Electricity price forecasting: A review*) | P1 references EPF as a benchmark domain; no EPF survey or taxonomy in the wiki. Need to understand EPF problem structure, forecasting horizons, and evaluation conventions. | `[gap]` High |
+| LEAR model (Lago et al. 2018) | NBEATSx reports ~20% improvement over LEAR — the statistical benchmark it beats on EPF. P1's success criterion "outperform GARCH/ARIMAX" assumes these are competitive baselines. LEAR (Least-squares Estimation of AutoRegressive) is the EPF-specific statistical baseline, not generic ARIMA. | `[gap]` High |
+| GARCH / GARCH-X literature | P1 success criterion: "outperform GARCH/ARIMAX." Zero GARCH literature in the wiki. For commodity price volatility modeling, GARCH-family models are the established baseline — need at least one survey or key reference. | `[gap]` High |
+| Commodity price forecasting survey | EPF is well-studied; no comparable benchmark or literature exists in the wiki for crude oil, metals (copper, aluminium), or agricultural commodity price forecasting. What are the standard datasets, frequencies, and evaluation protocols? | `[gap]` Medium |
+| Price regime / structural break detection | P1's open question: "do volatility-regime clusters separate regimes, or is explicit detection required?" [src-2026-06-zhang-switching-ssm](../sources/src-2026-06-zhang-switching-ssm.md) provides conceptual framing but no commodity price evidence. Need established methods for structural break tests (e.g. Bai-Perron) or change-point detection applied to price data. | `[gap]` Medium |
+| Cross-commodity price dependency modeling | Commodity prices exhibit co-movement (energy complex, crack spreads, metal correlations). iTransformer is motivated partly for this use case but no commodity-specific cross-series literature in the wiki. | `[gap]` Low |
+| Weekly/monthly long-horizon forecasting benchmark | No standardized public benchmark for weekly/monthly commodity price forecasting (EPF is day-ahead; M4 monthly is demand/macro). What is the appropriate evaluation protocol and dataset for P1's primary use case? | `[gap]` High |
+
 ## Sources
 
 - [sources/src-2026-06-p1-cluster-pretrained-deep-models](../sources/src-2026-06-p1-cluster-pretrained-deep-models.md) — cluster models, gate protocol, covariate-selection mechanism, risks.
 - [sources/src-2026-06-tsf-literature-review](../sources/src-2026-06-tsf-literature-review.md) — external TSF literature positioning (secondary synthesis; key claims now verified against named primaries in I-P1-A/B/C).
+- [sources/src-2026-06-rizvi-glinear](../sources/src-2026-06-rizvi-glinear.md) — GLinear: data-efficient simplicity baseline; RevIN for distribution shift; Priority 5 in backbone table.
+- [sources/src-2026-06-pasche-extreme-conformal](../sources/src-2026-06-pasche-extreme-conformal.md) — GPD-extended conformal prediction for price spikes; addresses "forecast accuracy under price spikes" success criterion.
+- [sources/src-2026-06-zhang-switching-ssm](../sources/src-2026-06-zhang-switching-ssm.md) — S4+SNLDS for regime detection; conceptual background for cluster re-routing on structural breaks.
+- [sources/src-2026-06-kumar-mixbeats](../sources/src-2026-06-kumar-mixbeats.md) — Mix-BEATS: N-BEATS+TSMixer for STLF; supports N-BEATS-family on real energy data; frequency mismatch.
+- [sources/src-2026-06-liang-itfkan](../sources/src-2026-06-liang-itfkan.md) — iTFKAN: interpretable KAN; complex; AttGrad incompatibility risk; academic LTSF only.
+- [sources/src-2026-06-fein-ashley-spectre](../sources/src-2026-06-fein-ashley-spectre.md) — SPECTRE FFT attention; infrastructure reference; not directly applicable to MLP/linear P1 backbone.
+- [sources/src-2026-06-tsitsulin-embedding-quality](../sources/src-2026-06-tsitsulin-embedding-quality.md) — unsupervised embedding quality metrics (coherence, stable rank, SelfCluster); directly applicable to P1 cluster quality gate.
 
 ## Related pages
 

@@ -45,7 +45,11 @@ NBEATSx extends N-BEATS to incorporate time-dependent exogenous variables via a 
 
 ## Caveats / Applicability to P1
 
-**High direct relevance — primary backbone candidate for P1.** P1's domain is commodity/energy price forecasting (procurement-side), and NBEATSx is validated on exactly the relevant real benchmark: EPF (electricity price forecasting with exogenous variables). The ~20% improvement over N-BEATS on EPF demonstrates that covariate injection via concatenation is effective on volatile, non-stationary price data — not just on stationary demand data. The interpretable decomposition (trend + seasonality + exogenous contribution) directly supports P1's attribution goal. NBEATSx is the recommended starting backbone for P1.
+**High direct relevance — primary backbone candidate for P1 (with exo covariates).** P1's domain is commodity/energy price forecasting (procurement-side), and NBEATSx is validated on exactly the relevant architecture benchmark: EPF (electricity price forecasting with exogenous variables). The ~20% improvement over N-BEATS on EPF demonstrates that covariate injection via concatenation is effective on volatile, non-stationary price data — not just on stationary demand data. The interpretable decomposition (trend + seasonality + exogenous contribution) directly supports P1's attribution goal.
+
+**Frequency caveat (2026-06-30)**: EPF is a day-ahead forecasting benchmark. P1's **primary use case is weekly/monthly long-horizon** commodity price forecasting. NBEATSx's EPF validation directly answers the architecture question (does covariate concatenation work on non-stationary price data?) but does not validate the frequency transfer. Weekly/monthly N-HiTS ([src-2026-06-challu-nhits](src-2026-06-challu-nhits.md)) may be more appropriate for the long-horizon case without strong exo signals.
+
+NBEATSx is Priority 1 backbone **when exogenous covariates are available and their effect is expected to be meaningful**. N-HiTS is Priority 2 for the long-horizon baseline without covariates.
 
 ## Related
 

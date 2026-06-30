@@ -22,6 +22,13 @@ sources:
 - src-2026-06-wang-timemixer
 - src-2026-06-huang-timekan
 - src-2026-06-zanotti-retraining-frequency
+- src-2026-06-rizvi-glinear
+- src-2026-06-pasche-extreme-conformal
+- src-2026-06-zhang-switching-ssm
+- src-2026-06-kumar-mixbeats
+- src-2026-06-liang-itfkan
+- src-2026-06-fein-ashley-spectre
+- src-2026-06-tsitsulin-embedding-quality
 tags:
 - thesis
 - forecasting
@@ -31,7 +38,9 @@ tags:
 
 ## Current thesis
 
-P1 is the attribution and robust forecasting layer for **procurement-side intelligence**: commodity prices, energy futures, electricity prices, FX — volatile, non-stationary input data, not demand/sales. The cluster approach groups price series by market type and volatility regime. The architecture investment priority is the covariate attribution layer (sparse hierarchical α-entmax + AttGrad), not the backbone. The primary real benchmark is **EPF** (electricity price forecasting), where NBEATSx and TimeXer are validated.
+P1 is the attribution and robust forecasting layer for **procurement-side intelligence**: commodity prices, energy futures, electricity prices, FX — volatile, non-stationary input data, not demand/sales. **Primary forecast horizon: weekly/monthly long-horizon** (e.g., 4–52 week ahead commodity prices). Day-ahead scenarios are a secondary use case (e.g., power markets). The cluster approach groups price series by market type and volatility regime. The architecture investment priority is the covariate attribution layer (sparse hierarchical α-entmax + AttGrad), not the backbone.
+
+**Real benchmark context**: EPF (electricity price forecasting) is validated on NBEATSx and TimeXer, but EPF is a **day-ahead benchmark** — a frequency mismatch with P1's primary weekly/monthly use case. M4 monthly series are frequency-matched but are demand/macro series, not commodity prices. There is currently no standardised weekly/monthly commodity price forecasting benchmark in the literature — this is an open gap.
 
 ## Most important unresolved question
 
@@ -40,9 +49,9 @@ Do volatility-regime clusters derived from price-series embeddings produce regim
 ## Preferred near-term path
 
 1. Run the P1 cluster-quality gate — adapted for price/commodity series (volatility regime consistency, not demand-seasonality consistency).
-2. Prototype a single cluster with **NBEATSx** (MLP + exo concatenation; EPF-proven) if the gate passes or after regime sub-clustering.
+2. Prototype a single cluster with **NBEATSx** (MLP + exo concatenation; EPF-proven architecture; note EPF is day-ahead, frequency mismatch with primary use case — validate separately on weekly/monthly data) if the gate passes or after regime sub-clustering.
 3. Add cross-attention covariate integration via **TimeXer** if exo effect is confirmed large on the target dataset.
-4. Validate against GARCH/ARIMAX and LGBM on **EPF benchmarks** and internal commodity/price data — not academic ETT/Weather or retail M5/VN1.
+4. Validate against GARCH/ARIMAX and LGBM on **internal weekly/monthly commodity/price data** and EPF benchmarks (secondary; day-ahead only). M4 monthly is the best available frequency-matched public benchmark proxy until a commodity price benchmark is established.
 5. Track attribution quality (AttGrad polarity consistency) as a first-class success metric alongside forecast accuracy.
 
 ## Key assumptions
@@ -84,23 +93,36 @@ See [comparisons/tsf-backbone-comparison](../../comparisons/tsf-backbone-compari
 
 **Summary recommendation for P1 backbone (updated 2026-06-30 — price/commodity/EPF focus)**:
 
+**Primary horizon: weekly/monthly long-horizon commodity price forecasting. Day-ahead (EPF) = secondary.**
+
 | Priority | Architecture | Rationale |
 |---|---|---|
-| 1 (start here) | NBEATSx | MLP + exo concatenation; EPF SOTA (~20% over N-BEATS); interpretable decomposition; simplest real-benchmark–proven covariate model |
-| 2 (when exo drives the series) | TimeXer | Patch-attn + cross-attn; SOTA on 5 EPF datasets (avg MSE 0.307 vs DLinear 0.366); asymmetric endo/exo split validated |
-| 3 (correlated price series) | iTransformer | Channel-wise attention; good for correlated commodity complex (energy, metals); no exo natively |
-| 4 (ablation baseline) | DLinear | Minimal baseline to isolate covariate contribution; also N-HiTS for a stronger MLP ablation |
-| 5 (retail/demand context) | N-HiTS | Proven on M4/M5 real retail (Zanotti 2025); 50× faster; less directly relevant to price/EPF domain |
-| 6 (academic LTSF frontier) | TimeKAN | 2025 SOTA on ETT/Weather only; no EPF/commodity evaluation; complex; KAN complicates AttGrad |
+| 1 (start here) | NBEATSx | MLP + exo concatenation; EPF SOTA (~20% over N-BEATS); interpretable decomposition; simplest real-benchmark–proven covariate model. **Frequency caveat**: EPF is day-ahead; validate separately on weekly/monthly data. |
+| 2 (long-horizon; no exo needed) | N-HiTS | Hierarchical multi-rate pooling + interpolation; designed for long-horizon; M4 monthly SOTA (frequency-matched proxy); 50× faster than Transformers. More appropriate than NBEATSx for weekly/monthly horizons without large exo effect. |
+| 3 (when exo drives the series) | TimeXer | Patch-attn + cross-attn; SOTA on 5 EPF datasets (avg MSE 0.307 vs DLinear 0.366); asymmetric endo/exo split validated. **Frequency caveat**: EPF is day-ahead. |
+| 4 (correlated price series) | iTransformer | Channel-wise attention; good for correlated commodity complex (energy, metals); no exo natively |
+| 5 (simplicity baseline with RevIN) | GLinear | Gaussian-activated linear + RevIN; data-efficient for smaller weekly/monthly datasets; outperforms DLinear/NLinear; no exo natively. Validated on academic LTSF only (ETTh1, Electricity, Weather, Traffic). |
+| 6 (ablation) | DLinear | Minimal linear baseline to isolate covariate contribution |
+| 7 (academic LTSF frontier) | TimeKAN | 2025 SOTA on ETT/Weather only; no EPF/commodity evaluation; complex; KAN complicates AttGrad |
 | Avoid for temporal backbone | Autoformer, Informer, FEDformer | Outperformed by DLinear; complexity not justified |
 
-**Key caveat**: TimeKAN/iTransformer/TimeMixer SOTA is measured on academic LTSF benchmarks (ETT×4, Weather, Electricity), which are self-dependent and stationary. None have published results on EPF or commodity prices. **For P1's price/commodity focus, NBEATSx and TimeXer are the architectures with evidence on the relevant real benchmarks (EPF).**
+**Key caveat**: TimeKAN/iTransformer/TimeMixer SOTA is measured on academic LTSF benchmarks (ETT×4, Weather, Electricity), which are self-dependent and stationary. None have published results on EPF or commodity prices. **For P1's price/commodity focus, NBEATSx and TimeXer are the architectures with evidence on real benchmarks (EPF) — but EPF is day-ahead, not the weekly/monthly horizon that is P1's primary target.** N-HiTS is the best frequency-matched backbone (M4 monthly), but lacks covariate support.
 
 ## SSM and linear-RNN landscape (background)
 
 State space models and linear RNNs (Mamba, RWKV, xLSTM, HGRN, GLA, etc.) represent a class of subquadratic alternatives to Transformers designed primarily for language modelling. Their applicability to multivariate TSF is limited: [Wang et al. (2024)](../../sources/src-2026-06-wang-mamba-tsf.md) find that Mamba-based S-Mamba is competitive on high-variate periodic datasets (Traffic, Electricity) but shows suboptimal results on low-variate aperiodic benchmarks (ETT, Exchange) where DLinear is competitive or better — consistent with the DLinear finding that architectural complexity does not guarantee TSF gains in the regimes most analogous to retail SKU forecasting. The majority of SSM/linear-RNN papers (Mamba-2, RWKV, Eagle/Finch, HGRN, HGRN2, GLA, Gated Delta Networks, Longhorn, TTT, GSA, Jamba) report no TSF evaluation at all, with benchmarks focused exclusively on language modeling. P1 uses a compact MLP or linear backbone rather than SSMs for three reasons: (1) no demonstrated TSF accuracy advantage over DLinear in low-variate aperiodic regimes; (2) SSM hidden states are opaque to the AttGrad attribution protocol; (3) MLP/linear models have better serialization and integration properties with the forecast\_pipeline library.
 
 Sources: [src-2026-06-wang-mamba-tsf](../../sources/src-2026-06-wang-mamba-tsf.md), [src-2026-06-gu-mamba](../../sources/src-2026-06-gu-mamba.md), [src-2026-06-dao-mamba2](../../sources/src-2026-06-dao-mamba2.md).
+
+## Literature to integrate
+
+External gaps not yet in the wiki — all `[gap]`:
+
+- **EPF survey** (Weron 2014 or equivalent) — canonical review of electricity price forecasting methods, datasets, and evaluation conventions. `[gap]`
+- **LEAR model** (Lago et al. 2018) — statistical EPF baseline that NBEATSx reports beating by 20%. Required to validate NBEATSx's EPF claim chain. `[gap]`
+- **GARCH / GARCH-X** — established volatility model family; P1 success criterion references "outperform GARCH" but zero GARCH literature is in the wiki. At minimum: Bollerslev 1986 (GARCH), Engle 2002 (DCC-GARCH), or GARCH-X survey. `[gap]`
+- **Commodity price forecasting survey** — no standardized commodity price benchmark (crude oil, metals, agricultural) in the wiki; EPF covers only electricity. `[gap]`
+- **Structural break / change-point detection for price series** — methods like Bai-Perron test or PELT; required to validate the "explicit regime detection" branch. `[gap]`
 
 ## Sources & related
 
