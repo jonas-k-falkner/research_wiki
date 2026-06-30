@@ -510,3 +510,42 @@ Completed the MEDIUM-priority pass for Task I-P4-A. All 3 papers confirmed `stat
 
 - `uv run wiki lint`: 0 errors, 23 warnings (all pre-existing)
 - `uv run wiki toc build`: indexes updated
+
+## 2026-06-30 (Supplementary ingest — HIGH priority, xLSTM/SSL/attribution, 7 papers)
+
+Priority reassessment identified several papers originally marked LOW/background that are important for P1/P2 architecture decisions. All `wiki check claim` results: `additional-support`.
+
+### Source pages created/upgraded (7)
+
+| Source slug | Paper | Venue | Priority (corrected) |
+|---|---|---|---|
+| `src-2026-06-beck-xlstm` | Beck et al., xLSTM | NeurIPS 2024 | HIGH (was LOW/background) |
+| `src-2026-06-kazemi-time2vec` | Kazemi et al., Time2Vec | arXiv 2019 | HIGH (missing from plan) |
+| `src-2026-06-he-moco` | He et al., MoCo | CVPR 2020 | HIGH (was LOW) |
+| `src-2026-06-musgrave-metric-learning-reality` | Musgrave et al. | ECCV 2020 | HIGH (was LOW) |
+| `src-2026-06-liu-ssl-comparison` | Liu et al., SimCLR vs MAE for TS | arXiv 2024 | HIGH (was LOW) |
+| `src-2026-06-tan-ts-indexing` | Tan et al., TSI | SDM 2017 | HIGH (was LOW) |
+| `src-2026-06-ates-counterfactual-ts` | Ates et al., counterfactual TS | ICMLA 2021 | HIGH (missing from plan) |
+
+### Key findings
+
+- **xLSTM mLSTM** (NeurIPS 2024): matrix memory C ∈ ℝ^{d×d} with covariance update rule is a parallelizable key–value associative memory. mLSTM architecture directly analogous to P2's directed embedding design; validated that asymmetric key–value geometries converge end-to-end. TiRex (Auer et al. 2025) demonstrates xLSTM zero-shot TSF beating Chronos/TimesFM — xLSTM is a viable future backbone for P1's non-stationary price clusters.
+- **Time2Vec** (2019): t2v(τ)[i] = sin(ωᵢτ + φᵢ) with learned ω, φ. Foundational for T-Rep; P2 should use t2v(timestamp) to condition the directed pretext on temporal regime/seasonality.
+- **MoCo** (CVPR 2020): EMA encoder (m=0.999) + 65k-entry FIFO queue. P2 training: EMA encoder for source/cause branch, gradient-updated for target/effect branch; queue-based negatives solve sparse positive problem at 200M series scale.
+- **Musgrave** (ECCV 2020): all claimed improvements in metric learning vanish under fair evaluation (equal arch/dim/aug + Bayesian CV tuning). P2 evaluation protocol: fix backbone/dim/aug, use MAP@R, tune with cross-val only.
+- **Liu SSL comparison** (2024): MAE wins over SimCLR at label ratio ≤ 0.1; SimCLR wins at ≥ 0.5. P2 decision: **MAE is the preferred pretraining stage** (TE/Granger labels are sparse by design).
+- **TSI** (SDM 2017): hierarchical K-means + DTW lower-bounding for gigabyte-scale TS. At P1 scale, O(log K) cluster routing via K-means tree replaces O(K·L²) brute-force DTW. P2's FAISS vector routing is complementary.
+- **Ates counterfactual TS** (ICMLA 2021): greedy substitution finds minimal set of TS from a distractor that flips classifier prediction. P1 secondary attribution surface (counterfactual mode alongside AttGrad); P3 scenario/what-if foundation.
+
+### Pages updated
+
+- `sources/src-2026-06-beck-xlstm.md`: upgraded from background stub; confidence low→medium; P2 mLSTM relevance added
+- `projects/p2-causal-embedding-v2.md`: new "Additional design inputs (ingest 2026-06-30)" section; 9 new sources in frontmatter
+- `projects/p1-cluster-pretrained-deep-models.md`: new "Supplementary literature (ingest 2026-06-30)" section; 5 new sources in frontmatter
+- `concepts/causal-covariate-embeddings.md`: new "Architecture inputs (ingest 2026-06-30)" section; 5 new sources in frontmatter
+- `domains/embedding-models/thesis.md`: new "Architecture & training inputs (ingest 2026-06-30)" section; 5 new sources
+
+### Lint / TOC
+
+- `wiki lint`: 1 error (pre-existing: background domain index), 26 warnings (all pre-existing or provenance warns for library-missing PDFs)
+- `wiki toc build`: indexes updated

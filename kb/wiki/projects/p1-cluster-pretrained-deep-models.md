@@ -37,6 +37,11 @@ sources:
   - src-2026-06-liang-itfkan
   - src-2026-06-fein-ashley-spectre
   - src-2026-06-tsitsulin-embedding-quality
+  - src-2026-06-beck-xlstm
+  - src-2026-06-tan-ts-indexing
+  - src-2026-06-ates-counterfactual-ts
+  - src-2026-06-zhang-tem-topology
+  - src-2026-06-kadra-mesomorphic
 tags:
   - forecasting
   - deep-learning
@@ -137,6 +142,23 @@ A deep-research synthesis ([sources/src-2026-06-tsf-literature-review](../source
 - Compact backbone preference is evidence-backed. On academic LTSF benchmarks (ETT, Weather, Electricity), the frontier has moved: DLinear → PatchTST → iTransformer → TimeMixer++ → TimeKAN, with TimeKAN explicitly noting a "significant gap" over DLinear. Chen et al. 2025 explains this: all succeed because benchmarks are self-dependent/stationary. **For P1's price/commodity/energy focus, EPF (electricity price forecasting) is the primary real benchmark** — it features genuine non-stationarity, price spikes, and informative exogenous covariates (load, gas prices, weather). On EPF: NBEATSx ([src-2026-06-olivares-nbeatsx](../sources/src-2026-06-olivares-nbeatsx.md)) and TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) are directly validated. TimeKAN/iTransformer/TimeMixer have **no published EPF or commodity price evaluation** — their SOTA is academic LTSF only. For M5/retail demand (Zanotti 2025, [src-2026-06-zanotti-retraining-frequency](../sources/src-2026-06-zanotti-retraining-frequency.md)), N-BEATS/N-HiTS are DL SOTA — less relevant to P1's new domain focus but useful as methodological background.
 - Covariate gap is confirmed: four 2025–2026 papers (ChronosX, UNICA, ApolloPFN, CATS-ATS) independently identify that Chronos, TimesFM, MOMENT, and other leading TSFMs do not support exogenous covariates; TimeXer ([src-2026-06-wang-timexer](../sources/src-2026-06-wang-timexer.md)) provides the strongest validated endo/exo cross-attention template; iTransformer and TimeMixer++ also lack native exo support. See [comparisons/tsf-backbone-comparison](../comparisons/tsf-backbone-comparison.md) for full model table.
 
+## Supplementary literature (ingest 2026-06-30)
+
+**Backbone extension — xLSTM:**
+- **xLSTM** ([src-2026-06-beck-xlstm](../sources/src-2026-06-beck-xlstm.md), Beck et al. 2024, NeurIPS): mLSTM matrix memory with linear sequence complexity. P1 assessment: current P1 backbone (NBEATSx/TimeXer) is correct for now — no published EPF or commodity price evaluation for xLSTM yet. TiRex (Auer et al. 2025) demonstrates xLSTM zero-shot TSF beating Chronos/TimesFM but has not been evaluated on EPF. xLSTM is a candidate future backbone replacement for the high-volatility/non-stationary regime cluster; evaluate once TiRex benchmarks on EPF become available.
+
+**Scalable cluster routing — TSI:**
+- **TSI** ([src-2026-06-tan-ts-indexing](../sources/src-2026-06-tan-ts-indexing.md), Tan et al. 2017): hierarchical K-means + DTW lower-bounding for gigabyte-scale TS classification. At P1 scale (millions of price series), TSI's K-means tree enables O(log K) cluster routing instead of O(K·L²) brute force DTW. The FAISS index used for P2's embedding-based routing is complementary — P2's vector routing is faster; TSI's DTW routing is more accurate for temporal structure.
+
+**Attribution — counterfactual explanations:**
+- **Ates et al. 2021** ([src-2026-06-ates-counterfactual-ts](../sources/src-2026-06-ates-counterfactual-ts.md)): greedy substitution algorithm for counterfactual explanations of multivariate TS classifiers. P1 attribution currently uses AttGrad; counterfactual mode ("if crude oil futures had looked like 2020, the copper price would have been X% lower") is a second explanation surface. Algorithm is model-agnostic and directly applicable to P1's multivariate covariate inputs. Implement as optional secondary attribution alongside AttGrad.
+
+**Backbone interpretability — TEM:**
+- **TEM** ([src-2026-06-zhang-tem-topology](../sources/src-2026-06-zhang-tem-topology.md), Zhang et al. 2025): Transformers degrade token topology (positional + semantic) with depth; TEM plug-in preserves both, tightening generalization bounds and improving forecasting. P1 implication: shallow Transformer backbones (2–4 layers) are preferred to avoid topology degradation — consistent with current P1 preference for compact architectures.
+
+**Tabular attribution — IMN:**
+- **IMN** ([src-2026-06-kadra-mesomorphic](../sources/src-2026-06-kadra-mesomorphic.md), Kadra et al. 2024): hypernetworks generate instance-specific linear models for tabular data, providing per-sample feature importances by design (no post-hoc SHAP). P1 consideration: could replace AttGrad for the tabular covariate feature-importance layer if the TS backbone is separated from the covariate head; requires adapting IMN to TS-derived feature vectors.
+
 ## Literature to integrate
 
 The following gaps exist in the current wiki. Each is required to properly validate P1's claims. All are `[gap]` — no citation attached yet.
@@ -162,6 +184,11 @@ The following gaps exist in the current wiki. Each is required to properly valid
 - [sources/src-2026-06-liang-itfkan](../sources/src-2026-06-liang-itfkan.md) — iTFKAN: interpretable KAN; complex; AttGrad incompatibility risk; academic LTSF only.
 - [sources/src-2026-06-fein-ashley-spectre](../sources/src-2026-06-fein-ashley-spectre.md) — SPECTRE FFT attention; infrastructure reference; not directly applicable to MLP/linear P1 backbone.
 - [sources/src-2026-06-tsitsulin-embedding-quality](../sources/src-2026-06-tsitsulin-embedding-quality.md) — unsupervised embedding quality metrics (coherence, stable rank, SelfCluster); directly applicable to P1 cluster quality gate.
+- [sources/src-2026-06-beck-xlstm](../sources/src-2026-06-beck-xlstm.md) — xLSTM: mLSTM matrix memory; future backbone candidate for non-stationary price clusters
+- [sources/src-2026-06-tan-ts-indexing](../sources/src-2026-06-tan-ts-indexing.md) — TSI (SDM 2017): hierarchical K-means + DTW lower-bound; scalable cluster routing at millions of series
+- [sources/src-2026-06-ates-counterfactual-ts](../sources/src-2026-06-ates-counterfactual-ts.md) — counterfactual TS explanations; P1 secondary attribution surface
+- [sources/src-2026-06-zhang-tem-topology](../sources/src-2026-06-zhang-tem-topology.md) — TEM (2025): topology preservation in Transformer TSF; supports shallow backbone preference
+- [sources/src-2026-06-kadra-mesomorphic](../sources/src-2026-06-kadra-mesomorphic.md) — IMN (2024): interpretable mesomorphic networks; instance-specific linear attribution for tabular covariates
 
 ## Related pages
 

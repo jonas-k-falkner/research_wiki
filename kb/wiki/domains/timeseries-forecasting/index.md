@@ -58,6 +58,7 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Sokar et al. (2022) — WAST: Where to Pay Attention in Sparse Training](../../sources/src-2026-06-sokar-wast-feature-selection-2022.md) | source | researched | active |
 | [Source: A Global Averaging Method for Dynamic Time Warping, with Applications to Clustering (2011)](../../sources/src-2026-06-petitjean-dtw-barycenter.md) | source | researched | active |
 | [Source: Benchmarking Deep Learning Interpretability in Time Series Predictions (Ismail Fawaz et al.)](../../sources/src-2026-06-ismail-benchmarking-dl-ts.md) | source | researched | active |
+| [Source: Counterfactual Explanations for Machine Learning on Multivariate Time Series Data (2021)](../../sources/src-2026-06-ates-counterfactual-ts.md) | source | researched | active |
 | [Source: DUET: Dual Clustering Enhanced Multivariate Time Series Forecasting (KDD 2025)](../../sources/src-2026-06-qiu-duet-clustering.md) | source | researched | active |
 | [Source: Eagle and Finch: RWKV with Matrix-Valued States and Dynamic Recurrence (2024)](../../sources/src-2026-06-peng-eagle-finch.md) | source | researched | active |
 | [Source: Faster and More Accurate Classification of Time Series by Exploiting a Novel DTW Averaging Algorithm (2016)](../../sources/src-2026-06-petitjean-faster-dtw.md) | source | researched | active |
@@ -67,6 +68,8 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Source: Gated Slot Attention for Efficient Linear-Time Sequence Modeling (2024)](../../sources/src-2026-06-zhang-gsa.md) | source | researched | active |
 | [Source: HGRN2: Gated Linear RNNs with State Expansion (2024)](../../sources/src-2026-06-qin-hgrn2.md) | source | researched | active |
 | [Source: Hierarchically Gated Recurrent Neural Network for Sequence Modeling (2023)](../../sources/src-2026-06-qin-hgrn.md) | source | researched | active |
+| [Source: Indexing and Classifying Gigabytes of Time Series under Time Warping (2017)](../../sources/src-2026-06-tan-ts-indexing.md) | source | researched | active |
+| [Source: Interpretable Mesomorphic Neural Networks for Tabular Data (2024)](../../sources/src-2026-06-kadra-mesomorphic.md) | source | researched | active |
 | [Source: Is Mamba Effective for Time Series Forecasting? (2024)](../../sources/src-2026-06-wang-mamba-tsf.md) | source | researched | active |
 | [Source: Jamba: A Hybrid Transformer-Mamba Language Model (2024)](../../sources/src-2026-06-lieber-jamba.md) | source | researched | active |
 | [Source: Learning to (Learn at Test Time): RNNs with Expressive Hidden States (2024)](../../sources/src-2026-06-sun-ttt.md) | source | researched | active |
@@ -84,6 +87,7 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Source: Towards Parameter-Free Data Mining (KDD 2004)](../../sources/src-2026-06-keogh-parameter-free-ts.md) | source | researched | active |
 | [Source: Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality (2024)](../../sources/src-2026-06-dao-mamba2.md) | source | researched | active |
 | [Source: TSF literature review (deep-research synthesis, Jan 2024–mid 2026)](../../sources/src-2026-06-tsf-literature-review.md) | source | seed | active |
+| [Source: Understanding Token-level Topological Structures in Transformer-based Time Series Forecasting (2025)](../../sources/src-2026-06-zhang-tem-topology.md) | source | researched | active |
 | [Source: xLSTM: Extended Long Short-Term Memory (2024)](../../sources/src-2026-06-beck-xlstm.md) | source | researched | active |
 | [SPECTRE: FFT-Based Drop-In Replacement for Self-Attention](../../sources/src-2026-06-fein-ashley-spectre.md) | source | researched | active |
 | [Sundararajan et al. (2017) — Integrated Gradients](../../sources/src-2026-06-sundararajan-integrated-gradients-2017.md) | source | researched | active |
@@ -102,5 +106,5 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Yasuda et al. (2023) — Sequential Attention for Feature Selection](../../sources/src-2026-06-yasuda-sequential-attention-2023.md) | source | researched | active |
 | [Zhao et al. (2019) — Sparse Transformer: Concentrated Attention Through Explicit Selection](../../sources/src-2026-06-zhao-sparse-transformer-2019.md) | source | researched | active |
 
-_79 page(s): 76 researched, 3 seed._
+_83 page(s): 80 researched, 3 seed._
 <!-- AUTO:end -->

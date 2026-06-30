@@ -27,6 +27,11 @@ sources:
   - src-2026-06-yang-timeclr
   - src-2026-06-fraikin-trep
   - src-2026-06-talukder-totem
+  - src-2026-06-he-moco
+  - src-2026-06-kazemi-time2vec
+  - src-2026-06-musgrave-metric-learning-reality
+  - src-2026-06-liu-ssl-comparison
+  - src-2026-06-beck-xlstm
 tags:
 - concept
 - ssl
@@ -89,6 +94,23 @@ Eight additional SSL TS papers (MEDIUM priority) extend the baseline established
 - Survey paper (Eldele 2024): P2 is firmly in the **in-domain semi-supervised** quadrant — do not use cross-domain transfer from HAR/ECG benchmarks.
 
 **SSL symmetry gap: confirmed again.** All 12 papers reviewed in I-P2-A (8 HIGH + 8 MEDIUM) are symmetric.
+
+## Architecture inputs (ingest 2026-06-30)
+
+**Associative memory as directed embedding analogy:**
+- **xLSTM mLSTM** ([src-2026-06-beck-xlstm](../sources/src-2026-06-beck-xlstm.md), NeurIPS 2024): matrix memory C_t = f_t·C_{t-1} + i_t·v_t·k_t^T is a parallelizable key–value associative memory trained end-to-end. This validates that asymmetric (k, v, q) geometries converge under gradient descent, directly addressing the first open research question above. The mLSTM is not P2's architecture, but proves the core feasibility premise.
+
+**Time-embedding for directed pretext:**
+- **Time2Vec** ([src-2026-06-kazemi-time2vec](../sources/src-2026-06-kazemi-time2vec.md), 2019): t2v(τ)[i] = sin(ωᵢτ + φᵢ) with learned frequencies/phase-shifts. Extending T-Rep's temporal conditioning, P2 should concatenate t2v(timestamp) with each series embedding as an auxiliary signal — this makes TE/Granger label distillation regime-aware (commodity supercycles, harvest seasons, monetary policy phases). Foundational reference for T-Rep ([src-2026-06-fraikin-trep](../sources/src-2026-06-fraikin-trep.md)).
+
+**Training design:**
+- **MoCo** ([src-2026-06-he-moco](../sources/src-2026-06-he-moco.md), CVPR 2020): momentum encoder (EMA m=0.999) + FIFO queue (65,536 negatives) enables large consistent dictionaries at 8-GPU scale. P2 should use a momentum encoder for the source/cause branch and a gradient-updated encoder for the target/effect branch; queue-based negatives solve the sparse positive problem (TE/Granger positive pairs are rare at 200M scale).
+
+**Pretraining stage decision:**
+- **Liu SSL comparison** ([src-2026-06-liu-ssl-comparison](../sources/src-2026-06-liu-ssl-comparison.md), 2024): at sparse label regime (< 0.1 label ratio) — which matches P2's TE/Granger annotation budget — MAE pretraining outperforms SimCLR. P2 decision: **use MAE backbone for pretraining**, then fine-tune the directed asymmetric head.
+
+**Evaluation protocol:**
+- **Musgrave** ([src-2026-06-musgrave-metric-learning-reality](../sources/src-2026-06-musgrave-metric-learning-reality.md), ECCV 2020): most claimed metric learning improvements vanish under fair evaluation (equal architecture, dimensions, augmentations, Bayesian hyperparameter search). P2 evaluation must fix these variables across all symmetric baselines; use MAP@R or directional precision metrics, not Recall@K alone.
 
 ## Literature still to integrate `[verify]`
 

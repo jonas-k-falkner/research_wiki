@@ -21,6 +21,11 @@ sources:
 - src-2026-06-yang-timeclr
 - src-2026-06-fraikin-trep
 - src-2026-06-talukder-totem
+- src-2026-06-he-moco
+- src-2026-06-kazemi-time2vec
+- src-2026-06-musgrave-metric-learning-reality
+- src-2026-06-liu-ssl-comparison
+- src-2026-06-beck-xlstm
 tags:
 - thesis
 - embeddings
@@ -69,9 +74,19 @@ All four are symmetric. P2's asymmetric objective is a confirmed research gap as
 
 All 12 SSL papers reviewed confirm: no asymmetric/directed TS SSL objective exists in published literature.
 
+## Architecture & training inputs (ingest 2026-06-30)
+
+Four additional high-priority papers close key design questions:
+- **MoCo** ([src-2026-06-he-moco](../../sources/src-2026-06-he-moco.md), He et al. 2020): momentum encoder (EMA) + 65k-entry queue is the standard training mechanism for all TS contrastive methods. P2 adopts: EMA encoder for source branch, gradient-updated for target; queue-based negatives for sparse positive regime.
+- **Time2Vec** ([src-2026-06-kazemi-time2vec](../../sources/src-2026-06-kazemi-time2vec.md), Kazemi et al. 2019): learnable sinusoidal time embeddings foundational to T-Rep. P2 should condition directed pretext on t2v(timestamp) for regime-aware label quality.
+- **Liu SSL comparison** ([src-2026-06-liu-ssl-comparison](../../sources/src-2026-06-liu-ssl-comparison.md), 2024): MAE backbone preferred over SimCLR at sparse label ratio (< 0.1) — matches P2's TE/Granger annotation budget.
+- **Musgrave** ([src-2026-06-musgrave-metric-learning-reality](../../sources/src-2026-06-musgrave-metric-learning-reality.md), 2020): fair evaluation protocol — equal architecture/dimensions/augmentations + Bayesian cross-val hyperparameter tuning required; MAP@R as primary metric.
+- **xLSTM mLSTM** ([src-2026-06-beck-xlstm](../../sources/src-2026-06-beck-xlstm.md), 2024): matrix memory C ∈ ℝ^{d×d} proves asymmetric key–value geometries converge end-to-end — validates P2's feasibility premise.
+
 ## Sources & related
 
 - [sources/src-2026-06-p2-causal-embedding-model](../../sources/src-2026-06-p2-causal-embedding-model.md), [sources/src-2026-06-p1-cluster-pretrained-deep-models](../../sources/src-2026-06-p1-cluster-pretrained-deep-models.md)
 - [sources/src-2026-06-cheng-timemae](../../sources/src-2026-06-cheng-timemae.md), [sources/src-2026-06-yue-ts2vec](../../sources/src-2026-06-yue-ts2vec.md), [sources/src-2026-06-li-ti-mae](../../sources/src-2026-06-li-ti-mae.md), [sources/src-2026-06-eldele-ts-tcc](../../sources/src-2026-06-eldele-ts-tcc.md)
 - [sources/src-2026-06-fraikin-trep](../../sources/src-2026-06-fraikin-trep.md), [sources/src-2026-06-foumani-series2vec](../../sources/src-2026-06-foumani-series2vec.md), [sources/src-2026-06-talukder-totem](../../sources/src-2026-06-talukder-totem.md), [sources/src-2026-06-eldele-ca-tcc](../../sources/src-2026-06-eldele-ca-tcc.md)
+- [sources/src-2026-06-he-moco](../../sources/src-2026-06-he-moco.md), [sources/src-2026-06-kazemi-time2vec](../../sources/src-2026-06-kazemi-time2vec.md), [sources/src-2026-06-musgrave-metric-learning-reality](../../sources/src-2026-06-musgrave-metric-learning-reality.md), [sources/src-2026-06-liu-ssl-comparison](../../sources/src-2026-06-liu-ssl-comparison.md), [sources/src-2026-06-beck-xlstm](../../sources/src-2026-06-beck-xlstm.md)
 - Project: [projects/p2-causal-embedding-v2](../../projects/p2-causal-embedding-v2.md)

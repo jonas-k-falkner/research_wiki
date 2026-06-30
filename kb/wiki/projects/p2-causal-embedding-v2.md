@@ -21,6 +21,15 @@ sources:
 - src-2026-06-yang-timeclr
 - src-2026-06-fraikin-trep
 - src-2026-06-talukder-totem
+- src-2026-06-he-moco
+- src-2026-06-kazemi-time2vec
+- src-2026-06-musgrave-metric-learning-reality
+- src-2026-06-liu-ssl-comparison
+- src-2026-06-ericsson-ssl-survey
+- src-2026-06-liu-ssl-medical-review
+- src-2026-06-um-wearable-augmentation
+- src-2026-06-lewis-bart
+- src-2026-06-pascual-speech-ssl
 tags:
 - embeddings
 - causality
@@ -84,6 +93,23 @@ Primary literature pass confirms: **no existing SSL TS method implements an asym
 - **Series2Vec** (Foumani et al. 2024): similarity-preserving pretext (Soft-DTW target) outperforms augmentation-based contrastive. P2 can adopt the same design but with TE/Granger as directed similarity target.
 - **Multi-task SSL** (Choi & Kang 2023): shared encoder + multiple loss heads. P2 could combine a symmetric backbone loss with a directed asymmetric head.
 
+## Additional design inputs (ingest 2026-06-30)
+
+**Architecture & mechanism inputs:**
+- **MoCo** ([src-2026-06-he-moco](../sources/src-2026-06-he-moco.md), He et al. 2020, CVPR): momentum-updated key encoder (EMA, m=0.999) + FIFO queue of 65,536 negatives. P2 training design: use EMA encoder for the "source" (cause) branch and gradient-updated encoder for the "target" (effect) branch; queue-based negatives are essential at scale where directed positive pairs are sparse.
+- **xLSTM mLSTM** ([src-2026-06-beck-xlstm](../sources/src-2026-06-beck-xlstm.md), Beck et al. 2024, NeurIPS): matrix memory C ∈ ℝ^{d×d} with covariance update C_t = f_t·C_{t-1} + i_t·v_t·k_t^T provides an explicit associative key–value memory that is fully parallelizable. Architectural analogy for P2's directed embedding: the mLSTM maps (k, v, q) → retrieval in the same way P2 maps (source series, target label, query) → directed similarity. Validates that asymmetric key–value geometries are trainable end-to-end.
+- **Time2Vec** ([src-2026-06-kazemi-time2vec](../sources/src-2026-06-kazemi-time2vec.md), Kazemi et al. 2019): t2v(τ)[i] = sin(ωᵢτ + φᵢ) with learned ω, φ. P2 pretext task input: concatenate t2v(timestamp) with the series representation to condition the asymmetric similarity head on temporal regime/seasonality — makes TE/Granger label quality regime-aware.
+
+**Pretraining strategy:**
+- **Liu SSL comparison** ([src-2026-06-liu-ssl-comparison](../sources/src-2026-06-liu-ssl-comparison.md), 2024): SimCLR vs MAE on TS — MAE wins at sparse label ratio ≤ 0.1; SimCLR wins at label ratio ≥ 0.5. P2 decision: pretrain with MAE backbone (TE/Granger labels are expensive → sparse → MAE regime). MAE is also 25.6% faster to pretrain.
+
+**Evaluation protocol:**
+- **Musgrave** ([src-2026-06-musgrave-metric-learning-reality](../sources/src-2026-06-musgrave-metric-learning-reality.md), 2020): metric learning reality check — equal architecture, equal dimension, Bayesian-optimized hyperparameters, no test-set feedback required to get fair comparisons. P2 evaluation must: fix backbone across baselines, fix embedding dim (768), tune with cross-val, use MAP@R (not Recall@K). Loss function choice is less important than label quality.
+
+**Augmentation design:**
+- **Um wearable** ([src-2026-06-um-wearable-augmentation](../sources/src-2026-06-um-wearable-augmentation.md), 2017): jitter + scaling + window slicing are safe (preserve causal direction). Permutation and rotation destroy temporal structure and must not be used as positive-pair augmentations.
+- **Liu medical review** ([src-2026-06-liu-ssl-medical-review](../sources/src-2026-06-liu-ssl-medical-review.md), 2023): augmentation survey for dense physiological TS — frequency domain perturbation (phase/magnitude) is safe; cross-subject mixing is not. Backbone preference: Transformer or TCN > LSTM.
+
 ## Sources
 
 - [sources/src-2026-06-p2-causal-embedding-model](../sources/src-2026-06-p2-causal-embedding-model.md) — bottleneck framing, asymmetric-objective proposal, moat.
@@ -95,6 +121,15 @@ Primary literature pass confirms: **no existing SSL TS method implements an asym
 - [sources/src-2026-06-choi-multitask-ssl](../sources/src-2026-06-choi-multitask-ssl.md) — multi-task SSL (ICLR 2023 ws)
 - [sources/src-2026-06-talukder-totem](../sources/src-2026-06-talukder-totem.md) — TOTEM (ICML 2024): VQVAE cross-domain tokenizer
 - [sources/src-2026-06-eldele-label-efficient-review](../sources/src-2026-06-eldele-label-efficient-review.md), [sources/src-2026-06-yang-timeclr](../sources/src-2026-06-yang-timeclr.md), [sources/src-2026-06-jawed-ssl-semisupervised](../sources/src-2026-06-jawed-ssl-semisupervised.md) — survey + early methods
+- [sources/src-2026-06-he-moco](../sources/src-2026-06-he-moco.md) — MoCo (CVPR 2020): momentum encoder + queue; P2 negative sampling design
+- [sources/src-2026-06-kazemi-time2vec](../sources/src-2026-06-kazemi-time2vec.md) — Time2Vec (2019): learnable sinusoidal time embedding; P2 temporal conditioning
+- [sources/src-2026-06-musgrave-metric-learning-reality](../sources/src-2026-06-musgrave-metric-learning-reality.md) — metric learning reality check; P2 evaluation protocol
+- [sources/src-2026-06-liu-ssl-comparison](../sources/src-2026-06-liu-ssl-comparison.md) — SimCLR vs MAE for TS; P2 pretraining stage decision
+- [sources/src-2026-06-ericsson-ssl-survey](../sources/src-2026-06-ericsson-ssl-survey.md) — SSL survey (2022); SSL landscape reference
+- [sources/src-2026-06-liu-ssl-medical-review](../sources/src-2026-06-liu-ssl-medical-review.md) — medical TS contrastive SSL review (2023); augmentation catalog
+- [sources/src-2026-06-um-wearable-augmentation](../sources/src-2026-06-um-wearable-augmentation.md) — wearable TS augmentation (2017); canonical augmentation reference
+- [sources/src-2026-06-lewis-bart](../sources/src-2026-06-lewis-bart.md) — BART (ACL 2020); MAE-style pretraining background
+- [sources/src-2026-06-pascual-speech-ssl](../sources/src-2026-06-pascual-speech-ssl.md) — PASE speech SSL (2019); multi-task SSL background
 
 ## Related pages
 
