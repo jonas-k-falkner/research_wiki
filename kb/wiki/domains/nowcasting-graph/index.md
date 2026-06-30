@@ -31,8 +31,11 @@ _Generated catalog. Edit prose outside the AUTO fences; run `wiki toc build` to 
 | [Experiment: P4 public-first nowcast MVP](../../experiments/exp-p4-public-first-nowcast-mvp.md) | experiment | seed | draft |
 | [An Analytics-Driven Approach to Enhancing Supply Chain Visibility with Graph Neural Networks and Federated Learning](../../sources/src-2026-06-zheng-sc-gcn-fl.md) | source | researched | active |
 | [Automating Supply Chain Disruption Management with Multi-Agent LLMs](../../sources/src-2026-06-almahri-agentic-sc.md) | source | researched | active |
+| [Demystifying Graph Databases: Analysis and Taxonomy of Data Organization, System Designs, and Graph Queries](../../sources/src-2026-06-besta-graph-databases.md) | source | researched | active |
+| [MARE: Semantic Supply Chain Disruption Management and Resilience Evaluation Framework](../../sources/src-2026-06-ramzy-mare.md) | source | researched | active |
+| [SHIELD: LLM-Driven Schema Induction for Predictive Analytics in EV Battery Supply Chain Disruptions](../../sources/src-2026-06-cheng-shield.md) | source | researched | active |
 | [Source: B2B SCM availability nowcasting report](../../sources/src-2026-06-p4-availability-nowcasting.md) | source | seed | active |
 | [Supply Chain Knowledge Graph Completion with Relation Learning](../../sources/src-2026-06-liu-sc-kg.md) | source | researched | active |
 
-_11 page(s): 5 researched, 6 seed._
+_14 page(s): 8 researched, 6 seed._
 <!-- AUTO:end -->

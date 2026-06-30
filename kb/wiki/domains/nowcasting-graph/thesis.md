@@ -11,6 +11,9 @@ sources:
 - src-2026-06-liu-sc-kg
 - src-2026-06-almahri-agentic-sc
 - src-2026-06-zheng-sc-gcn-fl
+- src-2026-06-cheng-shield
+- src-2026-06-ramzy-mare
+- src-2026-06-besta-graph-databases
 tags:
 - thesis
 - nowcasting
@@ -43,8 +46,16 @@ Three primary papers confirm the thesis and provide concrete architecture inputs
 - **AlMahri et al. 2026** — 7-agent SC monitoring pipeline built on pre-existing KG (F1 0.962–0.991). Evidence ledger → graph → agentic monitoring is now validated at production scale. Mandatory mitigations: RAG, deterministic tool calls, human-in-the-loop.
 - **Zheng & Brintrup 2025** — GraphSAGE inductive learning for live SC graphs; FL for multi-org integration. Inductive embedding is a hard requirement for P4.
 
+## MEDIUM literature (I-P4-A, 2026-06-30)
+
+Three additional papers resolve previously open design questions:
+- **SHIELD** (Cheng et al. 2024, CMU) — LLM schema induction from unstructured sources for EV battery SC disruption prediction. Confirms schema-driven event extraction is viable; human-in-the-loop curation required.
+- **MARE** (Ramzy et al. 2022, Infineon + TIB) — Disruption Ontology (hasCause, hasScope, hasSeverity, hasLocation, hasBeginDate/hasEndDate) + SPARQL DMP pipeline. Reference disruption event schema for P4's evidence ledger.
+- **Besta et al.** (ETH Zurich 2023, ACM CSUR) — survey of 51 graph DB systems; LPG (Neo4j) is better than RDF for property-rich SC graphs. Confirms Neo4j as the correct MVP graph store.
+
 ## Sources & related
 
 - [sources/src-2026-06-p4-availability-nowcasting.md](../../sources/src-2026-06-p4-availability-nowcasting.md)
 - [sources/src-2026-06-liu-sc-kg.md](../../sources/src-2026-06-liu-sc-kg.md), [sources/src-2026-06-almahri-agentic-sc.md](../../sources/src-2026-06-almahri-agentic-sc.md), [sources/src-2026-06-zheng-sc-gcn-fl.md](../../sources/src-2026-06-zheng-sc-gcn-fl.md)
+- [sources/src-2026-06-cheng-shield.md](../../sources/src-2026-06-cheng-shield.md), [sources/src-2026-06-ramzy-mare.md](../../sources/src-2026-06-ramzy-mare.md), [sources/src-2026-06-besta-graph-databases.md](../../sources/src-2026-06-besta-graph-databases.md)
 - Project: [projects/p4-availability-nowcasting-graph](../../projects/p4-availability-nowcasting-graph.md)

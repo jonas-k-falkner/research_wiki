@@ -9,6 +9,7 @@ updated: 2026-06-30
 sources:
 - src-2026-06-p4-availability-nowcasting
 - src-2026-06-almahri-agentic-sc
+- src-2026-06-ramzy-mare
 tags:
 - concept
 - evidence
@@ -38,6 +39,13 @@ It keeps availability nowcasts auditable and stops the graph from drifting into 
 - The best-performing agentic SC pipeline (F1 0.962–0.991) stores all SC entity knowledge in an evidence-backed Neo4j KG and queries it via Cypher for every factual lookup. This matches the evidence ledger as system-of-record design.
 - Three hallucination mitigations required for production F1 > 0.95: (1) RAG over the evidence ledger, (2) deterministic tool calls for all factual lookups (no LLM hallucination on entity facts), (3) human-in-the-loop escalation for low-confidence alerts.
 - The evidence-first architecture is validated at production scale.
+
+## Secondary literature (I-P4-A MEDIUM, 2026-06-30)
+
+**MARE disruption ontology** ([src-2026-06-ramzy-mare](../sources/src-2026-06-ramzy-mare.md), Infineon + TIB 2022):
+- MARE's Disruption Ontology provides a validated schema for P4's disruption event entity type: hasCause, hasScope, hasSeverity, hasLocation, hasBeginDate, hasEndDate.
+- The evidence ledger should include these 6 disruption attributes as columns on disruption-type evidence rows.
+- MARE's Monitor→Assess→Recover→Evaluate pipeline maps directly to P4's intended product workflow: evidence ingestion (Monitor) → propagation + affected route identification (Assess) → alternative supplier suggestions (Recover, future feature) → score evaluation.
 
 ## Open questions (unresolved)
 

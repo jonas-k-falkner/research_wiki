@@ -11,6 +11,9 @@ sources:
 - src-2026-06-liu-sc-kg
 - src-2026-06-almahri-agentic-sc
 - src-2026-06-zheng-sc-gcn-fl
+- src-2026-06-cheng-shield
+- src-2026-06-ramzy-mare
+- src-2026-06-besta-graph-databases
 tags:
 - concept
 - knowledge-graph
@@ -58,10 +61,17 @@ It gives structured propagation and analyst-traceable explanations while boundin
 - Relational store choice: do relational joins / materialized views suffice for the MVP before a property graph (Neo4j) is justified?
 - How is propagation confidence computed and decayed across multi-hop paths?
 
-## Open questions (unresolved)
+## Secondary literature (I-P4-A MEDIUM, 2026-06-30)
 
-- Schema-driven disruption/event extraction frameworks
-- Property-graph vs relational tradeoffs for evidence-scale graphs
+**Schema-driven disruption/event extraction** — now resolved:
+- **SHIELD** ([src-2026-06-cheng-shield](../sources/src-2026-06-cheng-shield.md), CMU 2024): LLM-driven schema induction (GPT-4o from 239 sources) produces event schemas that outperform hand-crafted GCN baselines in EV battery SC disruption prediction. 11 event categories × 27 subcategories. Human-in-the-loop curation is required. P4 reference: LLM schema induction is viable for generating P4's disruption event taxonomy.
+- **MARE** ([src-2026-06-ramzy-mare](../sources/src-2026-06-ramzy-mare.md), Infineon + TIB 2022): Disruption Ontology (RDF; hasCause, hasScope, hasSeverity, hasLocation, hasBeginDate/hasEndDate) + SPARQL queries cover all 4 DMP phases (Monitor, Assess, Recover, Evaluate). SPARQL assessment identifies affected SC partners by geospatial + temporal cross-reference. P4 reference: MARE's 6-attribute Disruption Ontology is the reference schema for P4's disruption event entity type in the evidence ledger.
+
+**Property-graph vs relational tradeoffs** — now resolved:
+- **Besta et al.** ([src-2026-06-besta-graph-databases](../sources/src-2026-06-besta-graph-databases.md), ETH Zurich 2023, ACM CSUR): survey of 51 graph DBs. LPG (Neo4j) outperforms RDF for property-rich heterogeneous-entity graphs: stores arbitrary entity properties in O(1) vs RDF's O(n) triples per property. Cypher MATCH is more natural for SC pattern queries than SPARQL. Neo4j confirmed by AlMahri 2026 in production at F1 0.962–0.991.
+- **Decision:** Neo4j (LPG) is the right MVP graph store for P4's explicit evidence graph. Do not use RDF/SPARQL or a relational DB with graph joins for the evidence graph layer.
+
+## Open questions (unresolved)
 
 ## Cross-project relevance
 

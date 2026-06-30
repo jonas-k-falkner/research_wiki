@@ -11,6 +11,9 @@ sources:
 - src-2026-06-liu-sc-kg
 - src-2026-06-almahri-agentic-sc
 - src-2026-06-zheng-sc-gcn-fl
+- src-2026-06-cheng-shield
+- src-2026-06-ramzy-mare
+- src-2026-06-besta-graph-databases
 tags:
 - supply-chain
 - nowcasting
@@ -69,6 +72,15 @@ The evidence ledger is the system of record. The graph is a query and propagatio
 | Public text creates false positives | Use evidence types, source reliability, and confidence scoring |
 | Data licenses constrain downstream use | Prefer official/public connectors first and isolate expanded-tier sources |
 
+## Secondary literature (I-P4-A MEDIUM, 2026-06-30)
+
+**Schema-driven disruption/event extraction:**
+- **SHIELD** ([src-2026-06-cheng-shield](../sources/src-2026-06-cheng-shield.md), CMU 2024): LLM schema induction (GPT-4o from 239 sources) produces 11 event categories × 27 subcategories for EV battery SC disruption prediction; fine-tuned RoBERTa event detection + GCN impact scoring outperform baseline GCN and GPT-4o prompting. Human-in-the-loop curation is non-negotiable. P4 design input: LLM schema induction is viable for generating P4's disruption event taxonomy from unstructured sources.
+- **MARE** ([src-2026-06-ramzy-mare](../sources/src-2026-06-ramzy-mare.md), Infineon + TIB 2022): Disruption Ontology (hasCause, hasScope, hasSeverity, hasLocation, hasBeginDate/hasEndDate) + SPARQL DMP pipeline covers all 4 phases (Monitor, Assess, Recover, Evaluate). P4 design input: MARE's 6-attribute Disruption Ontology is the reference schema for P4's disruption event entity type in the evidence ledger.
+
+**Graph DB infrastructure:**
+- **Besta et al.** ([src-2026-06-besta-graph-databases](../sources/src-2026-06-besta-graph-databases.md), ETH Zurich 2023, ACM CSUR): survey of 51 graph DB systems; LPG (Neo4j) is better than RDF for property-rich heterogeneous SC graphs (O(1) property storage vs RDF's O(n) triples). Cypher MATCH is more natural for SC pattern queries than SPARQL. Decision: Neo4j is confirmed as the correct MVP graph store for P4's explicit evidence graph.
+
 ## Literature support (I-P4-A, 2026-06-30)
 
 Three primary papers now support the P4 architecture:
@@ -82,6 +94,9 @@ Three primary papers now support the P4 architecture:
 - [sources/src-2026-06-liu-sc-kg.md](../sources/src-2026-06-liu-sc-kg.md) — SC KG construction and RotatE KG completion (ESWC 2023)
 - [sources/src-2026-06-almahri-agentic-sc.md](../sources/src-2026-06-almahri-agentic-sc.md) — agentic SC disruption monitoring (arXiv 2026)
 - [sources/src-2026-06-zheng-sc-gcn-fl.md](../sources/src-2026-06-zheng-sc-gcn-fl.md) — GCN + federated learning for SC link prediction (Cambridge, 2025)
+- [sources/src-2026-06-cheng-shield.md](../sources/src-2026-06-cheng-shield.md) — SHIELD: LLM schema induction for EV battery SC disruption prediction (CMU 2024)
+- [sources/src-2026-06-ramzy-mare.md](../sources/src-2026-06-ramzy-mare.md) — MARE: semantic SC disruption ontology + SPARQL DMP framework (Infineon, 2022)
+- [sources/src-2026-06-besta-graph-databases.md](../sources/src-2026-06-besta-graph-databases.md) — graph DB taxonomy: LPG (Neo4j) vs RDF, infrastructure choice for P4 (ETH 2023)
 
 ## Related pages
 
