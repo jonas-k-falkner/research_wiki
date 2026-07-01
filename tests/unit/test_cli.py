@@ -6,7 +6,7 @@ import pytest
 
 from wikitools.cli import main
 
-_SUBCOMMANDS = ("lint", "toc", "extract", "index", "search", "check")
+_SUBCOMMANDS = ("lint", "toc", "extract", "import", "index", "search", "check")
 
 
 def test_help_exits_zero(capsys):

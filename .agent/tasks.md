@@ -541,3 +541,97 @@ installed via `uv sync --extra semantic`.
 - Execution loop green (G2). One commit.
 
 **status:** done
+
+---
+
+### Task T007 — Bulk literature import: `wiki import` for new Zotero export folders
+
+**Goal:** Replace the manual "hand-copy PDFs + merge library.json" process with one
+deterministic command that ingests a folder of a new Zotero export (CSL-JSON library file +
+`<citekey>.pdf`/`<citekey>-suppl.pdf` attachments) into `raw/literature/`, then extracts and
+indexes whatever changed. Default on citekey collision: skip existing entries; `--force`
+replaces them.
+
+**Root cause:** The original four features (T001–T006) assumed `raw/literature/` is already
+populated. There is no tooling for *getting new sources in* at scale — today that's manual
+file copying + hand-editing `library.json`, which doesn't survive past a handful of exports
+and has no collision/replace semantics.
+
+**Scope:**
+- `src/wikitools/wikilib.py` — add `load_library_raw(path) -> dict[citekey, dict]` (full CSL
+  entries) and `write_library(path, entries: dict[citekey, dict])` (deterministic: sort by
+  `id`, Zotero on-disk shape — see S Feature 5 Implementation notes).
+- `src/wikitools/commands/bulk_import.py` (new) — `run_import(...)` + `ImportReport`
+  dataclass.
+- `src/wikitools/commands/extract.py` — extend `run_extract` to accept `citekeys:
+  list[str] | None` alongside the existing single `citekey` param, so import can scope
+  extraction to exactly what changed.
+- `src/wikitools/cli.py` — new `wiki import <source-dir>` subcommand (`--force`, `--dry-run`,
+  `--no-extract`, `--no-index`, `--engine`, `--json`).
+- `tests/unit/test_bulk_import.py` — fixtures only, never the real `kb/`.
+- `tests/integration/test_bulk_import.py` — one real-kb test marked `@pytest.mark.integration`.
+- `kb/CLAUDE.md` — new step in Ingest workflow pointing at `wiki import` as the entry point
+  for new Zotero exports.
+
+**Changes:**
+- `load_library_raw`/`write_library`: round-trip every CSL field losslessly (do not go
+  through the reduced `Item` dataclass — that drops fields the canonical catalog must keep).
+- `run_import`: glob `*.json` in `source_dir` (error if 0 or >1, unless `--library <path>`
+  given); citekey from PDF stem with `-suppl` stripped (matches `extract.py` convention).
+  For each citekey in the new library: not in canonical → add (merge entry, copy PDF(s));
+  in canonical + `force=False` → skip untouched; in canonical + `force=True` → replace entry
+  + PDF(s). Write canonical `library.json` only if changed. `source_dir` is read-only input —
+  never modified or deleted.
+- Optional optimization: skip rewriting a PDF on `--force` when incoming bytes hash-match the
+  existing file (keeps git diffs clean).
+- Wire `--no-extract`/`--no-index` to call the existing `run_extract`/`update_index` scoped to
+  added+replaced citekeys; `--dry-run` writes nothing, reports counts only.
+- `ImportReport`: `added`, `skipped`, `replaced` (citekey lists) + `extracted`, `indexed_files`
+  counts; `--json` emits it.
+
+**Cross-references:**
+- G2  (execution loop: format/lint/mypy/pytest before done)
+- G3  (no new deps — stdlib `shutil`/`json` only)
+- G4  (unit tests with fixtures; integration test marked, real kb)
+- G10 (`kb/raw/` immutability — this command is the controlled exception that *populates*
+  raw/; it must not let other tools mutate it afterward, and the source export folder itself
+  is never written to)
+- S Feature 5  (full contract — added in this task, see `.agent/scale-features-spec.md`)
+- C  (determinism: stable sort, byte-identical merged `library.json` regardless of import
+  order; architecture unchanged — no server/DB beyond the existing DuckDB index)
+
+**DoD:**
+- 3 new citekeys, no collisions → added + copied + extracted + indexed; re-import is a no-op
+  (`added=0, skipped=3`).
+- 1 colliding citekey, default mode → entry + PDF untouched, reported `skipped`, no
+  re-extraction.
+- Same with `--force` → entry + PDF replaced, re-extraction triggered, index updated.
+- `--dry-run` → correct reported counts, zero `git status` changes under `kb/`.
+- 0 or >1 `*.json` in source folder → `ValueError`, no partial writes.
+- Determinism test: two import orders → byte-identical `library.json`.
+- `kb/CLAUDE.md` Ingest workflow documents `wiki import`.
+- Execution loop green (G2). One commit.
+
+**Incidental fixes (pre-existing, discovered while building T007, not part of the feature):**
+- `wikitools.wikilib.write_library` itself had a bug at first draft (missing `,` between
+  array entries — multi-entry round-trip test caught it before this was marked done).
+- `tests/unit/test_extract.py`: `docling` is now actually installed in this environment
+  (it wasn't when T004's tests were written), so `_resolve_engine(None)` auto-resolves to
+  `"docling"` instead of `"fast"`. This broke 3 pre-existing tests whose `_fake_pdftotext`/
+  `flaky_extract` mocks didn't accept the `_converter` kwarg the real `extract_pdf` always
+  receives, plus one assertion that hard-coded `extractor == "fast"`. Fixed by widening the
+  mock signatures and pinning `engine="fast"` where the test's intent is the fast/pdftotext
+  path, not engine auto-resolution.
+- `src/wikitools/cli.py`: the `wiki extract --engine` flag's argparse `default` was the
+  literal string `"docling"`, not `None`. This silently defeated `_resolve_engine`'s
+  documented fallback (`wiki extract` with no flags hard-failed if the `[ocr]` extra was
+  absent, instead of falling back to `fast`). Changed `default="docling"` to `default=None`
+  so the auto-resolve path the help text already describes actually runs. One test
+  (`test_extract_cli_warns_on_degraded_engine`) now passes as a result.
+- One further pre-existing failure remains, NOT fixed here (out of scope, env-dependent,
+  unrelated to bulk import): `test_extract_pdf_ocr_engine_raises_missing_extra` is flaky
+  when run after other tests warm the real `docling.document_converter` import cache in the
+  same pytest session — its `sys.modules` absence-sentinel stops working once that submodule
+  is already cached. Passes in isolation; worth a follow-up task if it bites again.
+
+**status:** done

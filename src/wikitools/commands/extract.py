@@ -212,6 +212,7 @@ def run_extract(
     engine: str | None = None,
     force: bool = False,
     citekey: str | None = None,
+    citekeys: list[str] | None = None,
     formula_enrichment: bool = True,
 ) -> tuple[int, int, list[ReconciliationIssue]]:
     """Extract text from PDFs in raw/literature/pdf/ with idempotency and reconciliation.
@@ -230,14 +231,22 @@ def run_extract(
         engine: Extraction engine (``fast``, ``docling``, ``marker``), or ``None``
             to auto-resolve.
         force: If True, re-extract even when the source hash matches.
-        citekey: If set, process only PDFs whose citekey equals this value.
+        citekey: If set, process only the PDF whose citekey equals this value.
+        citekeys: If set, process only PDFs whose citekey is in this list. Mutually
+            exclusive with ``citekey``.
         formula_enrichment: When True and engine is ``docling``, enables the
             formula VLM (CodeFormulaV2) to emit proper LaTeX fences instead of
             raw glyph text.  Slower but required for math-bearing papers.
 
     Returns:
         Tuple of (extracted_count, skipped_count, reconciliation_issues).
+
+    Raises:
+        ValueError: If both ``citekey`` and ``citekeys`` are given.
     """
+    if citekey is not None and citekeys is not None:
+        raise ValueError("run_extract: pass only one of `citekey` or `citekeys`, not both")
+
     kb_root = kb_root.resolve()
     lit_root = kb_root / "raw" / "literature"
     pdf_dir = lit_root / "pdf"
@@ -283,6 +292,9 @@ def run_extract(
     pdf_files = [p for p in sorted(pdf_dir.iterdir()) if p.suffix == ".pdf"]
     if citekey is not None:
         pdf_files = [p for p in pdf_files if p.stem.removesuffix("-suppl") == citekey]
+    elif citekeys is not None:
+        key_set = set(citekeys)
+        pdf_files = [p for p in pdf_files if p.stem.removesuffix("-suppl") in key_set]
 
     from tqdm import tqdm
 

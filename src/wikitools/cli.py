@@ -102,6 +102,71 @@ def _cmd_extract(args: argparse.Namespace, kb_root: Path) -> None:
         print(f"wiki extract: {extracted} extracted, {skipped} skipped")
 
 
+def _cmd_import(args: argparse.Namespace, kb_root: Path) -> None:
+    """Run the wiki import subcommand (bulk-merge a new Zotero export folder)."""
+    from wikitools.commands.bulk_import import run_import
+    from wikitools.commands.extract import MissingExtraError, _resolve_engine
+
+    if not args.dry_run and not args.no_extract:
+        _, degraded = _resolve_engine(args.engine)
+        if degraded:
+            print(
+                "wiki import: [warn] docling not installed; using fast path — math in equations will be degraded. Install the [ocr] extra: uv sync --extra ocr",
+                file=sys.stderr,
+            )
+
+    embedder = None
+    if not args.dry_run and not args.no_index:
+        from wikitools.commands.index import LocalEmbedder
+
+        try:
+            embedder = LocalEmbedder()
+        except MissingExtraError:
+            print(
+                "wiki import: [warn] fastembed not installed; index update will be lexical-only. Install the [semantic] extra: uv sync --extra semantic",
+                file=sys.stderr,
+            )
+
+    try:
+        report = run_import(
+            kb_root,
+            Path(args.source_dir),
+            library=Path(args.library) if args.library else None,
+            force=args.force,
+            do_extract=not args.no_extract,
+            do_index=not args.no_index,
+            dry_run=args.dry_run,
+            engine=args.engine,
+            embedder=embedder,
+        )
+    except (ValueError, MissingExtraError) as exc:
+        print(f"wiki import: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.json:
+        import json
+
+        payload = {
+            "added": report.added,
+            "skipped": report.skipped,
+            "replaced": report.replaced,
+            "extracted": report.extracted,
+            "indexed_files": report.indexed_files,
+            "dry_run": args.dry_run,
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+
+    verb = "would add" if args.dry_run else "added"
+    print(f"wiki import: {verb} {len(report.added)}, replaced {len(report.replaced)}, skipped {len(report.skipped)}")
+    if report.added:
+        print(f"  added: {', '.join(report.added)}")
+    if report.replaced:
+        print(f"  replaced: {', '.join(report.replaced)}")
+    if not args.dry_run:
+        print(f"  extracted: {report.extracted}, index files reprocessed: {report.indexed_files}")
+
+
 def _cmd_toc_build(args: argparse.Namespace, kb_root: Path) -> None:
     """Run the wiki toc build subcommand."""
     from wikitools.commands.toc import build_toc
@@ -277,7 +342,7 @@ def main() -> None:
     """Entry point for the ``wiki`` CLI dispatcher."""
     parser = argparse.ArgumentParser(
         prog="wiki",
-        description="Research wiki tooling: lint, toc, extract, index, search, check.",
+        description="Research wiki tooling: lint, toc, extract, import, index, search, check.",
     )
     parser.add_argument(
         "--kb",
@@ -301,11 +366,22 @@ def main() -> None:
     toc_build_p.add_argument("--check", action="store_true", help="Exit non-zero if indexes are stale; do not write.")
 
     extract_p = subparsers.add_parser("extract", help="Extract text from literature PDFs.")
-    extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default="docling", help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
+    extract_p.add_argument("--engine", choices=["fast", "docling", "marker"], default=None, help="Extraction engine (default: docling if [ocr] extra installed, else fast).")
     extract_p.add_argument("--force", action="store_true", help="Re-extract even when source hash is unchanged.")
     extract_p.add_argument("--citekey", metavar="KEY", default=None, help="Process only PDFs with this citekey.")
     extract_p.add_argument("--no-formula", action="store_true", default=False, help="Disable formula enrichment (faster, but math renders as garbled glyph text).")
     extract_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
+
+    import_p = subparsers.add_parser("import", help="Bulk-merge a new Zotero export folder into raw/literature/.")
+    import_p.add_argument("source_dir", metavar="SOURCE_DIR", help="Folder with the new Zotero export (one CSL JSON file + PDFs).")
+    import_p.add_argument("--library", metavar="PATH", default=None, help="Explicit path to the CSL JSON file (overrides auto-detection).")
+    import_p.add_argument("--force", action="store_true", help="Replace existing entries/PDFs on citekey collision (default: skip).")
+    import_p.add_argument("--dry-run", action="store_true", help="Report planned changes; write nothing.")
+    import_p.add_argument("--no-extract", action="store_true", help="Merge only; skip text extraction.")
+    import_p.add_argument("--no-index", action="store_true", help="Skip the index update step.")
+    import_p.add_argument("--engine", choices=["fast", "docling", "marker"], default=None, help="Extraction engine forwarded to extraction (default: auto-resolve).")
+    import_p.add_argument("--json", action="store_true", help="Emit structured JSON output.")
+
     index_p = subparsers.add_parser("index", help="Build or update the search index.")
     index_sub = index_p.add_subparsers(dest="index_subcommand", metavar="SUBCOMMAND")
     index_sub.required = True
@@ -345,6 +421,8 @@ def main() -> None:
         _cmd_lint(args, kb_root)
     elif args.command == "extract":
         _cmd_extract(args, kb_root)
+    elif args.command == "import":
+        _cmd_import(args, kb_root)
     elif args.command == "toc":
         if args.toc_subcommand == "build":
             _cmd_toc_build(args, kb_root)

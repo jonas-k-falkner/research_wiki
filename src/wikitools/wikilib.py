@@ -262,6 +262,46 @@ def load_library(library_path: Path) -> dict[str, Item]:
     return result
 
 
+def load_library_raw(library_path: Path) -> dict[str, dict[str, object]]:
+    """Load a Better CSL JSON library export as raw entries keyed by citekey.
+
+    Unlike `load_library`, every CSL field is preserved verbatim — required for
+    lossless merging (see `write_library`) rather than read-only metadata lookups.
+
+    Args:
+        library_path: Path to library.json. Returns empty dict if file is absent.
+
+    Returns:
+        Dict mapping citekey to the raw, unmodified CSL JSON entry.
+    """
+    if not library_path.exists():
+        return {}
+    with library_path.open(encoding="utf-8") as fh:
+        raw: list[dict[str, object]] = json.load(fh)
+    result: dict[str, dict[str, object]] = {}
+    for entry in raw:
+        citekey = str(entry.get("id", ""))
+        if citekey:
+            result[citekey] = entry
+    return result
+
+
+def write_library(library_path: Path, entries: dict[str, dict[str, object]]) -> None:
+    """Write a CSL JSON library export in the existing on-disk shape, deterministically.
+
+    Entries are sorted by citekey and each serialized compactly on its own line,
+    matching `raw/literature/library.json`'s current format — so merges (`wiki
+    import`) produce clean, stable diffs regardless of input order.
+
+    Args:
+        library_path: Destination path for library.json.
+        entries: Dict mapping citekey to the raw CSL JSON entry.
+    """
+    lines = [json.dumps(entries[key], separators=(",", ":"), ensure_ascii=False) for key in sorted(entries)]
+    body = ",\n".join(f"  {line}" for line in lines)
+    library_path.write_text(f"[\n{body}\n]\n" if lines else "[]\n", encoding="utf-8")
+
+
 def pdf_path(kb_root: Path, citekey: str) -> Path | None:
     """Return the PDF path for a citekey if it exists, else None.
 

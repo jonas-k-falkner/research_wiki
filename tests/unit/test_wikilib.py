@@ -8,8 +8,10 @@ from wikitools.wikilib import (
     iter_links,
     iter_pages,
     load_library,
+    load_library_raw,
     pdf_path,
     txt_path,
+    write_library,
 )
 
 FIXTURE_KB = Path(__file__).parent.parent / "fixtures" / "kb"
@@ -172,6 +174,61 @@ def test_load_library_skips_entries_without_id(tmp_path):
     library = tmp_path / "library.json"
     library.write_text('[{"title": "No ID here"}]')
     assert load_library(library) == {}
+
+
+# ── load_library_raw / write_library ──────────────────────────────────────────
+
+
+def test_load_library_raw_missing_returns_empty(tmp_path):
+    assert load_library_raw(tmp_path / "nonexistent.json") == {}
+
+
+def test_load_library_raw_preserves_all_fields(tmp_path):
+    library = tmp_path / "library.json"
+    library.write_text('[{"id": "smith2024", "title": "A Paper", "custom-field": "kept", "container-title": "Journal"}]')
+    entries = load_library_raw(library)
+    assert entries["smith2024"]["custom-field"] == "kept"
+    assert entries["smith2024"]["container-title"] == "Journal"
+
+
+def test_load_library_raw_skips_entries_without_id(tmp_path):
+    library = tmp_path / "library.json"
+    library.write_text('[{"title": "No ID here"}]')
+    assert load_library_raw(library) == {}
+
+
+def test_write_library_sorts_by_citekey(tmp_path):
+    library = tmp_path / "library.json"
+    write_library(library, {"zebra2024": {"id": "zebra2024"}, "apple2023": {"id": "apple2023"}})
+    text = library.read_text(encoding="utf-8")
+    assert text.index("apple2023") < text.index("zebra2024")
+
+
+def test_write_library_matches_existing_on_disk_shape(tmp_path):
+    library = tmp_path / "library.json"
+    write_library(library, {"smith2024": {"id": "smith2024", "title": "A Paper"}})
+    assert library.read_text(encoding="utf-8") == '[\n  {"id":"smith2024","title":"A Paper"}\n]\n'
+
+
+def test_write_library_empty_entries(tmp_path):
+    library = tmp_path / "library.json"
+    write_library(library, {})
+    assert library.read_text(encoding="utf-8") == "[]\n"
+
+
+def test_write_library_round_trips_through_load_library_raw(tmp_path):
+    library = tmp_path / "library.json"
+    entries = {"a2024": {"id": "a2024", "abstract": "x"}, "b2023": {"id": "b2023"}}
+    write_library(library, entries)
+    assert load_library_raw(library) == entries
+
+
+def test_write_library_deterministic_regardless_of_dict_order(tmp_path):
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    write_library(a, {"b2023": {"id": "b2023"}, "a2024": {"id": "a2024"}})
+    write_library(b, {"a2024": {"id": "a2024"}, "b2023": {"id": "b2023"}})
+    assert a.read_text(encoding="utf-8") == b.read_text(encoding="utf-8")
 
 
 # ── pdf_path / txt_path ───────────────────────────────────────────────────────

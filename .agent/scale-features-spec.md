@@ -391,6 +391,93 @@ Small.
 
 ---
 
+## Feature 5 — Bulk literature import
+
+### Goal
+
+Replace the manual "hand-copy PDFs and merge library.json" process with a single
+deterministic command that takes a folder containing a **new Zotero export** (one CSL-JSON
+library file + `<citekey>.pdf` / `<citekey>-suppl.pdf` attachments, same naming convention as
+`raw/literature/`) and merges it into the canonical `raw/literature/` tree, then runs
+extraction + index update for whatever changed.
+
+### Scope
+
+- `wikilib.load_library_raw(path) -> dict[citekey, dict]` — full CSL entries (every field),
+  not the reduced `Item`. `wikilib.write_library(path, entries)` — deterministic write:
+  stable sort by `id`, Zotero's on-disk shape (`[\n`, one compact `  {...}` line per entry,
+  `\n]\n`).
+- `wikitools.commands.bulk_import` — `run_import(kb_root, source_dir, force=False,
+  do_extract=True, do_index=True, ...) -> ImportReport`.
+- Merge semantics, keyed by citekey:
+  - new citekey → **add** entry to canonical `library.json`, copy PDF(s) into
+    `raw/literature/pdf/`.
+  - existing citekey, `force=False` (default) → **skip**; canonical entry + PDF untouched.
+  - existing citekey, `force=True` → **replace**; overwrite canonical entry + PDF(s).
+- After merging, run extraction (existing `run_extract`) and incremental index update
+  (existing `update_index`) scoped to the added/replaced citekeys only.
+- `--dry-run` reports added/skipped/replaced without writing.
+
+### Non-goals
+
+- Does not create or edit `wiki/sources/*.md` pages or any wiki content — page authoring
+  stays the editorial research-pass job; `wiki check source` already flags `new` citekeys
+  for the agent to write up.
+- Does not touch `raw/seed/`.
+- No bibliographic validation of incoming CSL entries.
+
+### CLI contract
+
+```
+wiki import <source-dir>
+    --force         # replace existing entries/PDFs on citekey collision (default: skip)
+    --dry-run       # report planned changes, write nothing
+    --no-extract    # merge only, skip extraction
+    --no-index      # merge (+ extract) only, skip index update
+    --engine ...    # forwarded to extract (fast|docling|marker)
+    --json          # structured output: added / skipped / replaced citekeys, extracted/indexed counts
+```
+
+### Implementation notes
+
+- `source_dir` is read-only input — never modified or deleted. The only mutated tree is
+  `raw/literature/` inside the kb (the controlled exception to "raw/ is immutable": this
+  command *populates* raw/, it does not let other tools edit it afterward).
+- Locate the library file by globbing `*.json` directly in `source_dir`; error (not guess) if
+  zero or more than one match unless `--library <path>` disambiguates.
+- Citekey from PDF filename = stem with `-suppl` suffix stripped (matches `extract.py`).
+- Skip rewriting a PDF when `--force` and the incoming bytes are identical (hash check) — keeps
+  git diffs clean; not required for correctness.
+- Extend `run_extract` to accept an optional `citekeys: list[str]` (in addition to the existing
+  single `citekey: str`) so import can scope extraction to exactly what changed instead of a
+  full-corpus pass.
+
+### Dependencies
+
+None new — `shutil` + `json` stdlib; reuses `extract.run_extract` and `index.update_index`.
+
+### Acceptance criteria
+
+- Folder with 3 new citekeys, no collisions → all 3 added + copied + extracted + indexed;
+  re-running the identical import is a no-op (idempotency test: second run reports
+  `added=0, skipped=3`).
+- Folder with 1 colliding citekey, default mode → canonical entry and PDF byte-identical to
+  before; reported `skipped`; no re-extraction triggered.
+- Same, with `--force` → entry + PDF replaced, re-extraction triggered (hash changed), index
+  updated.
+- `--dry-run` → correct counts reported; `git status` shows zero changes under `kb/`.
+- 0 or >1 `*.json` files in `source_dir` → clear `ValueError`, no partial writes.
+- Determinism test: importing two folders in either order produces byte-identical
+  `library.json`.
+- `kb/CLAUDE.md` Ingest workflow documents `wiki import` as the entry point for new Zotero
+  exports, ahead of the existing per-source steps.
+
+### Effort
+
+Medium.
+
+---
+
 ## Cross-cutting: prompt & schema updates
 
 When Features 1 and 2 land, update the research-pass prompt so step (b) reads:

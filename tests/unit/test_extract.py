@@ -31,7 +31,7 @@ def _make_kb(tmp_path: Path) -> Path:
     return kb
 
 
-def _fake_pdftotext(pdf_path: Path, txt_path: Path, extractor: str = "fast") -> None:
+def _fake_pdftotext(pdf_path: Path, txt_path: Path, extractor: str = "fast", _converter: object | None = None) -> None:
     """Stand-in for extract_pdf that writes deterministic text without shelling out."""
     txt_path.parent.mkdir(parents=True, exist_ok=True)
     txt_path.write_text(f"Extracted text from {pdf_path.name}\n", encoding="utf-8")
@@ -166,7 +166,7 @@ def test_run_extract_sidecar_contains_extractor_and_hash(tmp_path: Path) -> None
     kb = _make_kb(tmp_path)
 
     with patch("wikitools.commands.extract.extract_pdf", side_effect=_fake_pdftotext):
-        run_extract(kb)
+        run_extract(kb, engine="fast")
 
     sidecar = kb / "raw" / "literature" / "txt" / "smithExamplePaper2024.extract.json"
     data = json.loads(sidecar.read_text(encoding="utf-8"))
@@ -211,12 +211,41 @@ def test_run_extract_citekey_filter(tmp_path: Path) -> None:
     assert not (txt_dir / "jonesSupplement2023-suppl.txt").exists()
 
 
+def test_run_extract_citekeys_filter(tmp_path: Path) -> None:
+    kb = _make_kb(tmp_path)
+
+    with patch("wikitools.commands.extract.extract_pdf", side_effect=_fake_pdftotext):
+        extracted, _sk, _ = run_extract(kb, citekeys=["smithExamplePaper2024", "jonesSupplement2023"])
+
+    assert extracted == 2
+    txt_dir = kb / "raw" / "literature" / "txt"
+    assert (txt_dir / "smithExamplePaper2024.txt").exists()
+    assert (txt_dir / "jonesSupplement2023-suppl.txt").exists()
+
+
+def test_run_extract_citekeys_filter_excludes_others(tmp_path: Path) -> None:
+    kb = _make_kb(tmp_path)
+
+    with patch("wikitools.commands.extract.extract_pdf", side_effect=_fake_pdftotext):
+        extracted, _sk, _ = run_extract(kb, citekeys=["smithExamplePaper2024"])
+
+    assert extracted == 1
+    txt_dir = kb / "raw" / "literature" / "txt"
+    assert not (txt_dir / "jonesSupplement2023-suppl.txt").exists()
+
+
+def test_run_extract_citekey_and_citekeys_mutually_exclusive(tmp_path: Path) -> None:
+    kb = _make_kb(tmp_path)
+    with pytest.raises(ValueError, match="not both"):
+        run_extract(kb, citekey="smithExamplePaper2024", citekeys=["jonesSupplement2023"])
+
+
 def test_run_extract_failed_pdf_is_non_fatal(tmp_path: Path) -> None:
     kb = _make_kb(tmp_path)
 
     call_count = 0
 
-    def flaky_extract(pdf_path: Path, txt_path: Path, extractor: str = "pdftotext") -> None:
+    def flaky_extract(pdf_path: Path, txt_path: Path, extractor: str = "pdftotext", _converter: object | None = None) -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
