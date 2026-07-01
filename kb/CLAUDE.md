@@ -259,6 +259,12 @@ Track:
 
 ## Ingest workflow
 
+**New literature from a Zotero export?** Run `wiki import <folder>` first. It merges the
+export's CSL JSON + PDFs into `raw/literature/`, then extracts text and updates the search
+index for whatever changed. Default: existing citekeys are skipped untouched; pass `--force`
+to replace them. `--dry-run` previews counts without writing. See `wiki import --help`. Once
+sources land in `raw/literature/`, continue below to write them up as wiki pages.
+
 Before ingesting a source, run `wiki check source --citekey <KEY>` to detect duplicates:
 
 - `new` — proceed with ingest.

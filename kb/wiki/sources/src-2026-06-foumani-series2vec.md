@@ -48,7 +48,7 @@ Proposes Series2Vec, an SSL method that replaces hand-crafted data augmentation 
 **Applicability:** TS classification and any downstream task where augmentation semantics are unclear. Less directly relevant to P2's directed/asymmetric objective, but the similarity-preservation approach is a useful design pattern.
 **Limitations:** Soft-DTW is O(L²) — expensive for long series. Frequency encoder adds compute. Still symmetric.
 **Contradictions:** TimeMAE (Cheng et al. 2023) achieves higher linear eval accuracy on HAR; comparison depends on dataset.
-**Decision impact:** Series2Vec confirms that similarity-preserving pretext tasks outperform augmentation-based ones for irregular TS. P2 could consider using directional similarity measures (TE/Granger) as the pretext target — same conceptual approach but with asymmetric targets.
+**Decision impact:** Series2Vec is the direct predecessor of P2's directed SL head. P2 replaces Soft-DTW with Transfer Entropy / Granger as the pairwise similarity target in the same loss structure (Eq. 3). The asymmetry comes for free: TE(A→B) ≠ TE(B→A), so the full M_{ij} = TE(x_i → x_j) matrix is inherently asymmetric, and the z-space distance function must match. Decision (2026-07-01): P2 uses this paradigm, not knowledge distillation.
 **Confidence:** high
 
 **Claim:** All published SSL TS representation methods (TS-TCC, TS2Vec, Ti-MAE, TimeMAE, Series2Vec) are symmetric — none implement a directed/asymmetric pretext objective where A→B ≠ B→A.
@@ -61,7 +61,7 @@ Proposes Series2Vec, an SSL method that replaces hand-crafted data augmentation 
 
 ## Applicability to P2
 
-Medium. Series2Vec is still a symmetric method, but its core design principle — use a meaningful TS-specific similarity measure as the pretext target — is directly applicable to P2. P2's directed pretext could adopt the same framework but replace Soft-DTW with Transfer Entropy as the directed similarity target.
+**High. Series2Vec is the direct design ancestor of P2's SL head.** V1's SL head (`SmoothL1(Soft-DTW_x, L2_z)`) is the Series2Vec learning paradigm applied to time-series embeddings. P2 extends this by replacing the symmetric Soft-DTW pairwise target with asymmetric Transfer Entropy / Granger causality scores. The loss structure, `SimMemoryBuffer` negative sampling, and training loop are reused unchanged; only the similarity function and the z-space distance function change. This is not a new approach — it is the same approach with a directed similarity measure.
 
 ## Related
 

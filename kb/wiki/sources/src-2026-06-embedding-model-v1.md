@@ -122,20 +122,54 @@ V1 embeddings enable a **two-stream P1 architecture** where the selection layer 
 
 **Phase 0 → Phase 1 upgrade path:** When P2's directed embeddings are ready, replace `z_cov_k` with P2 directed embeddings at the covariate key interface only. The selection mechanism (projection, α-entmax, AttGrad), the backbone, and the inference API are unchanged.
 
-## Relevance to P2
+## Relevance to P2 — implementation delta (from code review, 2026-07-01)
 
-V1 is the **symmetric baseline** P2 must beat. The target change is narrow: replace the SL head (Soft-DTW symmetric, weight 0.7) with an asymmetric directed head trained from Transfer Entropy / Granger soft labels.
+V1 bakes in symmetry in three specific places in the SL loss pipeline. P2 changes exactly these three, adds dual projection heads, and adds a second FAISS index. Everything else is reused.
 
-| Component | P2 disposition |
-|---|---|
-| `ConvAttnEncoder` | Reuse (freeze or fine-tune backbone) |
-| `RNNAttnDecoder` (GL head) | Reuse |
-| `SimMemoryBuffer` | Reuse for directed negative sampling |
-| SL head (Soft-DTW) | **Replace with directed asymmetric head** |
-| CL head (NT-Xent) | Optional; off by default |
-| `GrangerSelector` / `TransferEntropySelector` | Reuse as distillation teacher for soft labels |
+### Three symmetry assumptions that must change
 
-The v1 inference API (`model.transform(x)`) is the production contract; P2 v2 must maintain it.
+**1. `TorchSoftDTW._forward(symmetric=True)` — `ts_similarity.py:152–169`**
+When called with `x is y` and `symmetric=True`, computes only upper triangle via `torch.triu_indices`, mirrors to lower. Valid for DTW; invalid for TE. P2 replaces `TorchSoftDTW` with a `TorchTransferEntropy` (or `TorchGranger`) class that always computes the full NxN matrix — the existing `soft_dtw()` helper (lines 178–192) already does this when `symmetric=False`.
+
+**2. `SimMemoryBuffer.compute_sim()` — `ts_similarity.py:325`**
+`sim_fn.forward(x, x, symmetric=True)` hardcoded. Change to `symmetric=False`.
+
+**3. `_sl_loss()` mask — `pl_model.py:936–937`**
+`mask = torch.tril(torch.ones_like(z_similarity), diagonal=-1).bool()` — selects only lower triangle (unique pairs for symmetric matrix). For directed matrix, change to:
+`mask = ~torch.eye(n, n, dtype=torch.bool, device=z_similarity.device)` — all off-diagonal pairs (includes both i→j and j→i).
+
+### One model addition: dual projection heads
+
+`_sl_loss` currently computes:
+```python
+z_similarity = self.emb_distance(z, z)    # LpDistance — symmetric
+```
+P2 adds `W_src, W_tgt: nn.Linear(128, 128, bias=False)` to `SSLModel`. The directed distance matrix becomes:
+```python
+directed_dist[i, j] = ||W_src(z_i) − W_tgt(z_j)||₂
+```
+Asymmetric because `W_src(z_i)` encodes the "source/cause" role and `W_tgt(z_j)` the "target/effect" role — `directed_dist[i,j] ≠ directed_dist[j,i]`.
+
+### Inference API and FAISS index
+
+`model.transform(x) → z (BS, 128)` is unchanged. Role projection at query time:
+- "What drives T?": `q = W_tgt @ z_T`, KNN over `src_index` (candidates projected via `W_src`)  
+- "What does S drive?": `q = W_src @ z_S`, KNN over `tgt_index` (candidates projected via `W_tgt`)
+
+Two FAISS indices built offline from the shared `z`. `SimMemoryBuffer` storage `(x, z)` is unchanged — projections applied at loss-compute time, not stored.
+
+| Component | V1 | P2 change |
+|---|---|---|
+| `ConvAttnEncoder` | base encoder | reuse unchanged |
+| GL head + `RNNAttnDecoder` | masked reconstruction | reuse unchanged |
+| `SimMemoryBuffer` | `(x, z)` length-binned buffer | reuse unchanged |
+| `TorchSoftDTW` | `symmetric=True` NxN shortcut | replace with `TorchTransferEntropy` (full NxN) |
+| `compute_sim` | `sim_fn.forward(x, x, symmetric=True)` | → `symmetric=False` |
+| `_sl_loss` mask | `torch.tril` (lower triangle only) | → `~torch.eye` (all off-diagonal) |
+| z-space distance | `LpDistance(z, z)` — symmetric | → `directed_dist(W_src(z), W_tgt(z))` |
+| `SSLModel` | no projection heads | add `W_src`, `W_tgt: Linear(128, 128, bias=False)` |
+| FAISS index | single symmetric | two: `src_index`, `tgt_index` |
+| Inference API | `model.transform(x) → z` | unchanged |
 
 ## Related pages
 

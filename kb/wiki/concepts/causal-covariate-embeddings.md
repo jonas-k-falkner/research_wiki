@@ -5,7 +5,7 @@ project: P2
 status: active
 stage: seed
 confidence: medium
-updated: 2026-06-30
+updated: 2026-07-01
 sources:
   - src-2026-06-p2-causal-embedding-model
   - src-2026-06-p1-cluster-pretrained-deep-models
@@ -49,10 +49,26 @@ Directed/asymmetric time-series embeddings where vector proximity is trained to 
 
 Explicit TE/Granger over a ~200M-series universe is intractable (the deck's stated bottleneck), and retrieval-speed covariate discovery is the proposed P2 moat. The hard, unvalidated part is whether an asymmetric geometry converges and whether retrieved drivers are causal rather than merely correlated.
 
+## Chosen design approach: Series2Vec-style similarity learning with asymmetric target (decided 2026-07-01)
+
+P2's directed objective is a **direct extension of v1's SL head**, using the same Series2Vec learning paradigm with a different similarity function:
+
+| | V1 SL head | P2 SL head |
+|---|---|---|
+| Similarity function | Soft-DTW(x_A, x_B) — symmetric | TE(x_A → x_B) / Granger(A→B) — asymmetric |
+| Pairwise matrix M_ij | Soft-DTW(x_i, x_j) = M_ji | TE(x_i → x_j) ≠ TE(x_j → x_i) |
+| z-space distance | L2 (symmetric) | Directed: sim(z_A_src, z_B_tgt) ≠ sim(z_B_src, z_A_tgt) |
+| Loss structure | SmoothL1(Soft-DTW_x, L2_z) | directed_loss(TE_{ij}, directed_dist(z_i, z_j)) |
+
+**Why not knowledge distillation:** TE/Granger scores are used as direct pairwise similarity labels in the loss — no teacher model, no two-stage training. The mechanism is Eq. 3 of Series2Vec with the similarity function swapped. `GrangerSelector` / `TransferEntropySelector` in v1 are label generators for the asymmetric similarity matrix, not distillation teachers.
+
+**Key implementation question:** Whether TE/Granger can be computed at batch-training granularity (pairs computed on-the-fly) or requires a precomputed lookup table. The `SimMemoryBuffer` provides the length-binned pairs; the open question is label freshness and computational cost per batch.
+
 ## Open research questions
 
-- Can a vector space represent asymmetric relations (A→B ≠ B→A) stably without collapsing to symmetric similarity?
-- Are distilled TE/Granger soft labels reliable enough to train on, and do they transfer across regimes/horizons?
+- Do `W_src` and `W_tgt` dual projections produce a stable asymmetric geometry, or does training collapse to `W_src ≈ W_tgt` (symmetric degenerate solution)? A convergence monitor tracking `||W_src − W_tgt||_F` during training is needed.
+- Can TE/Granger scores be computed efficiently enough per batch, or does a precomputed lookup table cover sufficient pair coverage? The `SimMemoryBuffer` re-samples the candidate pool each epoch; on-the-fly TE per batch may be too slow.
+- Are TE/Granger scores reliable as training labels across regimes and horizons, or do they generalize poorly outside the sampled window?
 - Retrieved covariates are *candidate* causal drivers — what validation (downstream forecast lift, intervention-style tests) is needed before any causal language is used externally?
 
 ## SSL landscape — P2 gap confirmed (I-P2-A ingest, 2026-06-30)
@@ -115,30 +131,35 @@ Eight additional SSL TS papers (MEDIUM priority) extend the baseline established
 
 ## V1 symmetric baseline (production, 2026-06-30)
 
-The production v1 model ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)) is the concrete symmetric baseline P2 must beat:
+The production v1 model ([src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md)) is the concrete symmetric baseline P2 must beat. Its learning paradigm is built on two conceptual sources:
 
+- **SL head (weight 0.7) ← Series2Vec** ([src-2026-06-foumani-series2vec](../sources/src-2026-06-foumani-series2vec.md)): similarity-preserving pretext with Soft-DTW pairwise targets. Replaces augmentation-based contrastive learning. V1's loss `SmoothL1(Soft-DTW_x, L2_z)` is the direct implementation of Series2Vec's Eq. 3.
+- **GL head (weight 0.3) ← Ti-MAE** ([src-2026-06-li-ti-mae](../sources/src-2026-06-li-ti-mae.md)): masked autoencoder paradigm (30% masking → reconstruction forces encoder to handle missing values and learn global context). Ti-MAE validated this paradigm for time-series SSL.
+
+V1 components:
 - **Encoder:** `ConvAttnEncoder` — TCN → multi-head attention → meanmax pooling → 128-dim `z`
-- **Similarity objective (SL head):** Soft-DTW in x-space + L2 in z-space (weight 0.7) — **symmetric** by construction (DTW(A,B) = DTW(B,A))
-- **Reconstruction (GL head):** MSE on 30% masked tokens (weight 0.3); sLSTM decoder
-- **Negative sampling:** `SimMemoryBuffer` — length-binned `(x, z)` pairs across batches
-
-V1's SL head is exactly what P2 replaces. The backbone (`ConvAttnEncoder`), GL head, and `SimMemoryBuffer` are reused unchanged. The change from symmetric to asymmetric is entirely in the SL head's distance function and label source:
+- **SL head:** Soft-DTW in x-space + L2 in z-space — **symmetric** by construction (DTW(A,B) = DTW(B,A)) — P2 replaces this
+- **GL head:** MSE on 30% masked tokens; sLSTM decoder — P2 reuses unchanged
+- **Negative sampling:** `SimMemoryBuffer` — length-binned `(x, z)` pairs across batches — P2 reuses
 
 | | V1 (symmetric) | P2 v2 (directed) |
 |---|---|---|
-| x-space distance | Soft-DTW(A,B) = Soft-DTW(B,A) | TE(A→B) ≠ TE(B→A) |
+| x-space similarity | Soft-DTW(A,B) = Soft-DTW(B,A) | TE(A→B) ≠ TE(B→A) |
 | z-space target | L2 (symmetric) | asymmetric directed distance |
-| Label source | Unsupervised (shape) | Distilled TE/Granger soft labels |
+| Label source | Unsupervised (shape geometry) | TE/Granger computed on batch pairs |
 | A→B ≠ B→A? | No | Yes — this is the P2 claim |
+| Paradigm | Series2Vec Eq. 3 with Soft-DTW | Series2Vec Eq. 3 with TE/Granger |
 
-**Why this matters for the concept:** V1 proves the encoder and data pipeline work at production scale; P2's research bet is solely on whether replacing the distance function in the SL head produces a stable asymmetric geometry.
+**Why this matters for the concept:** P2's change is minimal — three specific lines changed in the loss pipeline plus two linear projection heads added to the model. V1 proves the encoder, data pipeline, and `SimMemoryBuffer` work at production scale. P2's research bet is whether replacing the similarity function and inducing role-differentiated projections (`W_src`, `W_tgt`) produces a stable asymmetric geometry rather than collapsing to `W_src ≈ W_tgt`. See [sources/src-2026-06-embedding-model-v1](../sources/src-2026-06-embedding-model-v1.md) → "Relevance to P2" for the full code-level delta.
 
 ## Literature still to integrate `[verify]`
 
-- Asymmetric / order embeddings: order-embeddings (Vendrov et al.), entailment cones, hyperbolic/Poincaré embeddings (Nickel & Kiela) as candidate asymmetric geometries `[verify]`
-- Transfer Entropy (Schreiber) and Granger causality estimation at scale; conditional/multivariate TE `[verify]`
-- Knowledge distillation from expensive pairwise scores into a learned retrieval space `[verify]`
+- Transfer Entropy (Schreiber) and Granger causality estimation at scale; conditional/multivariate TE; estimator bias and sample-size requirements (Runge 2018) `[verify]`
+- Granger/TE equivalence under Gaussianity (Barnett 2009) — determines which estimator to use for commodity series `[verify]`
+- Asymmetric / order embeddings: order-embeddings (Vendrov et al.), hyperbolic/Poincaré embeddings (Nickel & Kiela) — candidate z-space geometries for the directed distance function `[verify]` (note: chosen paradigm is Series2Vec-style similarity learning; the asymmetric geometry is a z-space design choice within that, not an alternative approach)
 - Causal discovery caveats: correlation-vs-causation failure modes in observational time series
+
+**Removed from verify list:** knowledge distillation (Hinton 2015, Park 2019 relational KD) — not the chosen mechanism. P2 uses direct pairwise similarity labels, not a teacher-student training process.
 
 ## What the primary literature confirms (P1 scope, partial)
 

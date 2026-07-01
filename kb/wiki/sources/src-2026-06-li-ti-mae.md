@@ -60,9 +60,11 @@ Ti-MAE adapts the MAE paradigm (He et al. 2022) to time series. Random masking a
 **Decision impact:** Relevant for P1 price/commodity forecasting, where distribution shift is a known failure mode.
 **Confidence:** medium
 
-## Applicability to P2
+## Applicability to v1 and P2
 
-Low. Ti-MAE is **symmetric** — standard encoder-decoder with no directional objective. Its masked reconstruction pretraining is relevant as an SSL paradigm study for the broader P2 design space, and its distribution-shift mitigation property is relevant for P1. Not applicable as a P2 encoder directly.
+**Ti-MAE is a primary conceptual source for v1's GL head.** V1's masked reconstruction objective (30% masking, `RNNAttnDecoder`, MSE loss) directly implements the Ti-MAE MAE-style pretraining paradigm adapted for the production embedding model. V1's two-head design = Ti-MAE (GL) + Series2Vec (SL).
+
+**Applicability to P2 as a standalone architecture: Low.** Ti-MAE is symmetric; its encoder-decoder has no directional objective. The GL head it inspired is reused unchanged in P2. Ti-MAE does not inform the P2 *directional change* (SL head replacement), but it is relevant as background for the GL head that remains.
 
 ## Related
 
